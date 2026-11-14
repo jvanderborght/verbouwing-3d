@@ -22,7 +22,7 @@
 //   zetSleepbaar(ids: string[])
 //   toonHulp({ lijnen, punten, labels, polygonen } | null)  overlay in mm boven de tekening; overleeft render().
 //       lijnen: { van, naar, stijl: 'voorbeeld'|'hulplijn'|'maat', dikte?, tekst? } (maat: tekst standaard = lengte)
-//       punten: { p, soort: 'snap'|'greep' }   labels: { p, tekst }   polygonen: { contour, stijl: 'voorbeeld'|'markering' }
+//       punten: { p, soort: 'snap'|'greep' }   labels: { p, tekst }   polygonen: { contour, stijl: 'voorbeeld'|'markering'|'nieuw'|'afbraak' }
 //       Punten, labels en lijndiktes op vaste schermgrootte.
 //   schaal() → px per mm (1 zolang er nog geen zicht is)
 //   markeer(id | null)  subtiele hover-markering; overleeft render().
@@ -83,6 +83,8 @@ const STIJL = `
   .p2d .hulp .h-greep { fill: #fff; stroke: #1f5aa8; stroke-width: 2px; }
   .p2d .hulp .h-poly-voorbeeld { fill: rgba(59,127,217,0.18); stroke: #3b7fd9; stroke-width: 1.5px; stroke-dasharray: 6 4; }
   .p2d .hulp .h-poly-markering { fill: rgba(255,138,0,0.14); stroke: #ff8a00; stroke-width: 1.5px; }
+  .p2d .hulp .h-poly-nieuw { fill: rgba(47,111,219,0.22); stroke: #2f6fdb; stroke-width: 2px; }
+  .p2d .hulp .h-poly-afbraak { fill: rgba(220,38,38,0.18); stroke: #dc2626; stroke-width: 2px; stroke-dasharray: 5 3; }
 `;
 
 export class Plattegrond {
@@ -270,7 +272,8 @@ export class Plattegrond {
     };
     for (const pg of h.polygonen || []) {
       if (!(pg?.contour?.length >= 3)) continue;
-      g.appendChild(el('polygon', { class: pg.stijl === 'markering' ? 'h-poly-markering' : 'h-poly-voorbeeld', points: pts(pg.contour) }));
+      const kl = { markering: 'h-poly-markering', nieuw: 'h-poly-nieuw', afbraak: 'h-poly-afbraak' }[pg.stijl] || 'h-poly-voorbeeld';
+      g.appendChild(el('polygon', { class: kl, points: pts(pg.contour) }));
     }
     for (const l of h.lijnen || []) {
       if (!l?.van || !l?.naar) continue;

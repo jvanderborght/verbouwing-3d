@@ -333,6 +333,23 @@ export class VariantBeheer {
 
   dupliceer(naam) { return this.nieuw(naam, { kopie: true }); }
 
+  /**
+   * Bewaart een (al gevalideerd) model als nieuwe lokale variant ZONDER ze te openen (promptveld: N varianten).
+   * Nieuw id uit de naam; basis = `basisId`. → { ok, id } of { ok: false, melding }
+   */
+  bewaarNieuw(model, naam, { basisId = null } = {}) {
+    naam = String(naam || '').trim() || 'Variant';
+    const id = idUitNaam(naam, [...this.alleIds(), ...GERESERVEERD]);
+    const m = { ...model, id, naam, basis: basisId ?? model.basis ?? null };
+    const r = validate(m);
+    if (!r.geldig) return { ok: false, melding: formatteerFouten(r) };
+    this.meta.set(id, { basisHash: null, basisSha: null, basisTijd: 0, githubBetrouwbaar: false, conflict: false });
+    this.#maakGeschiedenis(id, m);
+    if (!this.#bewaar(id)) return { ok: false, melding: 'Kon de variant niet lokaal bewaren (opslag vol of geblokkeerd).' };
+    this.#melden('lijst', { id });
+    return { ok: true, id };
+  }
+
   /** Hernoemt via een `ontwerp`-operatie (undo-baar); id blijft. */
   hernoem(naam) {
     const g = this.geschiedenis;
