@@ -1,6 +1,6 @@
 # Status
 
-_Laatst bijgewerkt: 2026-11-14 — fase 5 (schema v2, bestaande toestand uit IFC/STEP, dakkapellen, concept asymmetrisch dak, opdrachten zonder API-key) **in QA** (branch `fase5/integratie`, niet gemerged)._
+_Laatst bijgewerkt: 2026-11-14 — fase 5 (schema v2, bestaande toestand uit IFC/STEP, dakkapellen, concept asymmetrisch dak, opdrachten zonder API-key) **afgerond** — QA goedgekeurd, gemerged naar `main`._
 
 ## Live
 - App: https://jvanderborght.github.io/verbouwing-3d/ (GitHub Pages via Actions; deploy bij elke push naar `main`).
@@ -48,7 +48,7 @@ _Laatst bijgewerkt: 2026-11-14 — fase 5 (schema v2, bestaande toestand uit IFC
   Terugval zonder schema/fallbacks is ingebouwd als de API die combinatie weigert.
 - Spec en details: `docs/FASE4.md`.
 
-## Fase 5 — programma van eisen (schema v2) — in QA
+## Fase 5 — programma van eisen (schema v2) — afgerond
 - Datamodel v2 (`docs/FASE5.md`, `docs/DATAMODEL.md`): `trappen` (recht/kwart/halfdraai/spiraal), `inrichting` (sanitair, meubels),
   `niveaus.soort` (zolder), `ruimtes.hoogtegrenzen`, ontwerpveld `programma`; v1-ontwerpen migreren automatisch.
 - Afgeleid: trapgeometrie en trapgat, vrije hoogte onder daken, hoogtelijnen en m² per hoogteband, `toetsProgramma`.
