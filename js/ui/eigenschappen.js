@@ -33,9 +33,9 @@ const LABELS = {
 export const EENHEID = { helling: '°', richting: '°', rotatie: '°', aantalTreden: 'st.' };
 /** Labels per (collectie, veld) als het algemene label misleidt. */
 const LABELS_PER = {
-  'trappen.oorsprong': 'Oorsprong (voorrand / middelpunt)',
-  'inrichting.positie': 'Positie (middelpunt)',
-  'inrichting.hoogte': 'Hoogte (vrije-hoogtecontrole)',
+  'trappen.oorsprong': 'Oorsprong',
+  'inrichting.positie': 'Middelpunt',
+  'inrichting.hoogte': 'Hoogte',
   'niveaus.soort': 'Soort niveau',
 };
 export const veldLabel = (collectie, veld) => LABELS_PER[`${collectie}.${veld}`] || LABELS[veld] || veld;

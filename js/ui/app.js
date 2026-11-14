@@ -404,7 +404,7 @@ async function zolderToevoegen() {
   renderViews();
   tekenen.vernieuw();
   taakbalk?.zet(tekenen.toestand());
-  meld(`Zolder "${w.naam}" toegevoegd (verdiepingshoogte ${r.info.hoogte.toLocaleString('nl-BE')} mm tot de nok). De plattegrond toont nu de zolder; zet "Hoogtelijnen" aan onder Weergave om de vrije hoogte te zien.`, 'ok', { duur: 7000 });
+  meld(`Zolder "${w.naam}" toegevoegd (verdiepingshoogte ${r.info.hoogte.toLocaleString('nl-BE')} mm tot de nok). De plattegrond toont nu de zolder (Weergave → Hoogtelijnen toont de vrije hoogte).`, 'ok', { duur: 4500 });
 }
 
 async function dakInstellen() {

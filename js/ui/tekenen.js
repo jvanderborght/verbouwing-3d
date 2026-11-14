@@ -466,7 +466,8 @@ export class Tekenen {
   _trap(e) {
     const plan = this.plan;
     if (e.soort === 'annuleer') { this.trapDruk = null; plan.toonHulp(null); return; }
-    const sn = this.trapDruk ? null : this._snap(e.punt, e.schaal, { ortho: false });
+    // oorsprong op het raster (50 mm): snappen op een muuras zou de trap meteen in die muur zetten
+    const sn = this.trapDruk ? null : { punt: this._rasterPunt(e.punt) };
     if (e.soort === 'neer') {
       this.trapDruk = { oorsprong: sn.punt, richting: null, scherm: e.punt };
       const p = this._trapParams(sn.punt);
@@ -498,7 +499,7 @@ export class Tekenen {
     }
     if (e.soort === 'tik' || e.soort === 'dubbeltik') {
       this.trapDruk = null;
-      this._trapPlaatsen(this._snap(e.punt, e.schaal, { ortho: false }).punt, null);
+      this._trapPlaatsen(this._rasterPunt(e.punt), null);
     }
   }
 
