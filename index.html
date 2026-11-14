@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="nl-BE">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f5f6f8" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#16181d" media="(prefers-color-scheme: dark)">
+  <title>Verbouwing 3D</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M4 15 16 5l12 10v12H4z' fill='%232f6fdb'/%3E%3Cpath d='M12 27v-8h8v8' fill='%23fff'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/app.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./js/vendor/three/three.module.min.js",
+        "three/addons/": "./js/vendor/three/addons/"
+      }
+    }
+  </script>
+  <script type="module" src="js/ui/app.js"></script>
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" /></symbol>
+    <symbol id="i-redo" viewBox="0 0 24 24"><path d="m15 14 5-5-5-5" /><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13" /></symbol>
+    <symbol id="i-zoom" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16" /></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8" /><circle cx="16" cy="7" r="2" /><circle cx="10" cy="17" r="2" /></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4m-5 5 5-5 5 5" /><path d="M4 16v4h16v-4" /></symbol>
+  </svg>
+
+  <div class="app" id="app">
+    <header class="kop">
+      <div class="merk" aria-hidden="true">
+        <svg viewBox="0 0 32 32" class="merk-logo"><path d="M4 15 16 5l12 10v12H4z" /><path d="M12 27v-8h8v8" class="deur" /></svg>
+        <span class="merk-naam">Verbouwing&nbsp;3D</span>
+      </div>
+      <div class="variant-keuze">
+        <label for="variant-kiezer" class="verborgen">Variant</label>
+        <select id="variant-kiezer" class="variant-kiezer" disabled><option>Laden…</option></select>
+        <span id="sync-status" class="sync-status" data-toestand="gelijk" role="status" aria-live="polite">
+          <span class="stip" aria-hidden="true"></span><span class="sync-tekst">…</span>
+        </span>
+      </div>
+      <div class="kop-acties">
+        <button type="button" id="knop-opslaan-gh" class="knop primair kop-opslaan" title="Opslaan naar GitHub">
+          <svg class="ico" aria-hidden="true"><use href="#i-upload" /></svg><span class="knop-tekst">Opslaan</span>
+        </button>
+        <div class="menu-houder">
+          <button type="button" id="knop-menu" class="knop" aria-haspopup="menu" aria-expanded="false" aria-controls="variant-menu">
+            <svg class="ico" aria-hidden="true"><use href="#i-menu" /></svg><span class="knop-tekst">Variant</span>
+          </button>
+          <div id="variant-menu" class="menu" role="menu" hidden>
+            <div id="menu-status" class="menu-status" role="presentation"></div>
+            <button type="button" role="menuitem" data-actie="nieuw">Nieuw leeg ontwerp…</button>
+            <button type="button" role="menuitem" data-actie="dupliceren">Dupliceren…</button>
+            <button type="button" role="menuitem" data-actie="hernoemen">Hernoemen…</button>
+            <button type="button" role="menuitem" data-actie="verwijderen" class="gevaar">Verwijderen (lokaal)…</button>
+            <hr>
+            <button type="button" role="menuitem" data-actie="exporteren">Exporteer JSON</button>
+            <button type="button" role="menuitem" data-actie="importeren">Importeer JSON…</button>
+            <hr>
+            <button type="button" role="menuitem" data-actie="opslaan-gh">Opslaan naar GitHub</button>
+            <button type="button" role="menuitem" data-actie="ophalen-gh">Ophalen van GitHub</button>
+            <hr>
+            <button type="button" role="menuitem" data-actie="instellingen">Instellingen…</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="balk" role="toolbar" aria-label="Bediening">
+      <div class="groep">
+        <button type="button" id="knop-undo" class="knop ico-knop" title="Ongedaan maken (Ctrl+Z)" aria-label="Ongedaan maken" disabled><svg class="ico"><use href="#i-undo" /></svg></button>
+        <button type="button" id="knop-redo" class="knop ico-knop" title="Opnieuw (Ctrl+Shift+Z)" aria-label="Opnieuw" disabled><svg class="ico"><use href="#i-redo" /></svg></button>
+        <button type="button" id="knop-zoom" class="knop ico-knop" title="Zoom alles" aria-label="Zoom alles"><svg class="ico"><use href="#i-zoom" /></svg></button>
+      </div>
+      <div class="groep">
+        <label for="plan-niveau" class="groep-label">Plattegrond</label>
+        <select id="plan-niveau" class="compact"></select>
+      </div>
+      <button type="button" id="knop-weergave" class="knop weergave-toggle" aria-expanded="false" aria-controls="balk-extra" title="Weergave: niveaus en doorsnede" aria-label="Weergave: niveaus en doorsnede">
+        <svg class="ico" aria-hidden="true"><use href="#i-sliders" /></svg><span>Weergave</span>
+      </button>
+      <div id="balk-extra" class="balk-extra">
+        <fieldset class="groep niveaus">
+          <legend class="groep-label">Niveaus</legend>
+          <div id="niveau-vinkjes" class="vinkjes"></div>
+        </fieldset>
+        <div class="groep doorsnede">
+          <label class="vinkje"><input type="checkbox" id="doorsnede-aan"><span>Doorsnede</span></label>
+          <input type="range" id="doorsnede-z" min="0" max="9000" step="50" value="1200" aria-label="Hoogte van de doorsnede in mm" disabled>
+          <output id="doorsnede-waarde" for="doorsnede-z" class="doorsnede-waarde">uit</output>
+        </div>
+      </div>
+      <button type="button" id="knop-waarschuwingen" class="waarschuwingen-knop" hidden aria-controls="paneel-eig"></button>
+    </div>
+
+    <nav class="tabs" role="tablist" aria-label="Weergave">
+      <button type="button" role="tab" id="tab-3d" data-paneel="3d" aria-selected="true">3D</button>
+      <button type="button" role="tab" id="tab-2d" data-paneel="2d" aria-selected="false">2D</button>
+      <button type="button" role="tab" id="tab-eig" data-paneel="eig" aria-selected="false">Eigenschappen</button>
+    </nav>
+
+    <main class="werkvlak" id="werkvlak" data-actief="3d">
+      <section class="paneel paneel-view" id="paneel-3d" aria-label="3D-weergave">
+        <div class="view-houder" id="view-3d"></div>
+        <div class="view-titel" aria-hidden="true">3D</div>
+        <div class="legende" aria-label="Kleurcode">
+          <span><i class="sw sw-bestaand"></i>bestaand</span>
+          <span><i class="sw sw-nieuw"></i>nieuw</span>
+          <span><i class="sw sw-afbraak"></i>afbraak</span>
+        </div>
+      </section>
+      <div class="splitter" id="splitter" role="separator" aria-orientation="vertical" aria-label="Verdeling 3D / 2D" tabindex="0"></div>
+      <section class="paneel paneel-view" id="paneel-2d" aria-label="Plattegrond">
+        <div class="view-houder" id="view-2d"></div>
+        <div class="view-titel" aria-hidden="true">Plattegrond <span id="plan-titel-niveau"></span></div>
+        <div class="legende" aria-label="Kleurcode">
+          <span><i class="sw sw-bestaand"></i>bestaand</span>
+          <span><i class="sw sw-nieuw"></i>nieuw</span>
+          <span><i class="sw sw-afbraak"></i>afbraak</span>
+        </div>
+      </section>
+      <aside class="paneel paneel-eig" id="paneel-eig" aria-label="Eigenschappen">
+        <div id="waarschuwingen" class="waarschuwingen" hidden></div>
+        <div id="eigenschappen" class="eigenschappen"></div>
+      </aside>
+    </main>
+  </div>
+
+  <input type="file" id="import-bestand" accept=".json,application/json" hidden>
+  <div id="meldingen" class="meldingen" aria-live="polite"></div>
+  <noscript><p class="noscript">Deze app heeft JavaScript nodig.</p></noscript>
+</body>
+</html>
