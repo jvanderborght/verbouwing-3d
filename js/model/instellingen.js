@@ -37,6 +37,14 @@ export const INSTELLINGEN_STANDAARD = Object.freeze({
     hoogtelijnen: { soort: 'werkwaarde', waarde: [1500, 2200], eenheid: 'mm', bron: null, uitleg: 'Werkwaarde, geen norm: standaard hoogtelijnen voor weergave.' },
     rasterStap: werk(25, 'rasterstap voor hoogtelijnen en oppervlakte per hoogteband (nauwkeurigheid ± een halve stap langs de rand).'),
   },
+  dakkapel: {
+    // Enkel om een dakkapel te kunnen tekenen en de vrije hoogte eronder te berekenen als de dakkapel zelf geen maat heeft.
+    zijwangDikte: werk(120, 'dikte van voorvlak en zijwangen van een dakkapel zonder eigen zijwangDikte (weergave, binnenmaat).'),
+    dakdikte: werk(200, 'dikte van het dakje van een dakkapel zonder eigen dakdikte (weergave).'),
+    voorstelBreedte: werk(2000, 'vertrekbreedte (buitenmaat) als je een dakkapel plaatst zonder breedte; pas aan.'),
+    voorstelHoogte: werk(1400, 'vertrekhoogte van het voorvlak als je een dakkapel plaatst zonder hoogte; pas aan.'),
+    voorstelPositieZ: werk(800, 'vertrekhoogte van de onderkant boven de zoldervloer als je een dakkapel plaatst zonder positie z of tikpunt; pas aan.'),
+  },
   inrichting: {
     douche: MAAT(900, 900), lavabo: MAAT(600, 450), wc: MAAT(400, 650), bad: MAAT(1700, 750),
     keuken: MAAT(2400, 600), bed: MAAT(1600, 2000), kast: MAAT(1000, 600), wasmachine: MAAT(600, 600),

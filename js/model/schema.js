@@ -12,6 +12,9 @@ export const HOGE_ZIJDEN = ['min', 'max']; // lessenaar: zijde (loodrecht op nok
 export const NIVEAU_SOORTEN = ['verdieping', 'zolder', 'kelder'];
 export const TRAP_TYPES = ['recht', 'kwart', 'halfdraai', 'spiraal']; // kwart = kwartdraai (L), halfdraai = U (180°)
 export const DRAAIRICHTINGEN = ['links', 'rechts'];
+// dakkapellen (optionele collectie, geen nieuwe schemaVersie — zie docs/DATAMODEL.md "Dakkapellen")
+export const DAKKAPEL_TYPES = ['plat']; // voorlopig enkel een plat dakje; uitbreidbaar (bv. zadel, lessenaar)
+export const DAKKAPEL_ZIJDEN = ['voor', 'achter', 'links', 'rechts']; // nokrichting x: voor (goot op min y) | achter; y: links | rechts
 export const INRICHTING_SOORTEN = [
   'douche', 'lavabo', 'wc', 'bad', 'keuken', 'bed', 'kast', 'wasmachine', 'droogkast', 'bureau', 'tafel', 'zetel', 'overig',
 ];
@@ -26,8 +29,11 @@ export const COLLECTIES = {
   daken: 'D',
   trappen: 'T',
   inrichting: 'I',
+  dakkapellen: 'K', // optioneel: ontbreekt = leeg (geen migratie nodig)
 };
 export const COLLECTIE_NAMEN = Object.keys(COLLECTIES);
+/** Collecties die in een ontwerp mogen ontbreken (= leeg). */
+export const OPTIONELE_COLLECTIES = ['dakkapellen'];
 
 export const FUNCTIES = [
   'woonkamer', 'keuken', 'eetkamer', 'leefruimte', 'slaapkamer', 'badkamer', 'toilet',
@@ -36,6 +42,7 @@ export const FUNCTIES = [
 
 // Toegelaten velden per collectie: [veldnaam, type, verplicht].
 // type: 'string' | 'number' | 'getallen' (lijst getallen) | 'punt' | 'contour' | 'enum:<LIJST>' | 'ref:<collectie>'
+//       | 'raam' ({ breedte, hoogte, borstwering? } — raam in het voorvlak van een dakkapel)
 export const VELDEN = {
   niveaus: [
     ['id', 'string', true],
@@ -120,10 +127,27 @@ export const VELDEN = {
     ['hoogte', 'number', false],     // voor de vrije-hoogtecontrole
     ['status', 'enum:STATUSSEN', true],
   ],
+  // optioneel — zie docs/DATAMODEL.md "Dakkapellen" en js/model/dakkapellen.js
+  dakkapellen: [
+    ['id', 'string', true],
+    ['dak', 'ref:daken', true],      // hellend dak waarin de dakkapel staat
+    ['zijde', 'enum:DAKKAPEL_ZIJDEN', true], // welk dakvlak: nokrichting x ⇒ voor|achter, y ⇒ links|rechts
+    ['positieX', 'number', true],    // coördinaat van het MIDDEN langs de nok (x bij nokrichting x, y bij nokrichting y)
+    ['positieZ', 'number', true],    // onderkant van het voorvlak boven de zoldervloer (= vloerpeil van het niveau in het dak)
+    ['breedte', 'number', true],     // buitenmaat langs de nok (incl. zijwangen)
+    ['hoogte', 'number', true],      // voorvlak: van de onderkant (op het dakvlak) tot de onderkant van het dakje
+    ['type', 'enum:DAKKAPEL_TYPES', false], // leeg = plat
+    ['diepte', 'number', false],     // horizontaal vanaf het voorvlak; leeg = tot waar het dakje het hoofddak snijdt
+    ['dakdikte', 'number', false],   // dikte van het dakje; leeg = werkwaarde
+    ['zijwangDikte', 'number', false], // dikte van voorvlak, zijwangen (en achterwand); leeg = werkwaarde
+    ['raam', 'raam', false],         // { breedte, hoogte, borstwering? } gecentreerd in het voorvlak
+    ['status', 'enum:STATUSSEN', true],
+  ],
 };
 
 export const ENUMS = {
   STATUSSEN, OPENING_TYPES, DAK_TYPES, NOKRICHTINGEN, HOGE_ZIJDEN, FUNCTIES, NIVEAU_SOORTEN, TRAP_TYPES, DRAAIRICHTINGEN, INRICHTING_SOORTEN,
+  DAKKAPEL_TYPES, DAKKAPEL_ZIJDEN,
 };
 
 // perceel (optioneel): { contour: [[x,y],...] } — perceelgrens in hetzelfde assenstelsel (x mag negatief zijn).

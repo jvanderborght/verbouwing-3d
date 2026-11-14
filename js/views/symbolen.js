@@ -1,6 +1,8 @@
 // Symbolen en hulpgeometrie voor trappen, inrichting en hoogtelijnen (2D en 3D). Pure functies, geen DOM —
 // getest in tests/views-fase5.test.js. Coördinaten in mm (model), y naar achter.
 
+import { dakkapelNiveau, dakkapelGeometrie } from '../model/dakkapellen.js';
+import { maatlijn } from './bouwstenen.js';
 import { inrichtingContour } from '../model/vormen.js';
 import { trapGeometrie } from '../model/trappen.js';
 import { lengte, dakNokHoogte, niveauBovenkant } from '../model/geometry.js';
@@ -302,4 +304,28 @@ export function vrijLijnLabel(lijn, vermijd = [], fracties = [0.5, 0.3, 0.7, 0.1
     if (a > besteAfst + 1e-6) { beste = l; besteAfst = a; }
   }
   return beste;
+}
+
+/**
+ * Plattegrondsymbool van een dakkapel op niveau `niveauId` (enkel op het niveau in haar dak; zie dakkapelNiveau), of null.
+ * → { contour (voetafdruk), voorvlak (lijn), wangen (2 strookjes), label { p, tekst }, maat (maatlijn breedte, aan de gootzijde) }
+ */
+export function dakkapelSymbool(model, k, niveauId, opties = {}) {
+  if (dakkapelNiveau(model, k) !== niveauId) return null;
+  const g = dakkapelGeometrie(model, k, opties);
+  if (g.fout) return null;
+  const A = g.assen;
+  const { u0, u1, dVoor, dAchter, wang } = g;
+  const naarGoot = A.as === 'y' ? [0, -A.zin] : [-A.zin, 0];
+  return {
+    contour: g.voetafdruk,
+    voorvlak: [A.xy(u0, dVoor), A.xy(u1, dVoor)],
+    wangen: [
+      [A.xy(u0, dVoor), A.xy(u0 + wang, dVoor), A.xy(u0 + wang, dAchter), A.xy(u0, dAchter)],
+      [A.xy(u1 - wang, dVoor), A.xy(u1, dVoor), A.xy(u1, dAchter), A.xy(u1 - wang, dAchter)],
+    ],
+    // label net achter het voorvlak (het ruimtelabel staat meestal in het midden van de kamer)
+    label: { p: A.xy(g.uMidden, dVoor + wang + Math.min(220, (dAchter - dVoor) / 4)), tekst: `Dakkapel ${k.id}` },
+    maat: maatlijn(A.xy(u0, dVoor), A.xy(u1, dVoor), naarGoot, 350),
+  };
 }

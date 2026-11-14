@@ -7,16 +7,18 @@
 // (`hoogtegrenzen`), en zonder selectie het programma van eisen (via ontwerpExtra van de app).
 
 import { VELDEN, ENUMS, COLLECTIE_NAMEN, polygoonOppervlakte, muurLengte, opsMuurEindpunt, opsMuurLengte, trapMaten } from '../model/index.js';
+import { dakkapelNiveau } from '../model/dakkapellen.js';
+import { dakkapelInfo, dakkapelKnoppen, raamInvoer } from './dakkapelpaneel.js';
 import { h, leeg } from './dom.js';
 import { muurHoek } from './gereedschap.js';
 
 export const ENKELVOUD = {
   niveaus: 'Niveau', muren: 'Muur', openingen: 'Opening', ruimtes: 'Ruimte', vloeren: 'Vloer', daken: 'Dak',
-  trappen: 'Trap', inrichting: 'Inrichtingselement',
+  trappen: 'Trap', inrichting: 'Inrichtingselement', dakkapellen: 'Dakkapel',
 };
 export const MEERVOUD = {
   niveaus: 'Niveaus', muren: 'Muren', openingen: 'Openingen', ruimtes: 'Ruimtes', vloeren: 'Vloeren', daken: 'Daken',
-  trappen: 'Trappen', inrichting: 'Inrichting',
+  trappen: 'Trappen', inrichting: 'Inrichting', dakkapellen: 'Dakkapellen',
 };
 
 const LABELS = {
@@ -37,6 +39,16 @@ const LABELS_PER = {
   'inrichting.positie': 'Middelpunt',
   'inrichting.hoogte': 'Hoogte',
   'niveaus.soort': 'Soort niveau',
+  'dakkapellen.positieX': 'Positie x',
+  'dakkapellen.positieZ': 'Positie z (onderkant boven zoldervloer)',
+  'dakkapellen.hoogte': 'Hoogte',
+  'dakkapellen.breedte': 'Breedte',
+  'dakkapellen.diepte': 'Diepte',
+  'dakkapellen.dak': 'Dak',
+  'dakkapellen.zijde': 'Dakvlak (zijde)',
+  'dakkapellen.dakdikte': 'Dikte dakje',
+  'dakkapellen.zijwangDikte': 'Dikte zijwangen',
+  'dakkapellen.raam': 'Raam',
 };
 export const veldLabel = (collectie, veld) => LABELS_PER[`${collectie}.${veld}`] || LABELS[veld] || veld;
 
@@ -57,6 +69,7 @@ export function niveauVanElement(model, id) {
   if (z.collectie === 'niveaus') return z.item.id;
   if (z.collectie === 'openingen') return (model.muren || []).find((m) => m.id === z.item.muur)?.niveau ?? null;
   if (z.collectie === 'trappen') return z.item.vanNiveau ?? null;
+  if (z.collectie === 'dakkapellen') return dakkapelNiveau(model, z.item);
   return z.item.niveau ?? null;
 }
 
@@ -130,6 +143,10 @@ export function veldRijen(model, collectie, item) {
       const ref = (model[doel] || []).find((x) => x.id === waarde);
       return { ...rij, soort: 'ref', opties, tekst: ref?.naam ? `${waarde} – ${ref.naam}` : String(waarde ?? '') };
     }
+    if (type === 'raam') {
+      const r = waarde && typeof waarde === 'object' ? waarde : null;
+      return { ...rij, soort: 'raam', eenheid: 'mm', tekst: r ? `${fmtGetal(r.breedte)} × ${fmtGetal(r.hoogte)}${r.borstwering != null ? `, borstwering ${fmtGetal(r.borstwering)}` : ''}` : 'geen' };
+    }
     if (type === 'punt') return { ...rij, soort: 'punt', eenheid: 'mm', tekst: Array.isArray(waarde) ? `${fmtGetal(waarde[0])} ; ${fmtGetal(waarde[1])}` : '' };
     if (type === 'contour') {
       const opp = Array.isArray(waarde) ? polygoonOppervlakte(waarde) / 1e6 : 0;
@@ -148,6 +165,7 @@ export function elementLabel(model, collectie, item) {
   if (collectie === 'vloeren') return `${item.id} · ${item.dikte} mm · ${item.status}`;
   if (collectie === 'trappen') return `${item.id} · ${item.type} ${item.vanNiveau} → ${item.naarNiveau} · ${item.status}`;
   if (collectie === 'inrichting') return `${item.id} · ${item.soort}${item.ruimte ? ` in ${item.ruimte}` : ''} · ${item.status}`;
+  if (collectie === 'dakkapellen') return `${item.id} · ${item.zijde} ${item.breedte}×${item.hoogte} · ${item.status}`;
   return item.id;
 }
 
@@ -176,8 +194,8 @@ export function tekenEigenschappen(el, { model, selectie, opWijzig, opSelecteer,
   const lijst = h('dl', { class: 'velden' });
   const wijzigVeld = (rij) => (waarde) => opWijzig([{ op: 'wijzigen', collectie, id: item.id, velden: { [rij.veld]: waarde } }], `${rij.label} wijzigen`);
   for (const rij of veldRijen(model, collectie, item)) {
-    const forId = rij.soort === 'punt' && collectie !== 'ruimtes' ? `veld-${rij.veld}-x` : `veld-${rij.veld}`;
-    lijst.append(h('dt', {}, h('label', { for: forId }, rij.label, rij.verplicht ? '' : h('span', { class: 'optioneel' }, ' (optioneel)'))));
+    const forId = rij.soort === 'punt' && collectie !== 'ruimtes' ? `veld-${rij.veld}-x` : rij.soort === 'raam' ? 'veld-raam-breedte' : `veld-${rij.veld}`;
+    lijst.append(h('dt', rij.soort === 'raam' ? { class: 'volle-breedte' } : {}, h('label', { for: forId }, rij.label, rij.verplicht ? '' : h('span', { class: 'optioneel' }, ' (optioneel)'))));
     if (rij.soort === 'punt' && collectie === 'muren') {
       lijst.append(h('dd', {}, puntInvoer(rij, (p) => bewerk(opsMuurEindpunt(model, item.id, rij.veld, p), `${rij.veld === 'start' ? 'Startpunt' : 'Eindpunt'} wijzigen`))));
       if (rij.veld === 'eind') {
@@ -194,10 +212,16 @@ export function tekenEigenschappen(el, { model, selectie, opWijzig, opSelecteer,
       lijst.append(h('dd', {}, puntInvoer(rij, wijzigVeld(rij))));
       continue;
     }
+    if (rij.soort === 'raam') {
+      lijst.append(h('dd', { class: 'volle-breedte' }, raamInvoer(rij, wijzigVeld(rij), { leesGetal })));
+      continue;
+    }
     lijst.append(h('dd', {}, veldInvoer(rij, wijzigVeld(rij))));
   }
   el.append(lijst);
   if (collectie === 'trappen') el.append(trapInfo(model, item));
+  if (collectie === 'dakkapellen') el.append(dakkapelInfo(model, item));
+  if (collectie === 'daken') { const k = dakkapelKnoppen(model, item, (r, label, id) => { const u = bewerk(r, label); if (u?.ok && id) opSelecteer(id); return u; }); if (k) el.append(k); }
   if (opVerwijder) {
     el.append(h('div', { class: 'eig-acties' },
       h('button', { type: 'button', class: 'knop gevaar', id: 'eig-verwijder', onclick: () => opVerwijder(item.id) },

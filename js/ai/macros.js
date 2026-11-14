@@ -12,6 +12,8 @@
 //   { op: 'inrichtingPlaatsen', id, soort, ruimte, rotatie, positie?, niveau?, breedte?, diepte?, hoogte? }
 //                                                                    → opsInrichtingPlaatsen (positie leeg ⇒ plek tegen een wand)
 //   { op: 'muurSplitsen', muur, positie, nieuwId }                   → opsMuurSplitsen (positie = mm vanaf muur.start)
+//   { op: 'dakkapelPlaatsen', id, dak, zijde, positieX, positieZ, breedte, hoogte, raamBreedte, raamHoogte }
+//                                                                    → opsDakkapelPlaatsen (raamBreedte/raamHoogte 0 = geen raam)
 //
 // Id's: `id` / `nieuwId` = het id dat Claude zelf kiest voor het nieuwe element ("" = automatisch, volgend vrij nummer).
 // Id's die de bewerking zelf uitdeelt (bv. de tweede helft van een gesplitste muur in afbraakZone, de zoldervloer) worden
@@ -26,8 +28,9 @@ import { COLLECTIE_NAMEN } from '../model/schema.js';
 import {
   opsAfbraakZone, opsZolderNiveau, opsTrapPlaatsen, opsInrichtingPlaatsen, opsMuurSplitsen,
 } from '../model/bewerkingen.js';
+import { opsDakkapelPlaatsen } from '../model/dakkapel-bewerkingen.js';
 
-export const MACROS = Object.freeze(['afbraakZone', 'zolderNiveau', 'trapPlaatsen', 'inrichtingPlaatsen', 'muurSplitsen']);
+export const MACROS = Object.freeze(['afbraakZone', 'zolderNiveau', 'trapPlaatsen', 'inrichtingPlaatsen', 'muurSplitsen', 'dakkapelPlaatsen']);
 /** Velden die Claude met de operatie `ontwerp` mag wijzigen (basis en perceel beheert de app). */
 export const AI_ONTWERP_VELDEN = Object.freeze(['programma', 'naam', 'beschrijving']);
 
@@ -38,7 +41,7 @@ const leeg = (v) => v === undefined || v === null || v === '' || v === 0 || (Arr
 const waarde = (v) => (leeg(v) ? undefined : v);
 
 /** Velden die naar een id verwijzen (worden mee hernoemd). */
-const REF_VELDEN = ['id', 'niveau', 'muur', 'ruimte', 'vanNiveau', 'naarNiveau'];
+const REF_VELDEN = ['id', 'niveau', 'muur', 'ruimte', 'vanNiveau', 'naarNiveau', 'dak'];
 
 /** Hernoemt id's in een operatielijst volgens `map` (oud → nieuw). Puur. */
 export function hernoemOps(ops, map) {
@@ -145,6 +148,14 @@ function roepMacro(model, op, instellingen) {
       const r = opsMuurSplitsen(model, op.muur, pos);
       return { ...r, gevraagd: r.info && waarde(op.nieuwId) ? { oud: r.info.ids[1], nieuw: op.nieuwId } : null };
     }
+    case 'dakkapelPlaatsen': {
+      const p = { dak: op.dak, instellingen };
+      for (const k of ['zijde', 'positieX', 'breedte', 'hoogte', 'diepte']) if (!leeg(op[k])) p[k] = op[k];
+      if (op.positieZ !== undefined && op.positieZ !== null && op.positieZ !== '') p.positieZ = op.positieZ; // 0 = in het gevelvlak
+      if (!leeg(op.raamBreedte) && !leeg(op.raamHoogte)) p.raam = { breedte: op.raamBreedte, hoogte: op.raamHoogte };
+      const r = opsDakkapelPlaatsen(model, p);
+      return { ...r, gevraagd: r.info && waarde(op.id) ? { oud: r.info.id, nieuw: op.id } : null };
+    }
     default:
       return { ops: [], fout: `Onbekende macro "${op.op}".` };
   }
@@ -227,5 +238,6 @@ export function macroInfoTekst(mi) {
   if (inf.maten) d.push(`${inf.maten.aantalTreden} optreden van ${Math.round(inf.maten.optrede * 10) / 10} mm, aantrede ${inf.maten.aantrede} mm`);
   if (inf.hoogte && mi.op === 'zolderNiveau') d.push(`hoogte ${inf.hoogte} mm`);
   if (inf.positie && mi.op === 'inrichtingPlaatsen') d.push(`positie [${inf.positie.join(', ')}], rotatie ${inf.rotatie}°`);
+  if (mi.op === 'dakkapelPlaatsen' && inf.diepte != null) d.push(`diepte ${Math.round(inf.diepte)} mm, vrije hoogte eronder ${Math.round(inf.vrijeHoogte)} mm`);
   return `ops[${mi.index}] ${mi.op}: ${d.join('; ') || 'geen wijzigingen'}`;
 }

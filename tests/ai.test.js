@@ -78,7 +78,7 @@ test('antwoordschema: additionalProperties false op elk object, geen min/max, ba
   for (const o of objecten) assert.equal(o.additionalProperties, false);
   assert.deepEqual(ANTWOORD_SCHEMA.required, ['samenvatting', 'vragen', 'varianten']);
   const ops = ANTWOORD_SCHEMA.$defs.op.anyOf.map((x) => x.properties.op.enum[0]);
-  assert.deepEqual(ops, ['toevoegen', 'wijzigen', 'verwijderen', 'verplaatsen', 'ontwerp', 'afbraakZone', 'zolderNiveau', 'trapPlaatsen', 'inrichtingPlaatsen', 'muurSplitsen']);
+  assert.deepEqual(ops, ['toevoegen', 'wijzigen', 'verwijderen', 'verplaatsen', 'ontwerp', 'afbraakZone', 'zolderNiveau', 'trapPlaatsen', 'inrichtingPlaatsen', 'muurSplitsen', 'dakkapelPlaatsen']);
 });
 
 test('bouwVerzoek: model, effort, structured output, fallbacks, cache_control; geen thinking/sampling/prefill', () => {

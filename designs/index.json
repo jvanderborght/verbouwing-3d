@@ -3,6 +3,7 @@
     { "id": "bestaand", "naam": "Bestaande toestand" },
     { "id": "voorbeeld", "naam": "Voorbeeldhuis" },
     { "id": "zolder-programma-trap-hal", "naam": "Zolder volgens programma — trap in bestaande traphal" },
+    { "id": "zolder-dakkapellen", "naam": "Zolder met dakkapellen voor en achter" },
     { "id": "concept-asymmetrisch-dak", "naam": "Concept: asymmetrisch dak achteraan" }
   ]
 }

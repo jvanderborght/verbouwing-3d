@@ -5,8 +5,9 @@
 //   { op: 'toevoegen',   collectie, item }              id optioneel → automatisch
 //   { op: 'wijzigen',    collectie, id, velden }        ondiepe merge; waarde null = optioneel veld wissen
 //   { op: 'verwijderen', collectie, id }                met cascade (muur → openingen; niveau → alles erop, ook trappen
-//                                                       van/naar dat niveau; ruimte → inrichting.ruimte gewist)
-//   { op: 'verplaatsen', collectie, id, dx, dy }        muren/ruimtes/vloeren/daken/trappen/inrichting; openingen: dx = langs muur
+//                                                       van/naar dat niveau; ruimte → inrichting.ruimte gewist; dak → zijn dakkapellen)
+//   { op: 'verplaatsen', collectie, id, dx, dy }        muren/ruimtes/vloeren/daken/trappen/inrichting; openingen: dx = langs muur;
+//                                                       dakkapellen: enkel de component langs de nok (positieX)
 //   { op: 'ontwerp',     velden }                       naam / beschrijving / basis / perceel / programma van het ontwerp zelf
 //
 // idTeller (optioneel ontwerpveld, v2): hoogste ooit uitgedeelde nummer per voorvoegsel. Bijgewerkt bij `verwijderen`
@@ -124,6 +125,8 @@ function pasToe(m, op, nieuweIds) {
       if (Array.isArray(m.trappen)) m.trappen = m.trappen.filter((t) => t.vanNiveau !== op.id && t.naarNiveau !== op.id);
     }
     if (c === 'ruimtes' && Array.isArray(m.inrichting)) for (const x of m.inrichting) if (x.ruimte === op.id) delete x.ruimte;
+    // dakkapellen verdwijnen met hun dak (ook via de cascade van een niveau)
+    if (Array.isArray(m.dakkapellen)) { const daken = new Set((m.daken || []).map((d) => d.id)); m.dakkapellen = m.dakkapellen.filter((k) => daken.has(k.dak)); }
     // verwijderde id's (ook die van de cascade) worden nooit opnieuw uitgedeeld
     const na = alleIds(m);
     for (const id of voor) if (!na.has(id)) onthoudId(m, id, { altijd: true });
@@ -139,6 +142,10 @@ function pasToe(m, op, nieuweIds) {
     else if (c === 'inrichting') item.positie = verschuifPunt(item.positie, dx, dy);
     else if (c === 'openingen') item.positie = rond(item.positie + dx);
     else if (c === 'niveaus') item.peil = rond(item.peil + dx);
+    else if (c === 'dakkapellen') { // enkel langs de nok: positieX volgt dx (nokrichting x) of dy (nokrichting y)
+      const dak = (m.daken || []).find((d) => d.id === item.dak);
+      item.positieX = rond(item.positieX + ((dak?.nokrichting || 'x') === 'y' ? dy : dx));
+    }
     return;
   }
 }

@@ -14,6 +14,7 @@
 // begrenzing van het dak (+ overstek) liggen.
 
 import { begrenzing, dakHoogteIn, niveauBovenkant, muurRichting, muurHoogte, muurLengte } from './geometry.js';
+import { dakkapelVerhoging } from './dakkapellen.js';
 
 const isGetal = (v) => typeof v === 'number' && Number.isFinite(v);
 
@@ -47,11 +48,12 @@ export function bovenkantFunctie(model, niveauId, H, opties = {}) {
   const n = (model?.niveaus || []).find((x) => x.id === niveauId);
   const daken = begrenzendeDaken(model, niveauId, opties);
   const peil = n ? n.peil : 0;
+  const kap = dakkapelVerhoging(model, opties); // onder een dakkapel: tot haar plafond
   return (x, y) => {
     let z = H;
     for (const { dak, rust, b } of daken) {
       if (x < b.minX || x > b.maxX || y < b.minY || y > b.maxY) continue;
-      z = Math.min(z, rust + dakHoogteIn(dak, x, y) - peil);
+      z = Math.min(z, rust + kap(dak, [x, y], dakHoogteIn(dak, x, y)) - peil);
     }
     return Math.max(0, z);
   };

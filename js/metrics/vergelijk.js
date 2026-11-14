@@ -121,6 +121,12 @@ export function vergelijkingsRijen(varianten) {
   }
   if (varianten.some((v) => (v.kerncijfers.trappen?.aantal ?? 0) > 0))
     rij({ sleutel: 'trappen', groep: 'Programma', label: 'Trappen', eenheid: 'st.', decimalen: 0, soort: 'aantal' }, (v) => v.kerncijfers.trappen?.aantal ?? null);
+  if (varianten.some((v) => (v.kerncijfers.dakkapellen?.aantal ?? 0) > 0)) {
+    rij({ sleutel: 'dakkapellen', groep: 'Programma', label: 'Dakkapellen', eenheid: 'st.', decimalen: 0, soort: 'aantal' }, (v) => v.kerncijfers.dakkapellen?.aantal ?? 0);
+    rij({ sleutel: 'dakkapellen-voorvlak', groep: 'Programma', label: 'Dakkapellen: voorvlak (bruto)', eenheid: 'm²' }, (v) => v.kerncijfers.dakkapellen?.voorvlakM2 ?? 0);
+    rij({ sleutel: 'dakkapellen-raam', groep: 'Programma', label: 'Dakkapellen: raam', eenheid: 'm²' }, (v) => v.kerncijfers.dakkapellen?.raamM2 ?? 0);
+    rij({ sleutel: 'dakkapellen-volume', groep: 'Programma', label: 'Dakkapellen: volumetoename', eenheid: 'm³', decimalen: 1 }, (v) => v.kerncijfers.dakkapellen?.volume ?? 0);
+  }
   const soorten = [...new Set(varianten.flatMap((v) => Object.keys(v.kerncijfers.inrichting || {})))].sort();
   for (const s of soorten)
     rij({ sleutel: `inrichting-${s}`, groep: 'Programma', label: `Inrichting: ${s}`, eenheid: 'st.', decimalen: 0, soort: 'aantal' }, (v) => (v.kerncijfers.inrichting ? (v.kerncijfers.inrichting[s] ?? 0) : null));
