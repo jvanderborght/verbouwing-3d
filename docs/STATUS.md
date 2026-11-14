@@ -1,6 +1,6 @@
 # Status
 
-_Laatst bijgewerkt: 2026-11-14 — fase 2 afgerond (QA), bestaande toestand (schatting) toegevoegd._
+_Laatst bijgewerkt: 2026-11-14 — bestaande toestand opnieuw opgebouwd uit het bestaande plan (DXF, kader 'origineel'); branch `bestaand/dxf`, wacht op QA._
 
 ## Live
 - App: https://jvanderborght.github.io/verbouwing-3d/ (GitHub Pages via Actions; deploy bij elke push naar `main`).
@@ -16,7 +16,7 @@ _Laatst bijgewerkt: 2026-11-14 — fase 2 afgerond (QA), bestaande toestand (sch
 - Variantbeheer: werkkopie in localStorage, nieuw/dupliceren/hernoemen/verwijderen (lokaal)/export/import, **opslaan naar en ophalen van GitHub** met eigen token in de browser (nooit in git).
 - Tests: `npm test` (60 tests + validatie designs).
 - QA-opvolging: getalinvoer begrijpt "1.200" als 1200; 422 van GitHub enkel als conflict bij sha-fout; workflow least-privilege.
-- `designs/bestaand.json`: **Bestaande toestand (schatting)** — enkel breedte 7 m en perceel 14 m zijn gegeven; rest geschat uit één straatfoto (±10–20 %) of aangenomen (diepte 9 m, binnenindeling onbekend). Details, bronnen en open vragen: `docs/BESTAAND.md`.
+- `designs/bestaand.json`: **Bestaande toestand** — plattegronden (muren, diktes, ramen, deuren, 15 ruimtes, garages) uit het bestaande plan (DXF, kader 'origineel', cm): woning 7,00 × 12,50 m, hoofdvolume 8 m diep + achterbouw. Hoogtes, dak, borstweringen en perceelligging blijven schatting/aanname (het DXF bevat geen doorsnedes). Details, bronnen, twijfels en open vragen: `docs/BESTAAND.md`; sanity-tests in `tests/bestaand.test.js`.
 - `designs/voorbeeld.json`: FICTIEF testhuis (7 m breed, perceel 14 m; rest aannames). `designs/prijzen.json`: leeg sjabloon.
 
 ## Fase 2 — tekengereedschap ✅ (QA goedgekeurd)
@@ -49,4 +49,4 @@ _Laatst bijgewerkt: 2026-11-14 — fase 2 afgerond (QA), bestaande toestand (sch
 1. Gebruiker: tekengereedschap uitproberen op laptop + telefoon; DWG als DXF en SketchUp als DAE/OBJ (of PDF) aanleveren voor de bestaande toestand.
 2. Fase 3: kerncijfers, kostenraming (prijzen.json), vergelijkweergave.
 3. Fase 4: promptveld (Anthropic API, eigen key) + "genereer N varianten".
-4. Bestaande toestand verfijnen: open vragen in `docs/BESTAAND.md` beantwoorden, diepte/contour uit Geopunt (GRB), hoogtes en openingen nameten.
+4. Bestaande toestand verfijnen: hoogtes (doorsnede of opmeting), perceelligging en garages bevestigen — open vragen in `docs/BESTAAND.md`.
