@@ -1,0 +1,1199 @@
+{
+  "schemaVersie": 2,
+  "id": "zolder-programma-trap-hal",
+  "naam": "Zolder volgens programma — trap in bestaande traphal",
+  "beschrijving": "VARIANT (voorstel, geen ontwerp): achterbouw en garage 2 afgebroken; nieuwe trap van de verdieping naar de bestaande zolder in de bestaande traphal, boven de bestaande trap, zoals getekend door de gebruiker (IFC; in het model vereenvoudigd tot een halfdraaitrap 15 × 185 mm, breedte 740 mm). Geen slaapkamer opgeofferd. Zolder: 2 slaapkamers, kleine berging, kleine badkamer (lavabo + douche op de nok) en overloop; de slaapkamers lopen rechts van de badkamer door tot op de nok. Dak: bestaand zadeldak 38,5° (nok ±2,79 m boven de zoldervloer) — weinig stahoogte: zie de hoogtebanden (1,50/2,20 m zijn voorbeeldwaarden, geen norm). Stabiliteit (zoldervloer, trapgat), EPB, brandveiligheid en vergunning niet beoordeeld.",
+  "basis": "bestaand",
+  "perceel": {
+    "contour": [
+      [-7000, -8000],
+      [7000, -8000],
+      [7000, 22000],
+      [-7000, 22000]
+    ]
+  },
+  "niveaus": [
+    {
+      "id": "N0",
+      "naam": "Gelijkvloers",
+      "peil": 0,
+      "hoogte": 2775
+    },
+    {
+      "id": "N1",
+      "naam": "Verdieping",
+      "peil": 2775,
+      "hoogte": 2775,
+      "vloerdikte": 160,
+      "soort": "verdieping"
+    },
+    {
+      "id": "N2",
+      "naam": "Zolder",
+      "peil": 5550,
+      "hoogte": 2790,
+      "vloerdikte": 185,
+      "soort": "zolder"
+    }
+  ],
+  "muren": [
+    {
+      "id": "M1",
+      "niveau": "N0",
+      "start": [140, 140],
+      "eind": [6930, 140],
+      "dikte": 280,
+      "status": "bestaand"
+    },
+    {
+      "id": "M2",
+      "niveau": "N0",
+      "start": [6930, 140],
+      "eind": [6930, 7860],
+      "dikte": 140,
+      "status": "bestaand"
+    },
+    {
+      "id": "M3",
+      "niveau": "N0",
+      "start": [140, 12360],
+      "eind": [6930, 12360],
+      "dikte": 280,
+      "status": "afbraak"
+    },
+    {
+      "id": "M4",
+      "niveau": "N0",
+      "start": [140, 140],
+      "eind": [140, 7860],
+      "dikte": 280,
+      "status": "bestaand"
+    },
+    {
+      "id": "M5",
+      "niveau": "N0",
+      "start": [140, 7860],
+      "eind": [6930, 7860],
+      "dikte": 280,
+      "status": "bestaand"
+    },
+    {
+      "id": "M6",
+      "niveau": "N0",
+      "start": [2790, 140],
+      "eind": [2790, 4750],
+      "dikte": 140,
+      "status": "bestaand"
+    },
+    {
+      "id": "M7",
+      "niveau": "N0",
+      "start": [140, 4750],
+      "eind": [2790, 4750],
+      "dikte": 140,
+      "status": "bestaand"
+    },
+    {
+      "id": "M8",
+      "niveau": "N0",
+      "start": [140, 1825],
+      "eind": [2790, 1825],
+      "dikte": 90,
+      "status": "bestaand"
+    },
+    {
+      "id": "M9",
+      "niveau": "N0",
+      "start": [1055, 140],
+      "eind": [1055, 1825],
+      "dikte": 90,
+      "status": "bestaand"
+    },
+    {
+      "id": "M10",
+      "niveau": "N0",
+      "start": [1055, 3656],
+      "eind": [1055, 4750],
+      "dikte": 90,
+      "status": "bestaand"
+    },
+    {
+      "id": "M11",
+      "niveau": "N0",
+      "start": [2710, 7600],
+      "eind": [2710, 7860],
+      "dikte": 300,
+      "status": "bestaand"
+    },
+    {
+      "id": "M12",
+      "niveau": "N0",
+      "start": [2720, 7860],
+      "eind": [2720, 12360],
+      "dikte": 280,
+      "status": "afbraak"
+    },
+    {
+      "id": "M13",
+      "niveau": "N0",
+      "start": [140, 11195],
+      "eind": [2720, 11195],
+      "dikte": 90,
+      "status": "afbraak"
+    },
+    {
+      "id": "M14",
+      "niveau": "N1",
+      "start": [140, 140],
+      "eind": [6930, 140],
+      "dikte": 280,
+      "status": "bestaand"
+    },
+    {
+      "id": "M15",
+      "niveau": "N1",
+      "start": [6930, 140],
+      "eind": [6930, 7860],
+      "dikte": 140,
+      "status": "bestaand"
+    },
+    {
+      "id": "M16",
+      "niveau": "N1",
+      "start": [140, 7860],
+      "eind": [6930, 7860],
+      "dikte": 280,
+      "status": "bestaand"
+    },
+    {
+      "id": "M17",
+      "niveau": "N1",
+      "start": [140, 140],
+      "eind": [140, 7860],
+      "dikte": 280,
+      "status": "bestaand"
+    },
+    {
+      "id": "M18",
+      "niveau": "N1",
+      "start": [2790, 140],
+      "eind": [2790, 7860],
+      "dikte": 140,
+      "status": "bestaand"
+    },
+    {
+      "id": "M19",
+      "niveau": "N1",
+      "start": [140, 2725],
+      "eind": [2790, 2725],
+      "dikte": 90,
+      "status": "bestaand"
+    },
+    {
+      "id": "M20",
+      "niveau": "N1",
+      "start": [140, 4750],
+      "eind": [2790, 4750],
+      "dikte": 140,
+      "status": "bestaand"
+    },
+    {
+      "id": "M21",
+      "niveau": "N1",
+      "start": [2790, 3655],
+      "eind": [6930, 3655],
+      "dikte": 90,
+      "status": "bestaand"
+    },
+    {
+      "id": "M22",
+      "niveau": "N0",
+      "start": [-7880, 13730],
+      "eind": [-3190, 13730],
+      "dikte": 260,
+      "status": "bestaand"
+    },
+    {
+      "id": "M23",
+      "niveau": "N0",
+      "start": [-3190, 13730],
+      "eind": [-3190, 21270],
+      "dikte": 260,
+      "status": "bestaand"
+    },
+    {
+      "id": "M24",
+      "niveau": "N0",
+      "start": [-7880, 21270],
+      "eind": [-3190, 21270],
+      "dikte": 260,
+      "status": "bestaand"
+    },
+    {
+      "id": "M25",
+      "niveau": "N0",
+      "start": [-7880, 13730],
+      "eind": [-7880, 21270],
+      "dikte": 260,
+      "status": "bestaand"
+    },
+    {
+      "id": "M26",
+      "niveau": "N0",
+      "start": [-7880, 19095],
+      "eind": [-3190, 19095],
+      "dikte": 90,
+      "status": "bestaand"
+    },
+    {
+      "id": "M27",
+      "niveau": "N0",
+      "start": [-3060, 15530],
+      "eind": [400, 15530],
+      "dikte": 260,
+      "status": "afbraak"
+    },
+    {
+      "id": "M28",
+      "niveau": "N0",
+      "start": [400, 15530],
+      "eind": [400, 21360],
+      "dikte": 80,
+      "status": "afbraak"
+    },
+    {
+      "id": "M29",
+      "niveau": "N0",
+      "start": [-3060, 21360],
+      "eind": [400, 21360],
+      "dikte": 80,
+      "status": "afbraak"
+    },
+    {
+      "id": "M30",
+      "niveau": "N0",
+      "start": [6930, 7860],
+      "eind": [6930, 12360],
+      "dikte": 140,
+      "status": "afbraak"
+    },
+    {
+      "id": "M31",
+      "niveau": "N0",
+      "start": [140, 7860],
+      "eind": [140, 12360],
+      "dikte": 280,
+      "status": "afbraak"
+    },
+    {
+      "id": "M32",
+      "niveau": "N2",
+      "start": [280, 1500],
+      "eind": [6860, 1500],
+      "dikte": 100,
+      "status": "nieuw",
+      "hoogte": 769
+    },
+    {
+      "id": "M33",
+      "niveau": "N2",
+      "start": [280, 6500],
+      "eind": [6860, 6500],
+      "dikte": 100,
+      "status": "nieuw",
+      "hoogte": 754
+    },
+    {
+      "id": "M34",
+      "niveau": "N2",
+      "start": [280, 2765],
+      "eind": [1880, 2765],
+      "dikte": 100,
+      "status": "nieuw"
+    },
+    {
+      "id": "M35",
+      "niveau": "N2",
+      "start": [1880, 2765],
+      "eind": [1880, 3455],
+      "dikte": 100,
+      "status": "nieuw"
+    },
+    {
+      "id": "M36",
+      "niveau": "N2",
+      "start": [1880, 3455],
+      "eind": [3450, 3455],
+      "dikte": 100,
+      "status": "nieuw"
+    },
+    {
+      "id": "M37",
+      "niveau": "N2",
+      "start": [280, 4395],
+      "eind": [3450, 4395],
+      "dikte": 100,
+      "status": "nieuw"
+    },
+    {
+      "id": "M38",
+      "niveau": "N2",
+      "start": [3450, 3050],
+      "eind": [3450, 4800],
+      "dikte": 100,
+      "status": "nieuw"
+    },
+    {
+      "id": "M39",
+      "niveau": "N2",
+      "start": [3450, 3050],
+      "eind": [4900, 3050],
+      "dikte": 100,
+      "status": "nieuw"
+    },
+    {
+      "id": "M40",
+      "niveau": "N2",
+      "start": [3450, 4800],
+      "eind": [4900, 4800],
+      "dikte": 100,
+      "status": "nieuw"
+    },
+    {
+      "id": "M41",
+      "niveau": "N2",
+      "start": [4900, 3050],
+      "eind": [4900, 4800],
+      "dikte": 100,
+      "status": "nieuw"
+    },
+    {
+      "id": "M42",
+      "niveau": "N2",
+      "start": [4900, 3990],
+      "eind": [6860, 3990],
+      "dikte": 100,
+      "status": "nieuw"
+    },
+    {
+      "id": "M43",
+      "niveau": "N2",
+      "start": [2650, 4395],
+      "eind": [2650, 6500],
+      "dikte": 100,
+      "status": "nieuw"
+    }
+  ],
+  "openingen": [
+    {
+      "id": "O1",
+      "muur": "M1",
+      "type": "raam",
+      "positie": 260,
+      "breedte": 400,
+      "hoogte": 1700,
+      "borstwering": 600,
+      "status": "bestaand"
+    },
+    {
+      "id": "O2",
+      "muur": "M1",
+      "type": "deur",
+      "positie": 960,
+      "breedte": 860,
+      "hoogte": 2200,
+      "borstwering": 0,
+      "status": "bestaand"
+    },
+    {
+      "id": "O3",
+      "muur": "M1",
+      "type": "raam",
+      "positie": 1820,
+      "breedte": 640,
+      "hoogte": 2200,
+      "borstwering": 0,
+      "status": "bestaand"
+    },
+    {
+      "id": "O4",
+      "muur": "M1",
+      "type": "raam",
+      "positie": 3310,
+      "breedte": 3000,
+      "hoogte": 1700,
+      "borstwering": 600,
+      "status": "bestaand"
+    },
+    {
+      "id": "O5",
+      "muur": "M4",
+      "type": "raam",
+      "positie": 1780,
+      "breedte": 600,
+      "hoogte": 1000,
+      "borstwering": 1000,
+      "status": "bestaand"
+    },
+    {
+      "id": "O6",
+      "muur": "M4",
+      "type": "raam",
+      "positie": 3660,
+      "breedte": 600,
+      "hoogte": 1000,
+      "borstwering": 1000,
+      "status": "bestaand"
+    },
+    {
+      "id": "O7",
+      "muur": "M4",
+      "type": "raam",
+      "positie": 5460,
+      "breedte": 1500,
+      "hoogte": 1400,
+      "borstwering": 900,
+      "status": "bestaand"
+    },
+    {
+      "id": "O8",
+      "muur": "M31",
+      "type": "raam",
+      "positie": 970,
+      "breedte": 1450,
+      "hoogte": 1400,
+      "borstwering": 900,
+      "status": "afbraak"
+    },
+    {
+      "id": "O9",
+      "muur": "M3",
+      "type": "raam",
+      "positie": 1020,
+      "breedte": 600,
+      "hoogte": 1400,
+      "borstwering": 900,
+      "status": "afbraak"
+    },
+    {
+      "id": "O10",
+      "muur": "M3",
+      "type": "deur",
+      "positie": 2720,
+      "breedte": 830,
+      "hoogte": 2100,
+      "borstwering": 0,
+      "status": "afbraak"
+    },
+    {
+      "id": "O11",
+      "muur": "M3",
+      "type": "raam",
+      "positie": 3550,
+      "breedte": 3170,
+      "hoogte": 2200,
+      "borstwering": 0,
+      "status": "afbraak"
+    },
+    {
+      "id": "O12",
+      "muur": "M5",
+      "type": "deur",
+      "positie": 3410,
+      "breedte": 1180,
+      "hoogte": 2100,
+      "borstwering": 0,
+      "status": "bestaand"
+    },
+    {
+      "id": "O13",
+      "muur": "M8",
+      "type": "deur",
+      "positie": 1160,
+      "breedte": 1220,
+      "hoogte": 2100,
+      "borstwering": 0,
+      "status": "bestaand"
+    },
+    {
+      "id": "O14",
+      "muur": "M9",
+      "type": "deur",
+      "positie": 960,
+      "breedte": 630,
+      "hoogte": 2100,
+      "borstwering": 0,
+      "status": "bestaand"
+    },
+    {
+      "id": "O15",
+      "muur": "M10",
+      "type": "deur",
+      "positie": 244,
+      "breedte": 730,
+      "hoogte": 2100,
+      "borstwering": 0,
+      "status": "bestaand"
+    },
+    {
+      "id": "O16",
+      "muur": "M7",
+      "type": "deur",
+      "positie": 1660,
+      "breedte": 730,
+      "hoogte": 2100,
+      "borstwering": 0,
+      "status": "bestaand"
+    },
+    {
+      "id": "O17",
+      "muur": "M12",
+      "type": "deur",
+      "positie": 240,
+      "breedte": 830,
+      "hoogte": 2100,
+      "borstwering": 0,
+      "status": "afbraak"
+    },
+    {
+      "id": "O18",
+      "muur": "M13",
+      "type": "deur",
+      "positie": 1510,
+      "breedte": 830,
+      "hoogte": 2100,
+      "borstwering": 0,
+      "status": "afbraak"
+    },
+    {
+      "id": "O19",
+      "muur": "M14",
+      "type": "raam",
+      "positie": 260,
+      "breedte": 2200,
+      "hoogte": 1400,
+      "borstwering": 900,
+      "status": "bestaand"
+    },
+    {
+      "id": "O20",
+      "muur": "M14",
+      "type": "raam",
+      "positie": 3310,
+      "breedte": 3000,
+      "hoogte": 1400,
+      "borstwering": 900,
+      "status": "bestaand"
+    },
+    {
+      "id": "O21",
+      "muur": "M17",
+      "type": "raam",
+      "positie": 3660,
+      "breedte": 600,
+      "hoogte": 1200,
+      "borstwering": 800,
+      "status": "bestaand"
+    },
+    {
+      "id": "O22",
+      "muur": "M17",
+      "type": "raam",
+      "positie": 5460,
+      "breedte": 1500,
+      "hoogte": 1400,
+      "borstwering": 900,
+      "status": "bestaand"
+    },
+    {
+      "id": "O23",
+      "muur": "M16",
+      "type": "raam",
+      "positie": 3320,
+      "breedte": 2800,
+      "hoogte": 1400,
+      "borstwering": 900,
+      "status": "bestaand"
+    },
+    {
+      "id": "O24",
+      "muur": "M18",
+      "type": "deur",
+      "positie": 2690,
+      "breedte": 730,
+      "hoogte": 2100,
+      "borstwering": 0,
+      "status": "bestaand"
+    },
+    {
+      "id": "O25",
+      "muur": "M18",
+      "type": "deur",
+      "positie": 3655,
+      "breedte": 730,
+      "hoogte": 2100,
+      "borstwering": 0,
+      "status": "bestaand"
+    },
+    {
+      "id": "O26",
+      "muur": "M19",
+      "type": "deur",
+      "positie": 1660,
+      "breedte": 730,
+      "hoogte": 2100,
+      "borstwering": 0,
+      "status": "bestaand"
+    },
+    {
+      "id": "O27",
+      "muur": "M20",
+      "type": "deur",
+      "positie": 1660,
+      "breedte": 730,
+      "hoogte": 2100,
+      "borstwering": 0,
+      "status": "bestaand"
+    },
+    {
+      "id": "O28",
+      "muur": "M22",
+      "type": "deur",
+      "positie": 1120,
+      "breedte": 2450,
+      "hoogte": 2100,
+      "borstwering": 0,
+      "status": "bestaand"
+    },
+    {
+      "id": "O29",
+      "muur": "M24",
+      "type": "deur",
+      "positie": 3020,
+      "breedte": 950,
+      "hoogte": 2100,
+      "borstwering": 0,
+      "status": "bestaand"
+    },
+    {
+      "id": "O30",
+      "muur": "M27",
+      "type": "deur",
+      "positie": 525,
+      "breedte": 2450,
+      "hoogte": 2100,
+      "borstwering": 0,
+      "status": "afbraak"
+    },
+    {
+      "id": "O31",
+      "muur": "M36",
+      "type": "deur",
+      "positie": 470,
+      "breedte": 700,
+      "hoogte": 2100,
+      "borstwering": 0,
+      "status": "nieuw"
+    },
+    {
+      "id": "O32",
+      "muur": "M37",
+      "type": "deur",
+      "positie": 2420,
+      "breedte": 700,
+      "hoogte": 2100,
+      "borstwering": 0,
+      "status": "nieuw"
+    },
+    {
+      "id": "O33",
+      "muur": "M37",
+      "type": "deur",
+      "positie": 1670,
+      "breedte": 600,
+      "hoogte": 2100,
+      "borstwering": 0,
+      "status": "nieuw"
+    },
+    {
+      "id": "O34",
+      "muur": "M38",
+      "type": "deur",
+      "positie": 550,
+      "breedte": 700,
+      "hoogte": 2100,
+      "borstwering": 0,
+      "status": "nieuw"
+    }
+  ],
+  "ruimtes": [
+    {
+      "id": "R1",
+      "niveau": "N0",
+      "naam": "WC",
+      "functie": "toilet",
+      "contour": [
+        [280, 280],
+        [1010, 280],
+        [1010, 1780],
+        [280, 1780]
+      ]
+    },
+    {
+      "id": "R2",
+      "niveau": "N0",
+      "naam": "Inkom",
+      "functie": "hal",
+      "contour": [
+        [1100, 280],
+        [2720, 280],
+        [2720, 1780],
+        [1100, 1780]
+      ]
+    },
+    {
+      "id": "R3",
+      "niveau": "N0",
+      "naam": "Hal met trap",
+      "functie": "hal",
+      "contour": [
+        [280, 1870],
+        [2720, 1870],
+        [2720, 4680],
+        [1100, 4680],
+        [1100, 3656],
+        [1010, 3656],
+        [1010, 4680],
+        [280, 4680]
+      ]
+    },
+    {
+      "id": "R4",
+      "niveau": "N0",
+      "naam": "Leefruimte",
+      "functie": "woonkamer",
+      "contour": [
+        [2860, 280],
+        [6860, 280],
+        [6860, 7720],
+        [2860, 7720],
+        [2860, 7600],
+        [2560, 7600],
+        [2560, 7720],
+        [280, 7720],
+        [280, 4820],
+        [2860, 4820]
+      ]
+    },
+    {
+      "id": "R8",
+      "niveau": "N1",
+      "naam": "Badkamer",
+      "functie": "badkamer",
+      "contour": [
+        [280, 280],
+        [2720, 280],
+        [2720, 2680],
+        [280, 2680]
+      ]
+    },
+    {
+      "id": "R9",
+      "niveau": "N1",
+      "naam": "Overloop met trap",
+      "functie": "hal",
+      "contour": [
+        [280, 2770],
+        [2720, 2770],
+        [2720, 4680],
+        [280, 4680]
+      ]
+    },
+    {
+      "id": "R10",
+      "niveau": "N1",
+      "naam": "Slaapkamer links-achter",
+      "functie": "slaapkamer",
+      "contour": [
+        [280, 4820],
+        [2720, 4820],
+        [2720, 7720],
+        [280, 7720]
+      ]
+    },
+    {
+      "id": "R11",
+      "niveau": "N1",
+      "naam": "Slaapkamer voor",
+      "functie": "slaapkamer",
+      "contour": [
+        [2860, 280],
+        [6860, 280],
+        [6860, 3610],
+        [2860, 3610]
+      ]
+    },
+    {
+      "id": "R12",
+      "niveau": "N1",
+      "naam": "Slaapkamer achter",
+      "functie": "slaapkamer",
+      "contour": [
+        [2860, 3700],
+        [6860, 3700],
+        [6860, 7720],
+        [2860, 7720]
+      ]
+    },
+    {
+      "id": "R13",
+      "niveau": "N0",
+      "naam": "Garage 1",
+      "functie": "garage",
+      "contour": [
+        [-7750, 13860],
+        [-3320, 13860],
+        [-3320, 19050],
+        [-7750, 19050]
+      ]
+    },
+    {
+      "id": "R14",
+      "niveau": "N0",
+      "naam": "Berging achter garage 1",
+      "functie": "berging",
+      "contour": [
+        [-7750, 19140],
+        [-3320, 19140],
+        [-3320, 21140],
+        [-7750, 21140]
+      ]
+    },
+    {
+      "niveau": "N2",
+      "naam": "Slaapkamer 1 (zolder voor)",
+      "functie": "slaapkamer",
+      "contour": [
+        [280, 1550],
+        [6860, 1550],
+        [6860, 3940],
+        [4950, 3940],
+        [4950, 3000],
+        [3400, 3000],
+        [3400, 3405],
+        [1930, 3405],
+        [1930, 2715],
+        [280, 2715]
+      ],
+      "hoogtegrenzen": [1500, 2200],
+      "id": "R15"
+    },
+    {
+      "niveau": "N2",
+      "naam": "Slaapkamer 2 (zolder achter)",
+      "functie": "slaapkamer",
+      "contour": [
+        [2700, 4445],
+        [3400, 4445],
+        [3400, 4850],
+        [4950, 4850],
+        [4950, 4040],
+        [6860, 4040],
+        [6860, 6450],
+        [2700, 6450]
+      ],
+      "hoogtegrenzen": [1500, 2200],
+      "id": "R16"
+    },
+    {
+      "niveau": "N2",
+      "naam": "Badkamer",
+      "functie": "badkamer",
+      "contour": [
+        [3500, 3100],
+        [4850, 3100],
+        [4850, 4750],
+        [3500, 4750]
+      ],
+      "hoogtegrenzen": [1500, 2200],
+      "id": "R17"
+    },
+    {
+      "niveau": "N2",
+      "naam": "Berging",
+      "functie": "berging",
+      "contour": [
+        [280, 4445],
+        [2600, 4445],
+        [2600, 6450],
+        [280, 6450]
+      ],
+      "hoogtegrenzen": [1500, 2200],
+      "id": "R18"
+    },
+    {
+      "niveau": "N2",
+      "naam": "Overloop zolder",
+      "functie": "hal",
+      "contour": [
+        [1830, 3505],
+        [3400, 3505],
+        [3400, 4345],
+        [1830, 4345]
+      ],
+      "hoogtegrenzen": [1500, 2200],
+      "id": "R19"
+    },
+    {
+      "niveau": "N2",
+      "naam": "Trap (trapgat)",
+      "functie": "trap",
+      "contour": [
+        [280, 2815],
+        [1830, 2815],
+        [1830, 4345],
+        [280, 4345]
+      ],
+      "hoogtegrenzen": [1500, 2200],
+      "id": "R20"
+    }
+  ],
+  "vloeren": [
+    {
+      "id": "V1",
+      "niveau": "N0",
+      "contour": [
+        [0, 0],
+        [7000, 0],
+        [7000, 7860],
+        [0, 7860]
+      ],
+      "dikte": 300,
+      "status": "bestaand"
+    },
+    {
+      "id": "V2",
+      "niveau": "N1",
+      "contour": [
+        [0, 0],
+        [7000, 0],
+        [7000, 8000],
+        [0, 8000]
+      ],
+      "dikte": 160,
+      "status": "bestaand"
+    },
+    {
+      "id": "V3",
+      "niveau": "N0",
+      "contour": [
+        [-8010, 13600],
+        [-3060, 13600],
+        [-3060, 21400],
+        [-8010, 21400]
+      ],
+      "dikte": 150,
+      "status": "bestaand"
+    },
+    {
+      "id": "V4",
+      "niveau": "N0",
+      "contour": [
+        [-3060, 15400],
+        [440, 15400],
+        [440, 21400],
+        [-3060, 21400]
+      ],
+      "dikte": 150,
+      "status": "afbraak"
+    },
+    {
+      "id": "V5",
+      "niveau": "N2",
+      "contour": [
+        [0, 482],
+        [7000, 482],
+        [7000, 7498],
+        [0, 7498]
+      ],
+      "dikte": 185,
+      "status": "bestaand"
+    },
+    {
+      "id": "V6",
+      "niveau": "N0",
+      "contour": [
+        [0, 7860],
+        [7000, 7860],
+        [7000, 12500],
+        [0, 12500]
+      ],
+      "dikte": 300,
+      "status": "afbraak"
+    }
+  ],
+  "daken": [
+    {
+      "id": "D1",
+      "niveau": "N1",
+      "type": "zadel",
+      "contour": [
+        [0, 482],
+        [7000, 482],
+        [7000, 7498],
+        [0, 7498]
+      ],
+      "helling": 38.5,
+      "nokrichting": "x",
+      "overstek": 480,
+      "dikte": 300,
+      "status": "bestaand"
+    },
+    {
+      "id": "D2",
+      "niveau": "N0",
+      "type": "plat",
+      "contour": [
+        [0, 8000],
+        [7000, 8000],
+        [7000, 12500],
+        [0, 12500]
+      ],
+      "helling": 0,
+      "overstek": 0,
+      "dikte": 300,
+      "status": "afbraak"
+    },
+    {
+      "id": "D3",
+      "niveau": "N0",
+      "type": "plat",
+      "contour": [
+        [-8010, 13600],
+        [-3060, 13600],
+        [-3060, 21400],
+        [-8010, 21400]
+      ],
+      "helling": 0,
+      "overstek": 0,
+      "dikte": 250,
+      "status": "bestaand"
+    },
+    {
+      "id": "D4",
+      "niveau": "N0",
+      "type": "plat",
+      "contour": [
+        [-3060, 15400],
+        [440, 15400],
+        [440, 21400],
+        [-3060, 21400]
+      ],
+      "helling": 0,
+      "overstek": 0,
+      "dikte": 250,
+      "status": "afbraak"
+    }
+  ],
+  "trappen": [
+    {
+      "id": "T1",
+      "vanNiveau": "N0",
+      "naarNiveau": "N1",
+      "type": "kwart",
+      "oorsprong": [690, 2775],
+      "richting": 90,
+      "breedte": 780,
+      "aantalTreden": 15,
+      "optrede": 185,
+      "aantrede": 185,
+      "draairichting": "rechts",
+      "status": "bestaand"
+    },
+    {
+      "id": "T2",
+      "vanNiveau": "N1",
+      "naarNiveau": "N2",
+      "type": "halfdraai",
+      "oorsprong": [1830, 3185],
+      "richting": 180,
+      "breedte": 740,
+      "aantalTreden": 15,
+      "optrede": 185,
+      "aantrede": 200,
+      "draairichting": "rechts",
+      "status": "nieuw"
+    }
+  ],
+  "inrichting": [
+    {
+      "id": "I1",
+      "niveau": "N2",
+      "ruimte": "R17",
+      "soort": "douche",
+      "positie": [4400, 4300],
+      "rotatie": 180,
+      "breedte": 900,
+      "diepte": 900,
+      "hoogte": 2100,
+      "status": "nieuw"
+    },
+    {
+      "id": "I2",
+      "niveau": "N2",
+      "ruimte": "R17",
+      "soort": "lavabo",
+      "positie": [3850, 3325],
+      "rotatie": 0,
+      "breedte": 600,
+      "diepte": 450,
+      "status": "nieuw"
+    }
+  ],
+  "programma": {
+    "beschrijving": "Zolder volgens programma met de trap in de bestaande traphal (geen slaapkamer op de verdieping opofferen).",
+    "eisen": [
+      {
+        "functie": "slaapkamer",
+        "aantal": 2,
+        "niveau": "zolder",
+        "minOppervlakte": null
+      },
+      {
+        "functie": "berging",
+        "aantal": 1,
+        "niveau": "zolder"
+      },
+      {
+        "functie": "badkamer",
+        "aantal": 1,
+        "niveau": "zolder",
+        "inrichting": [
+          "lavabo",
+          "douche"
+        ]
+      },
+      {
+        "functie": "hal",
+        "aantal": 1,
+        "niveau": "zolder"
+      },
+      {
+        "functie": "slaapkamer",
+        "aantal": 3,
+        "niveau": "N1"
+      },
+      {
+        "trap": {
+          "van": "N1",
+          "naar": "zolder",
+          "type": [
+            "kwart",
+            "halfdraai",
+            "spiraal"
+          ]
+        }
+      }
+    ]
+  }
+}

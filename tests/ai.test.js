@@ -23,7 +23,9 @@ const { Gesprek } = await import('../js/ai/gesprek.js');
 const V = await import('./ai-voorbeelden.js');
 const { validate } = await import('../js/model/index.js');
 
-const lees = (f) => JSON.parse(readFileSync(new URL(`../designs/${f}.json`, import.meta.url), 'utf8'));
+// Vaste testbasis: de bestaande toestand zoals bij fase 5 (zonder zolder, hoogtes 3000/2800) in tests/fixtures/,
+// los van designs/bestaand.json (die evolueert met nieuwe opmetingen).
+const lees = (f) => JSON.parse(readFileSync(new URL(f === 'bestaand' ? './fixtures/bestaand-fase5.json' : `../designs/${f}.json`, import.meta.url), 'utf8'));
 const KEY = 'sk-ant-api03-TESTKEY-nietecht-0123456789abcdef';
 const INST = { model: 'claude-opus-5-5', effort: 'medium', fallbacks: true };
 

@@ -15,6 +15,8 @@ import { leesOntwerpTekst } from '../js/ui/varianten.js';
 
 const lees = (f) => JSON.parse(readFileSync(new URL(`../designs/${f}`, import.meta.url), 'utf8'));
 const bestaand = () => migreer(lees('bestaand.json'));
+// Vaste testbasis voor de bewerkingen: de bestaande toestand zoals bij fase 5 (tests/fixtures/), los van designs/.
+const bestaandFase5 = () => migreer(JSON.parse(readFileSync(new URL('./fixtures/bestaand-fase5.json', import.meta.url), 'utf8')));
 const demoOps = () => JSON.parse(readFileSync(new URL('../tools/voorbeelden/zolder-programma.ops.json', import.meta.url), 'utf8'));
 const dichtbij = (a, b, tol = 1e-6) => assert.ok(Math.abs(a - b) <= tol, `${a} ≉ ${b}`);
 const el = (m, c, id) => m[c].find((x) => x.id === id);
@@ -82,7 +84,8 @@ test('schema v2: versie, collecties en velden', () => {
 
 test('migratie v1 → v2: designs blijven gelijk, origineel ongewijzigd, niets verloren', () => {
   for (const f of ['bestaand.json', 'voorbeeld.json']) {
-    const v2 = lees(f);
+    // bestaand: de fase-5-versie zonder trappen (een v1-bestand kan geen trappen hebben)
+    const v2 = f === 'bestaand.json' ? bestaandFase5() : lees(f);
     const v1 = naarV1(v2);
     const kopie = structuredClone(v1);
     assert.equal(validate(v1).geldig, false, 'v1 valideert niet rechtstreeks');
@@ -340,7 +343,7 @@ test('vormen: inrichtingContour en polygonenOverlappen', () => {
 // ───────────────────────────── bewerkingen ─────────────────────────────
 
 test('opsMuurSplitsen: openingen verhuizen; opening over de knip ⇒ fout', () => {
-  const m = bestaand();
+  const m = bestaandFase5();
   // M4 (linker zijgevel, start y 140): O8 op 8690..10140 langs de muur
   const r = opsMuurSplitsen(m, 'M4', 7720);
   const n = pas(m, r);
@@ -356,7 +359,7 @@ test('opsMuurSplitsen: openingen verhuizen; opening over de knip ⇒ fout', () =
 });
 
 test('opsAfbraakZone: achterbouw (via ruimtes) — gedeelde oude achtergevel blijft, zijgevels gesplitst', () => {
-  const m = bestaand();
+  const m = bestaandFase5();
   const r = opsAfbraakZone(m, { ruimte: ['R5', 'R6', 'R7'] });
   const n = pas(m, r);
   for (const id of ['M3', 'M12', 'M13', 'O9', 'O10', 'O11', 'O17', 'O18', 'D2']) assert.equal(el(n, id.startsWith('O') ? 'openingen' : id.startsWith('D') ? 'daken' : 'muren', id).status, 'afbraak', id);
@@ -381,7 +384,7 @@ test('opsAfbraakZone: achterbouw (via ruimtes) — gedeelde oude achtergevel bli
 });
 
 test('opsAfbraakZone: garage 2 (via punt) — gedeelde muur met garage 1 blijft', () => {
-  const m = bestaand();
+  const m = bestaandFase5();
   const r = opsAfbraakZone(m, { niveau: 'N0', punt: [-1500, 18000] });
   assert.deepEqual(r.info.ruimtes, ['R15']);
   const n = pas(m, r);
@@ -397,7 +400,7 @@ test('opsAfbraakZone: garage 2 (via punt) — gedeelde muur met garage 1 blijft'
 });
 
 test('opsAfbraakZone: ids, nieuwe elementen worden verwijderd, fouten', () => {
-  const m = bestaand();
+  const m = bestaandFase5();
   const n = pas(m, opsAfbraakZone(m, { ids: ['M27', 'R15', 'V4'] }));
   assert.equal(el(n, 'muren', 'M27').status, 'afbraak');
   assert.equal(el(n, 'openingen', 'O30').status, 'afbraak');
@@ -544,33 +547,36 @@ test('demonstratie zolder-programma.ops.json op bestaand: geldig, afbraak correc
   assert.match(bestand._uitleg, /VOORBEELD/);
   const r = applyOps(b, bestand.ops);
   assert.ok(r.ok, JSON.stringify(r.fouten));
-  assert.deepEqual(r.waarschuwingen, []);
+  // enige waarschuwing: de bestaande trap T1 ligt in plan over de wand van de kast onder de trap (zie docs/BESTAAND.md)
+  assert.deepEqual(r.waarschuwingen.map((w) => w.melding), validate(b).waarschuwingen.map((w) => w.melding));
   const m = r.model;
   // afbraak: achterbouw + garage 2; gedeelde muren blijven
   for (const id of ['M3', 'M12', 'M13', 'M27', 'M28', 'M29']) assert.equal(el(m, 'muren', id).status, 'afbraak', id);
   for (const id of ['M5', 'M23', 'M2', 'M4']) assert.equal(el(m, 'muren', id).status, 'bestaand', id);
   for (const id of ['D2', 'D4']) assert.equal(el(m, 'daken', id).status, 'afbraak');
   for (const naam of ['Kamer achterbouw', 'Berging', 'Keuken (achterbouw)', 'Garage 2']) assert.ok(!m.ruimtes.some((x) => x.niveau === 'N0' && x.naam === naam), naam);
-  // zolder, trap, ruimtes, sanitair
+  // zolder (bestaat al in bestaand), nieuwe trap, ruimtes, sanitair
   const z = m.niveaus.find((n) => n.soort === 'zolder');
-  assert.deepEqual([z.peil, z.hoogte], [5800, 4000]);
-  assert.equal(m.trappen.length, 1);
-  assert.deepEqual([m.trappen[0].vanNiveau, m.trappen[0].naarNiveau, m.trappen[0].type], ['N1', z.id, 'halfdraai']);
+  assert.deepEqual([z.id, z.peil, z.hoogte], ['N2', 5550, 2790]);
+  const nieuw = m.trappen.filter((t) => t.status === 'nieuw');
+  assert.equal(nieuw.length, 1);
+  assert.deepEqual([nieuw[0].vanNiveau, nieuw[0].naarNiveau, nieuw[0].type], ['N1', z.id, 'halfdraai']);
   assert.deepEqual(m.inrichting.map((x) => x.soort).sort(), ['douche', 'lavabo']);
   // toets
   const t = toetsProgramma(m);
   assert.deepEqual(t.resultaten.map((x) => x.status), ['voldoet', 'voldoet', 'voldoet', 'voldoet']);
   assert.deepEqual(t.samenvatting, { voldoet: 4, 'voldoet niet': 0, onbekend: 0 });
-  // kerncijfers per hoogteband (zadeldak 45°, nok op y 4000 ⇒ vrije hoogte = afstand tot de dakvoet)
+  // kerncijfers per hoogteband (zadeldak 38,5°, dakvoet onderzijde op y 482 ⇒ vrije hoogte = (y − 482) · tan 38,5°)
   const k = kerncijfers(m);
   const s1 = k.ruimtes.find((x) => x.naam === 'Slaapkamer 1');
-  dichtbij(s1.banden[2].m2, 4.42 * 1.25, 0.05); // y 2200..3450
-  dichtbij(s1.banden[1].m2, 4.42 * 0.70, 0.05); // y 1500..2200
-  dichtbij(s1.banden[0].m2, 4.42 * 0.25, 0.05); // y 1250..1500
-  assert.equal(k.trappen.aantal, 1);
+  const yVan = (h) => 482 + h / Math.tan((38.5 * Math.PI) / 180);
+  dichtbij(s1.banden[2].m2, 4.42 * (3450 - yVan(2200)) / 1000, 0.05);
+  dichtbij(s1.banden[1].m2, 4.42 * (yVan(2200) - yVan(1500)) / 1000, 0.05);
+  dichtbij(s1.banden[0].m2, 4.42 * (yVan(1500) - 1250) / 1000, 0.05);
+  assert.deepEqual(k.trappen, { aantal: 2, bestaand: 1, nieuw: 1, afbraak: 0 });
   assert.deepEqual(k.inrichting, { douche: 1, lavabo: 1 });
   // de demonstratie is geen ontwerp in designs/
-  assert.ok(!lees('index.json').ontwerpen.some((o) => /zolder/.test(o.id)));
+  assert.ok(!lees('index.json').ontwerpen.some((o) => o.id === 'zolder-programma'));
 });
 
 test('bestaand en voorbeeld zijn v2 en geldig', () => {

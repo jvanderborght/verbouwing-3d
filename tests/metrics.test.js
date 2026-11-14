@@ -224,19 +224,22 @@ test('btw-tekst: incl/excl of vrije tekst zoals in prijzen.json', () => {
 
 test('bestaand.json: bruto, netto, volume en geen nieuwe muren', () => {
   const k = kerncijfers(lees('bestaand.json'));
-  const [n0, n1] = k.niveaus;
+  const [n0, n1, n2] = k.niveaus;
   // N0: woning 7 × 12,5 = 87,5 m² + garages 4,95 × 7,8 = 38,61 en 3,5 × 6 = 21 ⇒ 147,11 m²
   dichtbij(n0.bruto, 87.5 + 38.61 + 21);
   // N1: 7 × 8 = 56 m²
   dichtbij(n1.bruto, 56);
-  // volume: 147,11 × 3,0 + 56 × 2,8 + zadeldak 7 × 8 × (4 × tan 45°) / 2 = 441,33 + 156,8 + 112 = 710,13 m³
-  dichtbij(k.volume.totaal, 710.13, 1e-6);
+  // volume: 147,11 × 2,775 + 56 × 2,775 + zolder = zadeldak 38,5° op 7 × 7,016 m (nok 3,508 × tan 38,5°) / 2
+  const nok = 3.508 * Math.tan((38.5 * Math.PI) / 180);
+  dichtbij(n2.volume, (7 * 7.016 * nok) / 2, 1e-6);
+  dichtbij(k.volume.totaal, 147.11 * 2.775 + 56 * 2.775 + (7 * 7.016 * nok) / 2, 1e-6);
+  assert.equal(k.volume.daken, 0); // het dakvolume zit in de zolder
   assert.deepEqual(k.muren, { nieuwBuiten: 0, nieuwBinnen: 0, afbraak: 0, doorbraken: 0 });
   assert.equal(k.vloerNieuw, 0);
   assert.equal(k.ramen.nieuw.aantal, 0);
   assert.equal(k.deuren.nieuw, 0);
-  // zadeldak 45°, overstek 0,5 m: (7 + 1) × (8 + 1) / cos 45° = 101,82 m²; platte daken 31,5 + 38,61 + 21 = 91,11 m²
-  dichtbij(k.dak.hellendBestaand, 72 * Math.SQRT2);
+  // zadeldak 38,5°, overstek 0,48 m: (7 + 0,96) × (7,016 + 0,96) / cos 38,5°; platte daken 31,5 + 38,61 + 21 = 91,11 m²
+  dichtbij(k.dak.hellendBestaand, (7.96 * 7.976) / Math.cos((38.5 * Math.PI) / 180));
   dichtbij(k.dak.platBestaand, 91.11);
   assert.ok(n0.netto > 0 && n0.netto < n0.bruto);
   assert.ok(n1.netto > 0 && n1.netto < n1.bruto);
@@ -285,7 +288,7 @@ test('alle sleutels uit prijzen.json zijn gekend', () => {
 // ---------------------------------------------------------------- vergelijking en CSV
 
 test('vergelijking: Δ t.o.v. referentie na een extra muur in een kopie van bestaand', () => {
-  const ref = lees('bestaand.json');
+  const ref = JSON.parse(readFileSync(new URL('./fixtures/bestaand-fase5.json', import.meta.url), 'utf8')); // vaste testbasis (fase 5)
   const kopie = dupliceer(ref, 'kopie', 'Kopie');
   // nieuwe binnenmuur van 2 m op N0 (3 m hoog, geen openingen) ⇒ +6 m² binnenmuur
   const r = applyOps(kopie, [{ op: 'toevoegen', collectie: 'muren', item: { niveau: 'N0', start: [1000, 2000], eind: [3000, 2000], dikte: 100, status: 'nieuw' } }]);
