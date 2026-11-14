@@ -10,7 +10,7 @@ import { bouwVerzoek, FALLBACK_BETA } from './prompt.js';
 // ---------------------------------------------------------------- opslag van key en instellingen
 
 const PREFIX = 'verbouwing3d.';
-export const AI_SLEUTELS = Object.freeze({ key: `${PREFIX}anthropicKey`, instellingen: `${PREFIX}aiInstellingen` });
+export const AI_SLEUTELS = Object.freeze({ key: `${PREFIX}anthropicKey`, instellingen: `${PREFIX}aiInstellingen`, modus: `${PREFIX}aiModus` });
 
 /** Key + AI-instellingen in localStorage (via LokaleOpslag uit js/ui/opslag.js of een nagebootste storage). */
 export class AiOpslag {
@@ -21,6 +21,9 @@ export class AiOpslag {
   wisKey() { return this.o.wis(AI_SLEUTELS.key); }
   instellingen() { try { return JSON.parse(this.o.lees(AI_SLEUTELS.instellingen) || 'null'); } catch { return null; } }
   bewaarInstellingen(v) { return this.o.schrijf(AI_SLEUTELS.instellingen, JSON.stringify(v)); }
+  /** Voorkeur van het promptpaneel: 'api' of 'handmatig' (kopiëren/plakken, zonder key). Zonder key is het altijd handmatig. */
+  modus() { return this.o.lees(AI_SLEUTELS.modus) === 'handmatig' ? 'handmatig' : 'api'; }
+  bewaarModus(m) { return this.o.schrijf(AI_SLEUTELS.modus, m === 'handmatig' ? 'handmatig' : 'api'); }
 }
 
 // ---------------------------------------------------------------- prijzen (schatting)

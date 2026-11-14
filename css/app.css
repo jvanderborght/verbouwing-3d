@@ -708,6 +708,18 @@ input[type="range"] { accent-color: var(--accent); width: 160px; height: var(--k
 .ai-diff ul { margin: 4px 0; padding-left: 16px; max-height: 220px; overflow: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; word-break: break-word; }
 .ai-acties { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; margin-top: 8px; }
 .ai-alle { padding-top: 8px; border-top: 1px solid var(--rand); }
+/* fase 5c: werkwijze (API-key / handmatig) en de handmatige modus */
+.ai-modus { display: flex; gap: 4px; margin: 2px 0 8px; flex-wrap: wrap; }
+.ai-modus .knop { flex: 1 1 auto; }
+.ai-modus .knop[aria-pressed="true"] { background: var(--accent-zacht); border-color: var(--accent); color: var(--accent); }
+.ai-key-link { font-size: 13px; color: var(--tekst-zacht); }
+.ai-hand { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--rand); }
+.ai-stappen { margin: 0 0 6px; padding-left: 20px; font-size: 13px; }
+.ai-stappen li { margin: 2px 0; }
+.ai-kopie-info { font-size: 13px; color: var(--accent); margin: 6px 0; }
+.ai-kopie-info:empty { display: none; }
+.ai-hand textarea { width: 100%; resize: vertical; min-height: 72px; padding: 8px 10px; border: 1px solid var(--rand-sterk); border-radius: var(--radius); background: var(--vlak); font-size: 13px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.ai-herstel ul { margin: 6px 0 0; padding-left: 18px; font-size: 12px; word-break: break-word; }
 .inst-sectie { margin-bottom: 8px; }
 .inst-sectie + .inst-sectie { border-top: 1px solid var(--rand); padding-top: 8px; }
 .inst-sectie h3 { margin: 6px 0; font-size: 15px; }
@@ -726,7 +738,7 @@ input[type="range"] { accent-color: var(--accent); width: 160px; height: var(--k
   }
   .ai-paneel.ingeklapt { height: auto; }
   .ai-inklap { display: inline-flex; }
-  .ai-formulier textarea, .ai-vragen textarea { font-size: 16px; } /* geen auto-zoom op iOS */
+  .ai-formulier textarea, .ai-vragen textarea, .ai-hand textarea { font-size: 16px; } /* geen auto-zoom op iOS */
   .ai-acties .knop, .ai-rij .knop { min-height: 44px; }
   body.ai-open .meldingen { bottom: calc(62dvh + 8px); }
 }
