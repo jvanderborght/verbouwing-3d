@@ -1,15 +1,20 @@
 // App-schil: koppelt variantbeheer, views (3D/2D), bedieningsbalk, eigenschappenpaneel en GitHub-opslag.
 // Alle modelwijzigingen lopen via operaties op de Geschiedenis van het actieve ontwerp.
 
-import { validate, formatteerFouten } from '../model/index.js';
+import { validate, formatteerFouten, opsNiveauToevoegen, opsDakInstellen } from '../model/index.js';
 import { VariantBeheer, TOESTAND_LABELS } from './varianten.js';
-import { LokaleOpslag } from './opslag.js';
-import { tekenEigenschappen, elementUitPad, niveauVanElement, zoekElement } from './eigenschappen.js';
+import { LokaleOpslag, standaardStorage } from './opslag.js';
+import { tekenEigenschappen, elementUitPad, niveauVanElement, zoekElement, ENKELVOUD } from './eigenschappen.js';
 import { dialoog, bevestig, vraagTekst, meld } from './dialogen.js';
 import { h, leeg, $ } from './dom.js';
+import { laadOpties, bewaarOpties, isTekengereedschap, gereedschapInfo, GEREEDSCHAPPEN } from './gereedschap.js';
+import { Tekenen } from './tekenen.js';
+import { Taakbalk } from './taakbalk.js';
+import { niveauDialoog, dakDialoog } from './tekendialogen.js';
 
 const opslag = new LokaleOpslag();
 const beheer = new VariantBeheer({ opslag });
+let gereedschapOpties = laadOpties(standaardStorage());
 
 const toestand = {
   selectie: null,
@@ -28,8 +33,23 @@ const el = {
   dsWaarde: $('#doorsnede-waarde'), weergave: $('#knop-weergave'), balkExtra: $('#balk-extra'),
   waarschKnop: $('#knop-waarschuwingen'), waarsch: $('#waarschuwingen'), eig: $('#eigenschappen'),
   werkvlak: $('#werkvlak'), splitter: $('#splitter'), importBestand: $('#import-bestand'),
-  view3d: $('#view-3d'), view2d: $('#view-2d'),
+  view3d: $('#view-3d'), view2d: $('#view-2d'), taakbalk: $('#taakbalk'),
 };
+
+// ---------------------------------------------------------------- tekengereedschap
+
+const tekenen = new Tekenen({
+  plan: () => views.v2d,
+  model: () => beheer.model,
+  niveau: () => toestand.planNiveau,
+  selectie: () => toestand.selectie,
+  selecteer: (id) => selecteer(id),
+  voerUit: (r, label) => voerUit(r, label),
+  verwijder: (id) => verwijder(id),
+  opties: () => gereedschapOpties,
+  opToestand: () => taakbalk?.zet(tekenen.toestand()),
+});
+let taakbalk = null;
 
 // ---------------------------------------------------------------- views
 
@@ -49,6 +69,8 @@ async function maakViews() {
     const { Plattegrond } = await import('../views/plan2d.js');
     views.v2d = new Plattegrond(el.view2d);
     views.v2d.opSelectie((id) => selecteer(id));
+    views.v2d.opPointer((e) => tekenen.pointer(e));
+    el.view2d.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') tekenen.verlaat(); });
   } catch (e) {
     console.error('Plattegrond niet beschikbaar:', e);
     el.view2d.append(h('p', { class: 'view-fout' }, 'Plattegrond kon niet gestart worden.'));
@@ -72,6 +94,7 @@ function renderAlles() {
   if (toestand.selectie && !zoekElement(model, toestand.selectie)) toestand.selectie = null;
   bouwNiveauBediening(model);
   renderViews();
+  tekenen.vernieuw();
   renderEigenschappen();
   renderUndo();
   renderWaarschuwingen(model);
@@ -79,7 +102,10 @@ function renderAlles() {
 }
 
 function renderEigenschappen() {
-  tekenEigenschappen(el.eig, { model: beheer.model, selectie: toestand.selectie, opWijzig: wijzig, opSelecteer: selecteer });
+  tekenEigenschappen(el.eig, {
+    model: beheer.model, selectie: toestand.selectie, opWijzig: wijzig, opSelecteer: selecteer,
+    opBewerking: (r, label) => ({ ok: voerUit(r, label) }), opVerwijder: verwijder,
+  });
 }
 
 function renderUndo() {
@@ -176,18 +202,96 @@ function wijzig(ops, label) {
   return r;
 }
 
+/**
+ * Resultaat van een bewerking ({ ops, fout? }) toepassen als één undo-stap.
+ * → true bij succes; bij een fout: melding, niets gewijzigd.
+ */
+function voerUit(r, label) {
+  if (!r) return false;
+  if (r.fout) { meld(r.fout, 'fout'); return false; }
+  if (!r.ops?.length) return false;
+  return wijzig(r.ops, label).ok;
+}
+
+/** Element verwijderen (cascade). Een niveau enkel na bevestiging. */
+async function verwijder(id) {
+  const model = beheer.model;
+  const z = zoekElement(model, id);
+  if (!z) return false;
+  const { collectie, item } = z;
+  if (collectie === 'niveaus') {
+    if (model.niveaus.length <= 1) { meld('Het laatste niveau kan niet verwijderd worden.', 'fout'); return false; }
+    const muren = model.muren.filter((m) => m.niveau === id);
+    const n = {
+      muren: muren.length,
+      openingen: model.openingen.filter((o) => muren.some((m) => m.id === o.muur)).length,
+      ruimtes: model.ruimtes.filter((r) => r.niveau === id).length,
+      overig: model.vloeren.filter((v) => v.niveau === id).length + model.daken.filter((d) => d.niveau === id).length,
+    };
+    const ok = await bevestig(`Niveau "${item.naam}" verwijderen?`,
+      `Alles op dit niveau wordt mee verwijderd: ${n.muren} muren, ${n.openingen} openingen, ${n.ruimtes} ruimtes en ${n.overig} vloeren/daken. Je kan dit ongedaan maken.`,
+      { ja: 'Verwijderen', gevaar: true });
+    if (!ok) return false;
+  }
+  const r = wijzig([{ op: 'verwijderen', collectie, id }], `${ENKELVOUD[collectie]} ${id} verwijderen`);
+  if (r.ok) {
+    if (toestand.selectie && !zoekElement(beheer.model, toestand.selectie)) selecteer(null);
+    meld(`${ENKELVOUD[collectie]} ${id} verwijderd.`, 'info', { duur: 2200 });
+  }
+  return r.ok;
+}
+
+// ---------------------------------------------------------------- gereedschap kiezen
+
+const isTelefoon = () => matchMedia('(max-width: 799.98px)').matches;
+
+async function kiesGereedschap(id) {
+  const info = gereedschapInfo(id);
+  if (!info || !beheer.model) return;
+  if (id === 'niveau') return niveauToevoegen();
+  if (id === 'dak') return dakInstellen();
+  tekenen.kies(id);
+  taakbalk.zet(tekenen.toestand());
+  // tekenen gebeurt in de plattegrond: op telefoon naar de 2D-tab
+  if (isTekengereedschap(id) && isTelefoon() && el.werkvlak.dataset.actief !== '2d') zetTab('2d');
+}
+
+async function niveauToevoegen() {
+  tekenen.annuleer({ stil: true });
+  const w = await niveauDialoog(beheer.model);
+  if (!w) return;
+  const r = opsNiveauToevoegen(beheer.model, w);
+  if (!voerUit(r, `Niveau "${w.naam}" toevoegen`)) return;
+  toestand.planNiveau = r.info.id;
+  el.planNiveau.value = r.info.id;
+  zetPlanTitel(beheer.model);
+  renderViews();
+  tekenen.vernieuw();
+  meld(`Niveau "${w.naam}" toegevoegd${r.info.muren.length ? ` met ${r.info.muren.length} muren` : ''}. De plattegrond toont nu dit niveau.`, 'ok');
+}
+
+async function dakInstellen() {
+  tekenen.annuleer({ stil: true });
+  const w = await dakDialoog(beheer.model, toestand.planNiveau);
+  if (!w) return;
+  // altijd ALLE waarden meegeven (opsDakInstellen zet anders nokrichting/overstek op hun standaard)
+  const r = opsDakInstellen(beheer.model, w.niveau, { type: w.type, helling: w.helling, nokrichting: w.nokrichting, overstek: w.overstek, status: w.status });
+  if (voerUit(r, r.info?.nieuw ? 'Dak toevoegen' : 'Dak wijzigen')) meld(r.info.nieuw ? `Dak ${r.info.id} toegevoegd.` : `Dak ${r.info.id} gewijzigd.`, 'ok', { duur: 2500 });
+}
+
 function selecteer(id) {
   const model = beheer.model;
   toestand.selectie = id && zoekElement(model, id) ? id : null;
   // Element op een ander niveau? Dan de plattegrond meenemen.
   const nv = toestand.selectie ? niveauVanElement(model, toestand.selectie) : null;
-  if (nv && nv !== toestand.planNiveau) { toestand.planNiveau = nv; el.planNiveau.value = nv; zetPlanTitel(model); }
+  if (nv && nv !== toestand.planNiveau) { tekenen.annuleer({ stil: true }); toestand.planNiveau = nv; el.planNiveau.value = nv; zetPlanTitel(model); }
   renderViews();
+  tekenen.vernieuw();
   renderEigenschappen();
 }
 
-function undo() { const g = beheer.geschiedenis; if (g?.kanUndo) { const lbl = g.verleden.at(-1)?.label; g.undo(); if (lbl) meld(`Ongedaan: ${lbl}`, 'info', { duur: 1800 }); } }
-function redo() { const g = beheer.geschiedenis; if (g?.kanRedo) { const lbl = g.toekomst.at(-1)?.label; g.redo(); if (lbl) meld(`Opnieuw: ${lbl}`, 'info', { duur: 1800 }); } }
+function undo() { tekenen.annuleer(); const g = beheer.geschiedenis; if (g?.kanUndo) { const lbl = g.verleden.at(-1)?.label; g.undo(); if (lbl) meld(`Ongedaan: ${lbl}`, 'info', { duur: 1800 }); } }
+function redo() { tekenen.annuleer(); const g = beheer.geschiedenis; if (g?.kanRedo) { const lbl = g.toekomst.at(-1)?.label; g.redo(); if (lbl) meld(`Opnieuw: ${lbl}`, 'info', { duur: 1800 }); } }
 
 // ---------------------------------------------------------------- variantbeheer
 
@@ -409,13 +513,14 @@ function koppelSplitter() {
   el.splitter.addEventListener('dblclick', () => { pct = zetSplitsing(55); opslag.bewaarUi({ splitsing: pct }); window.dispatchEvent(new Event('resize')); });
 }
 
+function isKnop(t) { return !!t && /^(BUTTON|SUMMARY|A)$/.test(t.tagName || ''); }
 function isInvoer(t) { return t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable); }
 
 function koppelBediening() {
   el.undo.addEventListener('click', undo);
   el.redo.addEventListener('click', redo);
   el.zoom.addEventListener('click', () => { try { views.v3d?.zoomAlles(); } catch (e) { console.error(e); } try { views.v2d?.zoomAlles(); } catch (e) { console.error(e); } });
-  el.planNiveau.addEventListener('change', () => { toestand.planNiveau = el.planNiveau.value; zetPlanTitel(beheer.model); renderViews(); });
+  el.planNiveau.addEventListener('change', () => { tekenen.annuleer(); toestand.planNiveau = el.planNiveau.value; zetPlanTitel(beheer.model); renderViews(); tekenen.vernieuw(); });
   el.dsAan.addEventListener('change', () => { toestand.doorsnede = el.dsAan.checked ? toestand.doorsnedeZ : null; zetDoorsnedeTekst(); renderViews(); });
   el.dsZ.addEventListener('input', () => { toestand.doorsnedeZ = Number(el.dsZ.value); if (toestand.doorsnede != null) toestand.doorsnede = toestand.doorsnedeZ; zetDoorsnedeTekst(); renderViews(); });
   el.weergave.addEventListener('click', () => {
@@ -444,17 +549,58 @@ function koppelBediening() {
     if (e.key === 'Escape' && !el.menu.hidden) { sluitMenu(); el.menuKnop.focus(); return; }
     if (document.querySelector('dialog[open]')) return;
     const mod = e.ctrlKey || e.metaKey;
-    if (!mod || e.altKey || isInvoer(e.target)) return;
+    // spatie = pannen in de plattegrond (tekengereedschap): geen knop activeren die toevallig focus heeft
+    if (e.code === 'Space' && !mod && isTekengereedschap(tekenen.gereedschap) && isKnop(e.target)) { e.preventDefault(); return; }
+    if (e.altKey || isInvoer(e.target)) return;
+    if (!mod) {
+      if (e.key === 'Escape') {
+        if (!tekenen.annuleer() && toestand.selectie) selecteer(null);
+        return;
+      }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && toestand.selectie) { e.preventDefault(); verwijder(toestand.selectie); return; }
+      // muur tekenen: meteen een lengte typen (zonder de muis naar het veld te bewegen, wat de richting zou wijzigen)
+      if (tekenen.gereedschap === 'muur' && tekenen.tekenaar.actief && /^[0-9]$/.test(e.key)) {
+        const inp = $('#opt-lengte');
+        if (inp) { e.preventDefault(); inp.value = e.key; inp.focus(); return; }
+      }
+      if (!e.shiftKey && e.key.length === 1) {
+        const g = GEREEDSCHAPPEN.find((x) => x.toets === e.key.toLowerCase());
+        if (g) { e.preventDefault(); kiesGereedschap(g.id); }
+      }
+      return;
+    }
     const k = e.key.toLowerCase();
     if (k === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
     else if ((k === 'z' && e.shiftKey) || (k === 'y' && !e.shiftKey)) { e.preventDefault(); redo(); }
+  });
+  document.addEventListener('keyup', (e) => {
+    if (e.code === 'Space' && isTekengereedschap(tekenen.gereedschap) && isKnop(e.target) && !document.querySelector('dialog[open]')) e.preventDefault();
   });
   koppelSplitter();
 }
 
 // ---------------------------------------------------------------- opstart
 
+function maakTaakbalk() {
+  taakbalk = new Taakbalk(el.taakbalk, {
+    opties: gereedschapOpties,
+    opKies: (id) => kiesGereedschap(id),
+    opOpties: (o) => { gereedschapOpties = o; bewaarOpties(standaardStorage(), o); tekenen.vernieuw(); },
+    opLengte: (L, richting) => {
+      if (tekenen.gereedschap !== 'muur') { kiesGereedschap('muur'); return false; }
+      return tekenen.muurMetLengte(L, richting);
+    },
+    opKlaar: () => tekenen.klaar(),
+    opRechthoek: () => {
+      if (tekenen.rechthoek) tekenen.annuleer();
+      else tekenen.startRechthoek();
+      taakbalk.zet(tekenen.toestand());
+    },
+  });
+}
+
 async function start() {
+  maakTaakbalk();
   koppelBediening();
   const ui = opslag.ui();
   zetTab(['3d', '2d', 'eig'].includes(ui.tab) ? ui.tab : '3d');
@@ -463,7 +609,7 @@ async function start() {
   let opslagFoutGemeld = false;
   beheer.opWijziging((soort) => {
     if (soort === 'model' || soort === 'actief') {
-      if (soort === 'actief') { toestand.selectie = null; toestand.niveauSleutel = ''; toestand.verborgen.clear(); }
+      if (soort === 'actief') { tekenen.annuleer({ stil: true }); toestand.selectie = null; toestand.niveauSleutel = ''; toestand.verborgen.clear(); }
       renderAlles();
     } else if (soort === 'toestand' || soort === 'lijst') renderKiezer();
     else if (soort === 'opslag-fout' && !opslagFoutGemeld) {
@@ -487,6 +633,9 @@ async function start() {
   if (!geopend) beheer.nieuw('Nieuw ontwerp');
   document.body.classList.add('klaar');
 }
+
+// Debug-haak (rooktests, console). Bevat geen eigen toestand.
+window.__app = { beheer, toestand, views, tekenen, get taakbalk() { return taakbalk; }, kiesGereedschap, undo, redo, selecteer };
 
 window.addEventListener('beforeunload', (e) => {
   if (!opslag.beschikbaar && beheer.geschiedenis?.kanUndo) { e.preventDefault(); e.returnValue = ''; }

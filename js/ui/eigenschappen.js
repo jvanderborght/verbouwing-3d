@@ -1,10 +1,12 @@
 // Eigenschappenpaneel: toont het geselecteerde element (alle velden uit het schema) of, zonder selectie,
 // het ontwerp zelf met een lijst van alle elementen. Getallen, tekst en keuzelijsten zijn bewerkbaar;
 // elke wijziging wordt een `wijzigen`- of `ontwerp`-operatie (via de callback `opWijzig`).
-// Punten en contouren zijn in fase 1 alleen-lezen (tekenen komt in fase 2).
+// Muren (fase 2): start/eind als x/y-velden (opsMuurEindpunt), bewerkbare lengte (opsMuurLengte) en hoek (info).
+// Contouren blijven alleen-lezen. Onderaan: element verwijderen (cascade; niveau met bevestiging, via opVerwijder).
 
-import { VELDEN, ENUMS, COLLECTIE_NAMEN, polygoonOppervlakte, muurLengte } from '../model/index.js';
+import { VELDEN, ENUMS, COLLECTIE_NAMEN, polygoonOppervlakte, muurLengte, opsMuurEindpunt, opsMuurLengte } from '../model/index.js';
 import { h, leeg } from './dom.js';
+import { muurHoek } from './gereedschap.js';
 
 export const ENKELVOUD = { niveaus: 'Niveau', muren: 'Muur', openingen: 'Opening', ruimtes: 'Ruimte', vloeren: 'Vloer', daken: 'Dak' };
 export const MEERVOUD = { niveaus: 'Niveaus', muren: 'Muren', openingen: 'Openingen', ruimtes: 'Ruimtes', vloeren: 'Vloeren', daken: 'Daken' };
@@ -86,9 +88,10 @@ export function elementLabel(model, collectie, item) {
 /**
  * Tekent het paneel.
  * @param {HTMLElement} el
- * @param {{ model, selectie, waarschuwingen, opWijzig: (ops, label) => {ok, melding?}, opSelecteer: (id|null) => void, toonWaarschuwingen: boolean }} o
+ * @param {{ model, selectie, opWijzig: (ops, label) => {ok}, opSelecteer: (id|null) => void,
+ *           opBewerking?: (r: {ops, fout?}, label) => {ok}, opVerwijder?: (id) => void }} o
  */
-export function tekenEigenschappen(el, { model, selectie, opWijzig, opSelecteer }) {
+export function tekenEigenschappen(el, { model, selectie, opWijzig, opSelecteer, opBewerking, opVerwijder }) {
   leeg(el);
   if (!model) { el.append(h('p', { class: 'leeg' }, 'Geen ontwerp geopend.')); return; }
   const z = zoekElement(model, selectie);
@@ -102,12 +105,46 @@ export function tekenEigenschappen(el, { model, selectie, opWijzig, opSelecteer 
     h('button', { type: 'button', class: 'knop klein', onclick: () => opSelecteer(null), title: 'Selectie opheffen' }, 'Sluiten')));
   if (item.status) el.append(h('div', { class: `status-chip status-${item.status}` }, item.status));
 
+  const bewerk = opBewerking || ((r, label) => (r.fout ? { ok: false } : opWijzig(r.ops, label)));
   const lijst = h('dl', { class: 'velden' });
   for (const rij of veldRijen(model, collectie, item)) {
-    lijst.append(h('dt', {}, h('label', { for: `veld-${rij.veld}` }, rij.label, rij.verplicht ? '' : h('span', { class: 'optioneel' }, ' (optioneel)'))));
+    const forId = rij.soort === 'punt' && collectie === 'muren' ? `veld-${rij.veld}-x` : `veld-${rij.veld}`;
+    lijst.append(h('dt', {}, h('label', { for: forId }, rij.label, rij.verplicht ? '' : h('span', { class: 'optioneel' }, ' (optioneel)'))));
+    if (rij.soort === 'punt' && collectie === 'muren') {
+      lijst.append(h('dd', {}, puntInvoer(rij, (p) => bewerk(opsMuurEindpunt(model, item.id, rij.veld, p), `${rij.veld === 'start' ? 'Startpunt' : 'Eindpunt'} wijzigen`))));
+      if (rij.veld === 'eind') {
+        const L = Math.round(muurLengte(item) * 10) / 10;
+        lijst.append(h('dt', {}, h('label', { for: 'veld-lengte' }, 'Lengte (as)')));
+        lijst.append(h('dd', {}, veldInvoer({ veld: 'lengte', soort: 'getal', eenheid: 'mm', verplicht: true, waarde: L },
+          (v) => bewerk(opsMuurLengte(model, item.id, v), 'Muurlengte wijzigen'))));
+        lijst.append(h('dt', {}, 'Hoek'));
+        lijst.append(h('dd', {}, h('output', { class: 'alleen-lezen', id: 'veld-hoek' }, `${fmtGetal(muurHoek(item))}°`)));
+      }
+      continue;
+    }
     lijst.append(h('dd', {}, veldInvoer(rij, (waarde) => opWijzig([{ op: 'wijzigen', collectie, id: item.id, velden: { [rij.veld]: waarde } }], `${LABELS[rij.veld] || rij.veld} wijzigen`))));
   }
   el.append(lijst);
+  if (opVerwijder) {
+    el.append(h('div', { class: 'eig-acties' },
+      h('button', { type: 'button', class: 'knop gevaar', id: 'eig-verwijder', onclick: () => opVerwijder(item.id) },
+        `${ENKELVOUD[collectie]} verwijderen`)));
+  }
+}
+
+/** Twee getalvelden (x, y) voor een punt; wijzigen ⇒ wijzig([x, y]). Geweigerd ⇒ oude waarden terug. */
+function puntInvoer(rij, wijzig) {
+  const [x0, y0] = Array.isArray(rij.waarde) ? rij.waarde : [0, 0];
+  const mk = (as, w) => h('input', { id: `veld-${rij.veld}-${as}`, type: 'text', inputmode: 'decimal', value: w, 'data-veld': `${rij.veld}.${as}`, autocomplete: 'off', 'aria-label': `${rij.label} ${as}` });
+  const ix = mk('x', x0), iy = mk('y', y0);
+  const opWijziging = () => {
+    const x = leesGetal(ix.value), y = leesGetal(iy.value);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || (x === x0 && y === y0) || !wijzig([x, y]).ok) { ix.value = x0; iy.value = y0; }
+  };
+  ix.addEventListener('change', opWijziging);
+  iy.addEventListener('change', opWijziging);
+  return h('div', { class: 'punt-invoer' },
+    h('span', { class: 'as' }, 'x'), ix, h('span', { class: 'as' }, 'y'), iy, h('span', { class: 'eenheid' }, 'mm'));
 }
 
 /**
