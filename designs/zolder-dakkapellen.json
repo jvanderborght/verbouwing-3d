@@ -288,8 +288,8 @@
     {
       "id": "M32",
       "niveau": "N2",
-      "start": [3835, 3620],
-      "eind": [3835, 7498],
+      "start": [2785, 3620],
+      "eind": [2785, 7498],
       "dikte": 110,
       "status": "nieuw"
     },
@@ -297,14 +297,14 @@
       "id": "M33",
       "niveau": "N2",
       "start": [280, 4745],
-      "eind": [3835, 4745],
+      "eind": [2785, 4745],
       "dikte": 160,
       "status": "nieuw"
     },
     {
       "id": "M34",
       "niveau": "N2",
-      "start": [3835, 3620],
+      "start": [2785, 3620],
       "eind": [6860, 3620],
       "dikte": 110,
       "status": "nieuw"
@@ -312,8 +312,8 @@
     {
       "id": "M35",
       "niveau": "N2",
-      "start": [3835, 482],
-      "eind": [3835, 3620],
+      "start": [2785, 270],
+      "eind": [2785, 3620],
       "dikte": 90,
       "status": "nieuw"
     },
@@ -321,7 +321,7 @@
       "id": "M36",
       "niveau": "N2",
       "start": [280, 2725],
-      "eind": [3835, 2725],
+      "eind": [2785, 2725],
       "dikte": 90,
       "status": "nieuw"
     }
@@ -651,7 +651,7 @@
       "id": "O33",
       "muur": "M35",
       "type": "deur",
-      "positie": 2370,
+      "positie": 2411,
       "breedte": 700,
       "hoogte": 2000,
       "borstwering": 0,
@@ -813,19 +813,6 @@
     },
     {
       "niveau": "N2",
-      "naam": "Berging",
-      "functie": "berging",
-      "contour": [
-        [280, 482],
-        [3790, 482],
-        [3790, 2680],
-        [280, 2680]
-      ],
-      "hoogtegrenzen": [1500, 2200],
-      "id": "R17"
-    },
-    {
-      "niveau": "N2",
       "naam": "Slaapkamer voor",
       "functie": "slaapkamer",
       "contour": [
@@ -852,8 +839,8 @@
     },
     {
       "niveau": "N2",
-      "naam": "Slaapkamer achter",
-      "functie": "slaapkamer",
+      "naam": "Badkamer",
+      "functie": "badkamer",
       "contour": [
         [280, 4825],
         [3780, 4825],
@@ -865,8 +852,8 @@
     },
     {
       "niveau": "N2",
-      "naam": "Badkamer",
-      "functie": "badkamer",
+      "naam": "Slp4",
+      "functie": "slaapkamer",
       "contour": [
         [3890, 3675],
         [6860, 3675],
@@ -875,6 +862,18 @@
       ],
       "hoogtegrenzen": [1500, 2200],
       "id": "R21"
+    },
+    {
+      "id": "R22",
+      "niveau": "N2",
+      "naam": "Berging",
+      "functie": "berging",
+      "contour": [
+        [280, 270],
+        [2785, 270],
+        [2785, 2725],
+        [280, 2725]
+      ]
     }
   ],
   "vloeren": [
@@ -1069,17 +1068,17 @@
     }
   ],
   "idTeller": {
-    "R": 21
+    "R": 22
   },
   "dakkapellen": [
     {
       "id": "K1",
       "dak": "D1",
       "zijde": "voor",
-      "positieX": 5370,
-      "positieZ": 900,
-      "breedte": 2380,
-      "hoogte": 1400,
+      "positieX": 5000,
+      "positieZ": 600,
+      "breedte": 3000,
+      "hoogte": 1800,
       "raam": {
         "breedte": 1740,
         "hoogte": 1100
@@ -1090,9 +1089,9 @@
       "id": "K2",
       "dak": "D1",
       "zijde": "achter",
-      "positieX": 2030,
-      "positieZ": 900,
-      "breedte": 2400,
+      "positieX": 5000,
+      "positieZ": 600,
+      "breedte": 3000,
       "hoogte": 1400,
       "raam": {
         "breedte": 1760,
