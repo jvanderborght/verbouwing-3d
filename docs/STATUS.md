@@ -14,7 +14,7 @@ _Laatst bijgewerkt: 2026-11-14 — bestaande toestand opnieuw opgebouwd uit het 
 - 2D-plattegrond (SVG) per niveau: kleurcode, deurzwaai, ruimtes met m², ketting- en totaalmaten, pan/zoom (ook knijpen), selectie.
 - App-schil: responsive (desktop naast elkaar, telefoon met tabs), eigenschappenpaneel (getallen/tekst/keuzes al bewerkbaar via operaties), undo/redo + sneltoetsen, validatiemeldingen.
 - Variantbeheer: werkkopie in localStorage, nieuw/dupliceren/hernoemen/verwijderen (lokaal)/export/import, **opslaan naar en ophalen van GitHub** met eigen token in de browser (nooit in git).
-- Tests: `npm test` (131 tests + validatie designs).
+- Tests: `npm test` (150+ tests + validatie designs).
 - QA-opvolging: getalinvoer begrijpt "1.200" als 1200; 422 van GitHub enkel als conflict bij sha-fout; workflow least-privilege.
 - `designs/bestaand.json`: **Bestaande toestand** — plattegronden (muren, diktes, ramen, deuren, 15 ruimtes, garages) uit het bestaande plan (DXF, kader 'origineel', cm): woning 7,00 × 12,50 m, hoofdvolume 8 m diep + achterbouw. Hoogtes, dak, borstweringen en perceelligging blijven schatting/aanname (het DXF bevat geen doorsnedes). Details, bronnen, twijfels en open vragen: `docs/BESTAAND.md`; sanity-tests in `tests/bestaand.test.js`.
 - `designs/voorbeeld.json`: FICTIEF testhuis (7 m breed, perceel 14 m; rest aannames). `designs/prijzen.json`: leeg sjabloon.
@@ -30,6 +30,13 @@ _Laatst bijgewerkt: 2026-11-14 — bestaande toestand opnieuw opgebouwd uit het 
 - Hoog-niveau bewerkingen in `js/model/bewerkingen.js` (getest). Elke actie = één undo-stap.
 - App-commits naar GitHub krijgen het anonieme noreply-adres als auteur (niet meer het account-e-mailadres).
 - Tests: 124+.
+
+## Fase 3 — kerncijfers, kostenraming, vergelijken ✅
+- Definities: `docs/FASE3.md`. Code: `js/metrics/` (puur, getest), `js/ui/kerncijferspaneel.js`, `js/ui/vergelijken.js`.
+- Kerncijfers per variant: bruto/netto m² per niveau, volume, m² nieuwe muur (buiten/binnen), afbraak + doorbraken, ramen/deuren, dakoppervlak, nieuwe vloer.
+- Kostenraming uit `designs/prijzen.json`: totaal + bandbreedte (bereik), prijsdetails met bronnen; ontbrekende prijs ⇒ "—" en "minstens".
+- `designs/prijzen.json` bevat **richtprijzen van internet** (op vraag van de gebruiker, 2026-11-14) met bron en bereik per post — vervangen door offerteprijzen zodra beschikbaar.
+- Vergelijkweergave (2–3 varianten, Δ t.o.v. referentie, CSV-export voor Excel-BE).
 
 ## Bekende beperkingen
 - Ruimtes volgen niet mee als muren verschuiven; openingen niet versleepbaar (wel via positie in eigenschappen).
@@ -47,6 +54,5 @@ _Laatst bijgewerkt: 2026-11-14 — bestaande toestand opnieuw opgebouwd uit het 
 
 ## Volgende stappen
 1. Gebruiker: tekengereedschap uitproberen op laptop + telefoon; DWG als DXF en SketchUp als DAE/OBJ (of PDF) aanleveren voor de bestaande toestand.
-2. Fase 3: kerncijfers, kostenraming (prijzen.json), vergelijkweergave.
-3. Fase 4: promptveld (Anthropic API, eigen key) + "genereer N varianten".
-4. Bestaande toestand verfijnen: hoogtes (doorsnede of opmeting), perceelligging en garages bevestigen — open vragen in `docs/BESTAAND.md`.
+2. Fase 4: promptveld (Anthropic API, eigen key) + "genereer N varianten".
+3. Bestaande toestand verfijnen: hoogtes (doorsnede of opmeting), perceelligging en garages bevestigen — open vragen in `docs/BESTAAND.md`.
