@@ -7,9 +7,10 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import {
   muurRichting, muurLengte, muurHoogte, muurAansluiting, muurSegmenten,
-  dakVlakken, dakGevels, niveauBovenkant, polygoonOffset, puntInPolygoon,
+  dakVlakken, niveauBovenkant, polygoonOffset, puntInPolygoon,
 } from '../model/geometry.js';
 import { inrichtingContour } from '../model/vormen.js';
+import { zichtbareDakGevels } from '../model/dakgevels.js';
 import { verborgenIds } from './bouwstenen.js';
 import { muurProfielen, knipStuk, stukVlakken } from './muurprofiel.js';
 import { trapBlokken, trapgatenOp, inrichtingHoogte } from './symbolen.js';
@@ -385,7 +386,8 @@ export class Viewer3D {
       const murenNiveau = model.muren.filter((m) => m.niveau === dak.niveau);
       const dg = murenNiveau.length ? Math.max(...murenNiveau.map((m) => m.dikte)) : 300;
       const gevelMat = this._mat('muur', dak.status, dak.id);
-      for (const g of dakGevels(dak, 5))
+      // gevelvullingen; vervallen waar een ander dak aansluit of muren de gevel vormen (js/model/dakgevels.js)
+      for (const g of zichtbareDakGevels(model, dak, 5))
         this._voegToe(prisma(g.punten.map(([x, y, h]) => [x, y, rust + h]), [g.binnen[0] * dg, g.binnen[1] * dg, 0]), gevelMat, dak.id);
     }
   }

@@ -20,6 +20,7 @@ export {
   niveauBegrenzing, vrijeHoogte, vrijeHoogteFunctie, minVrijeHoogte, trapLoophoogte, hoogtelijnen, oppervlaktePerHoogteband,
 } from './hoogte.js';
 export { inrichtingContour, polygonenOverlappen } from './vormen.js';
+export { zichtbareDakGevels } from './dakgevels.js';
 export { valideerProgramma, toetsProgramma, inrichtingVanRuimte, TOETS_STATUSSEN } from './programma.js';
 
 /** Stabiele JSON-serialisatie voor designs/*.json (2 spaties, punten op één regel). */
