@@ -12,7 +12,7 @@ Schets- en vergelijkingstool, géén BIM/CAD: stabiliteit, EPB en vergunning bli
 5. **Ontwerpen zijn JSON in `designs/`**: één bestand per variant (`designs/<id>.json`), opgesomd in `designs/index.json`.
 6. **Geen secrets in git.** API-keys (Anthropic, GitHub-token) leven enkel in `localStorage` van de browser van de gebruiker.
 7. **`docs/STATUS.md` bijwerken aan het einde van elke sessie** (wat werkt, wat niet, volgende stap).
-8. **Anoniem houden (repo is publiek).** Geen adres, straatnaam, gemeente, perceelnummer, GPS-coördinaten,
+8. **Anoniem houden (de GitHub Pages-site is publiek, ook bij een privé-repo).** Geen adres, straatnaam, gemeente, perceelnummer, GPS-coördinaten,
    foto's of beelden van de woning, Street View-/kaartbeelden, namen van bewoners of buren in de repo —
    ook niet in commitberichten, ontwerpnamen of beschrijvingen. Aangeleverde plannen/foto's worden enkel
    gebruikt om maten af te lezen; ze worden **niet** gecommit. Enkel de afgeleide maten komen in `designs/`.
