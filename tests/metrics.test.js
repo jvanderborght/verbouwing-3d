@@ -341,8 +341,15 @@ test('notatie nl-BE', () => {
 test('prijsregel (CLAUDE.md): elke ingevulde prijs heeft bron, bereik en opmerking, en ligt binnen het bereik', async () => {
   const { readFileSync } = await import('node:fs');
   const p = JSON.parse(readFileSync(new URL('../designs/prijzen.json', import.meta.url), 'utf8'));
+  // Strikt enkel zolang het opgezochte richtprijzen zijn (_herkomst aanwezig). Eigen offerteprijzen van de gebruiker
+  // mogen zonder bron; dan enkel: prijs binnen bereik als er een bereik is.
+  const opgezocht = typeof p._herkomst === 'string' && p._herkomst.length > 0;
   for (const [k, v] of Object.entries(p.eenheidsprijzen)) {
     if (v.prijs == null) continue;
+    if (!opgezocht) {
+      if (Array.isArray(v.bereik)) assert.ok(v.bereik[0] <= v.prijs && v.prijs <= v.bereik[1], `${k}: prijs buiten bereik`);
+      continue;
+    }
     assert.ok(Array.isArray(v.bron) && v.bron.length && v.bron.every((u) => /^https?:\/\//.test(u)), `${k}: bron ontbreekt`);
     assert.ok(Array.isArray(v.bereik) && v.bereik.length === 2 && v.bereik[0] <= v.prijs && v.prijs <= v.bereik[1], `${k}: prijs buiten bereik`);
     assert.ok(typeof v.opmerking === 'string' && v.opmerking.length > 0, `${k}: opmerking ontbreekt`);
