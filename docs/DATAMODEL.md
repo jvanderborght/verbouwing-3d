@@ -21,6 +21,7 @@ Wijzigingen ten opzichte van versie 1: zie [Migratie](#migratie) en de secties g
 | `basis` | id \| null | variant waarvan deze afgeleid is |
 | `perceel` | `{ contour }` | optioneel; perceelgrens, x mag negatief zijn |
 | `programma` | `{ eisen, beschrijving? }` | optioneel (v2); programma van eisen, zie [Programma van eisen](#programma-van-eisen-v2) |
+| `idTeller` | `{ [voorvoegsel]: geheel getal ≥ 0 }` | optioneel (v2, geen nieuwe schemaVersie); hoogste ooit uitgedeelde nummer per id-voorvoegsel (`N`, `M`, `O`, `R`, `V`, `D`, `T`, `I`). Boekhouding van `applyOps`, zie [id's](#ids-worden-niet-hergebruikt) |
 | `niveaus`, `muren`, `openingen`, `ruimtes`, `vloeren`, `daken`, `trappen`, `inrichting` | lijsten | `trappen`, `inrichting` sinds v2 (verplicht, mag leeg) |
 
 ## Elementen
@@ -71,6 +72,19 @@ Cascade bij `verwijderen`: muur ⇒ haar openingen; niveau ⇒ alles erop (muren
 trappen van of naar dat niveau (v2); ruimte ⇒ `inrichting.ruimte` wordt gewist (het element blijft) (v2).
 `verplaatsen` werkt ook op trappen (`oorsprong`) en inrichting (`positie`).
 
+### Id's worden niet hergebruikt
+
+Een id dat ooit uitgedeeld werd, komt niet terug (anders toont een diff "R15 gewijzigd" waar een garage verdween en een badkamer
+bijkwam). `volgendId(model, collectie)` = voorvoegsel + (max(`idTeller[voorvoegsel]`, hoogste bestaande nummer) + 1). `applyOps` werkt
+`idTeller` bij:
+- `verwijderen`: altijd, voor elk verdwenen id (ook de cascade: openingen van een muur, alles op een niveau);
+- `toevoegen`: enkel als er voor dat voorvoegsel al een teller is (anders volstaan de bestaande id's en blijft het veld weg — geen ruis
+  in ontwerpen zonder verwijderingen).
+
+De bewerkingen (`js/model/bewerkingen.js`) en de macro's van het promptveld delen id's uit met dezelfde regel. `idTeller` kan niet via
+de operatie `ontwerp` gewijzigd worden en `diff`/`beschrijfDiff` negeren het. Geen migratie nodig: ontbreekt het veld, dan gelden de
+bestaande id's. Validator: object met enkel gekende voorvoegsels en gehele getallen ≥ 0 (anders fout).
+
 ## Bewerkingen (hoog niveau)
 
 `js/model/bewerkingen.js` (ook via `js/model/index.js`) vertaalt gebruikersacties naar **operatielijsten**; ze passen niets toe.
@@ -88,6 +102,10 @@ Volledige signaturen: `docs/FASE2.md` deel A. Afspraken:
   vereenvoudigde (Douglas-Peucker) benadering. **Afbraakmuren tellen niet als wand** (je benoemt de nieuwe toestand); openingen tellen als dicht.
   Raakt de vulling de rand (1 m buiten de muren) of is ze > 2000 m² ⇒ `null`. Contour: tegenwijzerzin, afgerond op 1 mm.
 - **Buitenmuren** (`buitenMuren`): niet-afbraakmuren waarvan een zijvlak grenst aan het gebied buiten alle muren (flood fill vanaf de rand).
+  **v2 — niveau onder een dak**: rusten er hellende daken (status ≠ afbraak) op het vloerpeil van het niveau én heeft het `soort: 'zolder'`
+  of omsluiten zijn muren niets, dan is er geen gesloten gevel en zou de flood fill alles bereiken. Dan is een wand enkel een buitenmuur
+  als hij op de buitenrand van de dakvoetafdruk ligt (unie van de dakcontouren zonder overstek; een punt 50 mm voorbij een zijvlak ligt
+  buiten die unie) — bv. een topgevel. Knieschotten en scheidingswanden op de zolder zijn binnenwanden.
   `buitenContour` = rand van alles wat niet "buiten" is (terugval: rechthoekige begrenzing als het plan open is).
 - `opsNiveauToevoegen`: nieuw niveau op peil + hoogte van het niveau met het hoogste peil; gekopieerde muren zonder openingen en zonder eigen hoogte;
   vloer = `buitenContour` van het vorige bovenste niveau (`vloerdikte`, standaard 300); daken van dat niveau verhuizen mee.
@@ -128,6 +146,9 @@ Kerncijfers (v2, `js/metrics/kerncijfers.js`): `ruimtes` (per ruimte met `hoogte
 `trappen` (aantal per status), `inrichting` (aantal per soort). Een **zolderniveau** krijgt als volume het volume van de hellende daken die
 op zijn peil rusten (die tellen dan niet nog eens bij `volume.daken`). De vergelijkingstabel krijgt rijen per hoogteband, trappen en inrichtingssoort.
 Geen nieuwe prijsposten.
+**Muur-m²** (`muren.nieuwBuiten/nieuwBinnen/afbraak`): bruto = zijvlak afgeknipt onder de daken erboven (`muurOppervlakteOnderDak`,
+gemiddelde van beide zijvlakken, `js/model/muurprofiel.js` — dezelfde geometrie als de 3D-weergave), min de openingen. Zonder dak dat
+lager komt dan de muurhoogte: lengte × hoogte zoals voorheen.
 
 ## Instellingen — geen normen in de code (v2)
 
@@ -213,6 +234,12 @@ Opslaan gebeurt altijd in de nieuwste versie. Een nieuwere versie dan de app ken
 | van → naar | wat |
 |---|---|
 | 1 → 2 (`v1naarV2`) | `schemaVersie: 2`; lege `trappen` en `inrichting` als ze ontbreken. Geen verplichte velden bij; bestaande ruimtes met functie `trap` blijven. Niets gaat verloren. |
+
+Synchronisatie van oude werkkopieën (`js/ui/varianten.js`, `alsV1`/`normaliseerBasis`): een v1-werkkopie bewaart de hash van het
+v1-bestand als basis. Het v2-bestand op GitHub wordt als "dezelfde basis" herkend als het, zonder de informatieve v2-velden, het v1-bestand
+is: weggelaten worden lege `trappen`/`inrichting`, `niveaus[].soort === 'verdieping'` (gelijkwaardig aan geen soort) en `idTeller`.
+Echte v2-inhoud (trappen, inrichting, soort zolder/kelder, hoogtegrenzen, programma) telt wel ⇒ dan blijft het een conflict.
+`soort: 'verdieping'` blijft daarom in `designs/bestaand.json` en `voorbeeld.json` staan (de UI gebruikt het).
 
 ## Vanuit Claude Code
 

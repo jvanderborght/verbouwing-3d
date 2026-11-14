@@ -102,15 +102,33 @@ export function ordenZoals(obj, sjabloon) {
 }
 
 /**
- * Een v2-model terug in de vorm van een (ongewijzigd) v1-bestand, enkel als het verschil louter de migratie is
- * (lege `trappen`/`inrichting`), met de sleutelvolgorde van `sjabloon` (de v1-werkkopie). Anders null.
+ * Een v2-model terug in de vorm van een v1-bestand, enkel als het verschil met v1 louter de migratie is of
+ * informatieve v2-velden zonder inhoudelijke betekenis, met de sleutelvolgorde van `sjabloon` (de v1-werkkopie).
+ * Anders null. Weggelaten (tenzij het sjabloon ze zelf heeft):
+ *  - lege `trappen` / `inrichting` (de migratie voegt ze toe);
+ *  - `niveaus[].soort === 'verdieping'` — gelijkwaardig aan "geen soort" (DATAMODEL: een niveau zonder soort telt als
+ *    verdieping); de generatorscripts zetten het op N1 van bestaand/voorbeeld;
+ *  - `idTeller` (boekhouding van applyOps, geen ontwerpinhoud).
+ * Echte v2-inhoud (trappen, inrichting, soort zolder/kelder, hoogtegrenzen, programma) blijft staan ⇒ geen match.
+ * Waarom vergelijken op "v1-inhoud" i.p.v. `soort: 'verdieping'` uit de designs te halen: de UI (soortkeuze,
+ * programma op soort) gebruikt het veld; zo blijft het staan en wordt een oude basis-hash toch herkend.
  */
 export function alsV1(model, sjabloon) {
   if (!isObj(model) || model.schemaVersie !== 2) return null;
   if ((model.trappen || []).length || (model.inrichting || []).length) return null;
+  const sj = isObj(sjabloon) ? sjabloon : {};
   const m = { ...model, schemaVersie: 1 };
-  if (Array.isArray(m.trappen) && !(isObj(sjabloon) && 'trappen' in sjabloon)) delete m.trappen;
-  if (Array.isArray(m.inrichting) && !(isObj(sjabloon) && 'inrichting' in sjabloon)) delete m.inrichting;
+  if (Array.isArray(m.trappen) && !('trappen' in sj)) delete m.trappen;
+  if (Array.isArray(m.inrichting) && !('inrichting' in sj)) delete m.inrichting;
+  if ('idTeller' in m && !('idTeller' in sj)) delete m.idTeller;
+  if (Array.isArray(m.niveaus)) {
+    const sjNiveaus = new Map((Array.isArray(sj.niveaus) ? sj.niveaus : []).filter(isObj).map((n) => [n.id, n]));
+    m.niveaus = m.niveaus.map((n) => {
+      if (!isObj(n) || n.soort !== 'verdieping' || 'soort' in (sjNiveaus.get(n.id) || {})) return n;
+      const { soort, ...rest } = n; // eslint-disable-line no-unused-vars
+      return rest;
+    });
+  }
   return ordenZoals(m, sjabloon);
 }
 

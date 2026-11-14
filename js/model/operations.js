@@ -8,6 +8,9 @@
 //                                                       van/naar dat niveau; ruimte → inrichting.ruimte gewist)
 //   { op: 'verplaatsen', collectie, id, dx, dy }        muren/ruimtes/vloeren/daken/trappen/inrichting; openingen: dx = langs muur
 //   { op: 'ontwerp',     velden }                       naam / beschrijving / basis / perceel / programma van het ontwerp zelf
+//
+// idTeller (optioneel ontwerpveld, v2): hoogste ooit uitgedeelde nummer per voorvoegsel. Bijgewerkt bij `verwijderen`
+// (altijd) en `toevoegen` (als er al een teller is). volgendId = max(teller, bestaande) + 1 ⇒ geen hergebruik van id's.
 
 import { COLLECTIES, COLLECTIE_NAMEN, VELDEN, ONTWERP_VELDEN } from './schema.js';
 import { validate } from './validator.js';
@@ -16,19 +19,46 @@ export const OPERATIES = ['toevoegen', 'wijzigen', 'verwijderen', 'verplaatsen',
 
 const kloon = (x) => (typeof structuredClone === 'function' ? structuredClone(x) : JSON.parse(JSON.stringify(x)));
 
-/** Volgend vrij id met het voorvoegsel van de collectie (uniek over het hele model). */
-export function volgendId(model, collectie) {
-  const pre = COLLECTIES[collectie];
-  const bezet = new Set(COLLECTIE_NAMEN.flatMap((c) => (model[c] || []).map((x) => x.id)));
-  let max = 0;
-  for (const id of bezet) {
-    const m = new RegExp(`^${pre}(\\d+)$`).exec(id);
-    if (m) max = Math.max(max, Number(m[1]));
-  }
-  let n = max + 1;
-  while (bezet.has(`${pre}${n}`)) n++;
-  return `${pre}${n}`;
+/**
+ * Hoogste nummer dat ooit voor voorvoegsel `pre` uitgedeeld werd: max(`model.idTeller[pre]`, bestaande id's).
+ * Id's in `extra` (bv. binnen dezelfde operatielijst al uitgedeeld) tellen ook mee.
+ */
+export function hoogsteIdNummer(model, pre, extra = []) {
+  const re = new RegExp(`^${pre}(\\d+)$`);
+  const t = model?.idTeller?.[pre];
+  let max = Number.isInteger(t) && t > 0 ? t : 0;
+  const tel = (id) => { const m = re.exec(id); if (m) max = Math.max(max, Number(m[1])); };
+  for (const c of COLLECTIE_NAMEN) for (const x of model?.[c] || []) tel(x.id);
+  for (const id of extra) tel(id);
+  return max;
 }
+
+/**
+ * Volgend id met het voorvoegsel van de collectie: max(idTeller, bestaande id's) + 1. Een id dat ooit uitgedeeld werd
+ * (ook als het element intussen verwijderd is) komt zo nooit terug — zie docs/DATAMODEL.md "idTeller".
+ */
+export function volgendId(model, collectie, extra = []) {
+  const pre = COLLECTIES[collectie];
+  return `${pre}${hoogsteIdNummer(model, pre, extra) + 1}`;
+}
+
+/**
+ * Werkt `m.idTeller` bij (mutatie) voor een id van de vorm <voorvoegsel><nummer>.
+ * Verwijderen (`altijd`): altijd onthouden. Toevoegen: enkel als er al een teller voor dat voorvoegsel is
+ * (anders volstaan de bestaande id's en blijft het veld weg — geen ruis in ontwerpen zonder verwijderingen).
+ */
+function onthoudId(m, id, { altijd = false } = {}) {
+  const r = /^([A-Z])(\d+)$/.exec(typeof id === 'string' ? id : '');
+  if (!r || !Object.values(COLLECTIES).includes(r[1])) return;
+  const n = Number(r[2]);
+  const heeft = m.idTeller && typeof m.idTeller === 'object' && r[1] in m.idTeller;
+  if (!altijd && !heeft) return;
+  if (!m.idTeller || typeof m.idTeller !== 'object' || Array.isArray(m.idTeller)) m.idTeller = {};
+  if (!(m.idTeller[r[1]] >= n)) m.idTeller[r[1]] = n;
+}
+
+/** Id's van alle elementen (alle collecties). */
+const alleIds = (m) => new Set(COLLECTIE_NAMEN.flatMap((c) => (m[c] || []).map((x) => x.id)));
 
 const rond = (v) => Math.round(v * 10) / 10; // 0,1 mm volstaat
 const verschuifPunt = (p, dx, dy) => [rond(p[0] + dx), rond(p[1] + dy)];
@@ -59,6 +89,7 @@ function pasToe(m, op, nieuweIds) {
     if (COLLECTIE_NAMEN.some((cc) => (m[cc] || []).some((x) => x.id === item.id))) throw new Error(`id "${item.id}" bestaat al.`);
     lijst.push(item);
     nieuweIds.push(item.id);
+    onthoudId(m, item.id);
     return;
   }
 
@@ -82,6 +113,7 @@ function pasToe(m, op, nieuweIds) {
   }
 
   if (op.op === 'verwijderen') {
+    const voor = alleIds(m);
     lijst.splice(idx, 1);
     if (c === 'muren') m.openingen = m.openingen.filter((o) => o.muur !== op.id);
     if (c === 'niveaus') {
@@ -92,6 +124,9 @@ function pasToe(m, op, nieuweIds) {
       if (Array.isArray(m.trappen)) m.trappen = m.trappen.filter((t) => t.vanNiveau !== op.id && t.naarNiveau !== op.id);
     }
     if (c === 'ruimtes' && Array.isArray(m.inrichting)) for (const x of m.inrichting) if (x.ruimte === op.id) delete x.ruimte;
+    // verwijderde id's (ook die van de cascade) worden nooit opnieuw uitgedeeld
+    const na = alleIds(m);
+    for (const id of voor) if (!na.has(id)) onthoudId(m, id, { altijd: true });
     return;
   }
 

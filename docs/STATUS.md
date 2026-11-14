@@ -1,6 +1,6 @@
 # Status
 
-_Laatst bijgewerkt: 2026-11-14 — fase 5 (schema v2: trap, zolder, inrichting, programma van eisen) na QA op `main`._
+_Laatst bijgewerkt: 2026-11-14 — fase 5 (schema v2: trap, zolder, inrichting, programma van eisen) in QA (branch `fase5/fix`, niet gemerged)._
 
 ## Live
 - App: https://jvanderborght.github.io/verbouwing-3d/ (GitHub Pages via Actions; deploy bij elke push naar `main`).
@@ -48,7 +48,7 @@ _Laatst bijgewerkt: 2026-11-14 — fase 5 (schema v2: trap, zolder, inrichting, 
   Terugval zonder schema/fallbacks is ingebouwd als de API die combinatie weigert.
 - Spec en details: `docs/FASE4.md`.
 
-## Fase 5 — programma van eisen (schema v2) ✅
+## Fase 5 — programma van eisen (schema v2) — in QA
 - Datamodel v2 (`docs/FASE5.md`, `docs/DATAMODEL.md`): `trappen` (recht/kwart/halfdraai/spiraal), `inrichting` (sanitair, meubels),
   `niveaus.soort` (zolder), `ruimtes.hoogtegrenzen`, ontwerpveld `programma`; v1-ontwerpen migreren automatisch.
 - Afgeleid: trapgeometrie en trapgat, vrije hoogte onder daken, hoogtelijnen en m² per hoogteband, `toetsProgramma`.
@@ -56,12 +56,19 @@ _Laatst bijgewerkt: 2026-11-14 — fase 5 (schema v2: trap, zolder, inrichting, 
 - Weergave: trap 2D/3D, trapgat, sanitairsymbolen, hoogtelijnen (schakelaar), zoldermuren volgen het dak in 3D.
 - Gereedschap: Trap, Inrichting, Afbraakzone, Zolder toevoegen, programma-editor met toetsresultaat.
 - Promptveld: schema v2 + macro's (afbraakZone, zolderNiveau, trapPlaatsen, inrichtingPlaatsen, muurSplitsen); antwoordschema
-  binnen de gepubliceerde limieten van structured outputs (item/velden als JSON-tekst).
+  binnen de limieten van structured outputs volgens de API-documentatie (niet onafhankelijk geverifieerd; item/velden als JSON-tekst).
 - Werkwaarden (doel-optrede, hoogtelijnen 1,50/2,20 m, standaardmaten sanitair) zijn **geen normen**; normgrenzen staan op `null` tot ze met bron ingevuld worden.
 - Voorbeeld van de opdracht "achterbouw + garage 2 afbreken, zolder met trap, 2 slaapkamers, berging, badkamer": `tools/voorbeelden/zolder-programma.ops.json`.
+- QA-opvolging (`fase5/fix`):
+  - Geen vals conflict meer voor een lokaal gewijzigde v1-werkkopie tegenover het v2-bestand met `soort: 'verdieping'`
+    (`alsV1` vergelijkt op v1-inhoud: `soort: 'verdieping'`, lege `trappen`/`inrichting` en `idTeller` tellen niet mee; het veld blijft in de designs).
+  - Zolder: wanden onder het dak zijn binnenmuren tenzij ze op de rand van de dakvoetafdruk liggen (topgevel); muur-m² in de
+    kerncijfers zijn afgeknipt onder het dak (zelfde geometrie als 3D, nu in `js/model/muurprofiel.js`).
+    Zolder-voorbeeld: nieuwe binnenmuur 62,3 m², buitenmuur 0 m² (was 78,6 m² buiten); raming met de richtprijzen 20.745 € (was 36.484 €).
+  - Id's worden niet meer hergebruikt: optioneel ontwerpveld `idTeller` (bijgewerkt bij verwijderen), diff toont het niet.
 
 ## Bekende beperkingen
-- Trap en inrichting niet versleepbaar (wel via eigenschappen); trap/inrichting snappen enkel op het raster. Vrijgekomen id's worden hergebruikt (diff toont dan 'gewijzigd').
+- Trap en inrichting niet versleepbaar (wel via eigenschappen); trap/inrichting snappen enkel op het raster.
 - Ruimtes volgen niet mee als muren verschuiven; openingen niet versleepbaar (wel via positie in eigenschappen).
 - Muur verslepen trekt aansluitende muren scheef (geen optie om dat uit te zetten).
 - Eén app-commit (`f2205d2`) van vóór deze fix bevat nog het account-e-mailadres.
@@ -80,3 +87,5 @@ _Laatst bijgewerkt: 2026-11-14 — fase 5 (schema v2: trap, zolder, inrichting, 
 2. Gebruiker: API-key aanmaken (met uitgavelimiet), in Instellingen plakken, een kleine opdracht proberen.
 3. Bestaande toestand verfijnen: hoogtes (doorsnede of opmeting), perceelligging en garages bevestigen — open vragen in `docs/BESTAAND.md`.
 4. Lange termijn (houtskelet/prefab, aanvraag, uitvoering, werf) en roadmap fase 5+: zie `docs/CONCEPT.md` (nog te bespreken met de gebruiker).
+5. Gebruiker: zolder en programma van eisen uitproberen (bv. `tools/voorbeelden/zolder-programma.ops.json` als variant); trapgrenzen
+   (comfortregels) en hoogtegrenzen enkel invullen met een bron.

@@ -2,7 +2,8 @@
 export * from './schema.js';
 export * from './geometry.js';
 export { validate, formatteerFouten } from './validator.js';
-export { applyOps, volgendId, dupliceer, OPERATIES } from './operations.js';
+export { applyOps, volgendId, hoogsteIdNummer, dupliceer, OPERATIES } from './operations.js';
+export { muurProfielen, muurOppervlakteOnderDak, begrenzendeDaken } from './muurprofiel.js';
 export { Geschiedenis } from './history.js';
 export { diff, beschrijfDiff } from './diff.js';
 export { migreer } from './migrate.js';

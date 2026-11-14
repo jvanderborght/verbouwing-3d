@@ -3,11 +3,12 @@
 // Elementen met status `afbraak` tellen niet mee voor de toestand na verbouwing (tenzij anders vermeld).
 
 import {
-  polygoonOppervlakte, polygoonOffset, begrenzing, muurLengte, muurHoogte, dakVolume,
+  polygoonOppervlakte, polygoonOffset, begrenzing, dakVolume,
 } from '../model/geometry.js';
 import { buitenMuren, buitenContour } from '../model/bewerkingen.js';
 import { niveauBovenkant } from '../model/geometry.js';
 import { oppervlaktePerHoogteband } from '../model/hoogte.js';
+import { muurOppervlakteOnderDak } from '../model/muurprofiel.js';
 
 const M2 = 1e6; // mm² per m²
 const M3 = 1e9; // mm³ per m³
@@ -117,7 +118,8 @@ export function kerncijfers(model) {
     if (!openingenVan.has(o.muur)) openingenVan.set(o.muur, []);
     openingenVan.get(o.muur).push(o);
   }
-  const muurBruto = (m) => (muurLengte(m) * muurHoogte(model, m)) / M2;
+  // bruto = zijvlak afgeknipt onder de daken erboven (zolder: onder de dakhelling), zoals in 3D
+  const muurBruto = (m) => muurOppervlakteOnderDak(model, m) / M2;
   const nieuweMuren = muren.filter((m) => m.status === 'nieuw');
   const buiten = new Set();
   for (const nv of new Set(nieuweMuren.map((m) => m.niveau))) for (const id of buitenMuren(model, nv)) buiten.add(id);

@@ -407,3 +407,51 @@ test('sync: echt conflict blijft een conflict', async () => {
   assert.equal(kiesBijLaden({ lokaal: 'a', basis: 'a', github: 'b', gezaghebbend: true }).bron, 'github');
   assert.ok(SLEUTELS.ontwerp('x'));
 });
+
+// ---------------------------------------------------------------- QA fase 5: B1 (vals conflict door niveaus.soort)
+
+/**
+ * QA-reproductie: werkkopie = v1-bestand zoals op main (zonder soort), lokaal gewijzigd (ruimtes[0].naam), met de
+ * basis-hash zoals main die berekende (hash van naarJson, zonder hashVersie). GitHub = het v2-bestand mét
+ * `soort: 'verdieping'` op N1 (blijft staan). Mag geen conflict geven maar "lokaal gewijzigd".
+ */
+for (const id of ['bestaand', 'voorbeeld']) {
+  test(`B1: lokaal gewijzigde v1-werkkopie van ${id}, GitHub v2 met soort 'verdieping' ⇒ gewijzigd, geen conflict`, async () => {
+    const v2tekst = lees(id);
+    const v2 = JSON.parse(v2tekst);
+    assert.ok(v2.niveaus.some((n) => n.soort === 'verdieping'), 'het v2-bestand heeft soort verdieping');
+    const v1 = alsOudV1(v2); // = het v1-bestand van origin/main (naarJson-tekst gecontroleerd bij de QA-opvolging)
+    const basisHash = oudeModelHash(v1); // modelHash zoals main die berekende (naarJson)
+    const lokaal = JSON.parse(JSON.stringify(v1));
+    lokaal.ruimtes[0].naam = 'Lokaal hernoemd';
+    assert.equal(normaliseerBasis({ model: lokaal, basisHash, github: migreer(v2) }), modelHash(migreer(v2)), 'basis herkend');
+    const storage = new NepStorage();
+    const opslag = new LokaleOpslag(storage);
+    storage.setItem(SLEUTELS.ontwerp(id), JSON.stringify({ model: lokaal, basisHash, basisTijd: 1 }));
+    const index = JSON.stringify({ ontwerpen: [{ id, naam: v2.naam }] });
+    const b = new VariantBeheer({ opslag, fetch: pages({ 'designs/index.json': index, [`designs/${id}.json`]: v2tekst }), nu: () => 10 * 24 * 3600 * 1000 });
+    await b.laadIndex();
+    assert.notEqual(b.toestand(id), 'conflict', 'ook in de lijst vóór het openen geen conflict');
+    const r = await b.open(id);
+    assert.equal(r.ok, true);
+    assert.equal(r.melding, undefined, 'geen conflictmelding');
+    assert.equal(b.model.ruimtes[0].naam, 'Lokaal hernoemd', 'de werkkopie blijft geladen');
+    assert.equal(b.toestand(id), 'gewijzigd');
+  });
+}
+
+test('B1: alsV1 laat enkel informatieve v2-velden weg; echte v2-inhoud ⇒ geen match', () => {
+  const v2 = migreer(voorbeeld());
+  const v1 = alsOudV1(v2);
+  assert.equal(naarJson(alsV1(v2, v1)), naarJson(v1), 'soort verdieping + lege collecties weg ⇒ exact het v1-bestand');
+  assert.equal(naarJson(alsV1({ ...v2, idTeller: { R: 40 } }, v1)), naarJson(v1), 'idTeller is boekhouding');
+  const zolder = JSON.parse(JSON.stringify(v2));
+  zolder.niveaus[1].soort = 'zolder';
+  assert.notEqual(oudeModelHash(alsV1(zolder, v1)), oudeModelHash(v1), 'soort zolder is inhoud');
+  const grenzen = JSON.parse(JSON.stringify(v2));
+  grenzen.ruimtes[0].hoogtegrenzen = [1500];
+  assert.notEqual(oudeModelHash(alsV1(grenzen, v1)), oudeModelHash(v1), 'hoogtegrenzen zijn inhoud');
+  // echt conflict (GitHub inhoudelijk anders) blijft zonder gemeenschappelijke basis
+  const lokaal = { ...v1, beschrijving: 'lokaal' };
+  assert.equal(normaliseerBasis({ model: lokaal, basisHash: oudeModelHash(v1), github: { ...v2, beschrijving: 'github' } }), null);
+});

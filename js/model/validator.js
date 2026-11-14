@@ -1,7 +1,7 @@
 // Validatie van een ontwerp. Geeft { geldig, fouten, waarschuwingen } terug.
 // fouten blokkeren toepassen/opslaan; waarschuwingen niet.
 
-import { SCHEMA_VERSIE, VELDEN, ENUMS, COLLECTIE_NAMEN, MODEL_VELDEN } from './schema.js';
+import { SCHEMA_VERSIE, VELDEN, ENUMS, COLLECTIES, COLLECTIE_NAMEN, MODEL_VELDEN } from './schema.js';
 import { muurLengte, muurHoogte, polygoonOppervlakte, muurRechthoek } from './geometry.js';
 import { INSTELLINGEN_STANDAARD, metInstellingen, instelling } from './instellingen.js';
 import { trapGeometrie } from './trappen.js';
@@ -35,6 +35,14 @@ export function validate(model, opties = {}) {
   if (model.perceel !== undefined && model.perceel !== null) {
     const c = model.perceel.contour;
     if (!Array.isArray(c) || c.length < 3 || !c.every(isPunt) || polygoonOppervlakte(c) < 1) fout('perceel.contour', 'perceel.contour moet minstens 3 punten [x, y] met oppervlakte bevatten.');
+  }
+  if (model.idTeller !== undefined) {
+    const t = model.idTeller;
+    if (!t || typeof t !== 'object' || Array.isArray(t)) fout('idTeller', 'idTeller moet een object {voorvoegsel: nummer} zijn.');
+    else for (const [k, v] of Object.entries(t)) {
+      if (!Object.values(COLLECTIES).includes(k)) fout(`idTeller.${k}`, `Onbekend id-voorvoegsel "${k}"; kies uit: ${Object.values(COLLECTIES).join(', ')}.`);
+      else if (!Number.isInteger(v) || v < 0) fout(`idTeller.${k}`, 'Teller moet een geheel getal ≥ 0 zijn.');
+    }
   }
   for (const k of Object.keys(model)) if (!MODEL_VELDEN.includes(k)) let_op(k, `Onbekend veld "${k}" wordt genegeerd.`);
 

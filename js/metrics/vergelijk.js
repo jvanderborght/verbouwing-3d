@@ -87,7 +87,7 @@ export function vergelijkingsRijen(varianten) {
   rij({ sleutel: 'netto', groep: 'Oppervlakte', label: 'Netto totaal', eenheid: 'm²', kleur: true, nadruk: true }, (v) => v.kerncijfers.netto);
 
   rij({ sleutel: 'volume', groep: 'Volume', label: 'Bruto volume', eenheid: 'm³', decimalen: 1, kleur: true, nadruk: true }, (v) => v.kerncijfers.volume.totaal);
-  rij({ sleutel: 'volume-daken', groep: 'Volume', label: 'waarvan onder hellende daken', eenheid: 'm³', decimalen: 1 }, (v) => v.kerncijfers.volume.daken);
+  rij({ sleutel: 'volume-daken', groep: 'Volume', label: 'waarvan dakvolume (niet bij een zolder)', eenheid: 'm³', decimalen: 1 }, (v) => v.kerncijfers.volume.daken);
 
   rij({ sleutel: 'muur-nieuw-buiten', groep: 'Muren', label: 'Nieuwe buitenmuur', eenheid: 'm²' }, (v) => v.kerncijfers.muren.nieuwBuiten);
   rij({ sleutel: 'muur-nieuw-binnen', groep: 'Muren', label: 'Nieuwe binnenmuur', eenheid: 'm²' }, (v) => v.kerncijfers.muren.nieuwBinnen);

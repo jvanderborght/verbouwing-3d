@@ -4,17 +4,18 @@
 // Zie docs/FASE2.md (deel A) en docs/DATAMODEL.md ("Bewerkingen (hoog niveau)").
 
 import {
-  COLLECTIES, COLLECTIE_NAMEN, OPENING_TYPES, STATUSSEN, DAK_TYPES, NOKRICHTINGEN, FUNCTIES,
+  COLLECTIE_NAMEN, OPENING_TYPES, STATUSSEN, DAK_TYPES, NOKRICHTINGEN, FUNCTIES,
   TRAP_TYPES, DRAAIRICHTINGEN, INRICHTING_SOORTEN,
 } from './schema.js';
 import {
   lengte, muurLengte, muurRichting, muurHoogte, puntOpMuur, afstandTotSegment, begrenzing,
-  polygoonOppervlakte, puntInPolygoon, muurAansluiting, muurDeelRechthoek, muurRechthoek, dakNokHoogte,
+  polygoonOppervlakte, puntInPolygoon, muurAansluiting, muurDeelRechthoek, muurRechthoek, dakNokHoogte, niveauBovenkant,
 } from './geometry.js';
 import { metInstellingen, instelling, inrichtingMaat } from './instellingen.js';
 import { trapGeometrie, trapVoetafdruk } from './trappen.js';
 import { niveauBegrenzing, inEenVan, minVrijeHoogte, trapLoophoogte } from './hoogte.js';
 import { inrichtingContour, polygonenOverlappen } from './vormen.js';
+import { volgendId } from './operations.js';
 
 export const MIN_MUURLENGTE = 10;       // mm
 export const AANSLUIT_TOL = 1;          // mm: eindpunten binnen deze afstand vallen samen
@@ -29,19 +30,12 @@ const gelijk = (a, b, tol = 1e-6) => Math.abs(a[0] - b[0]) <= tol && Math.abs(a[
 const fout = (melding) => ({ ops: [], fout: melding });
 
 /** Id-generator die rekening houdt met id's die binnen dezelfde operatielijst al uitgedeeld zijn. */
+// Zoals volgendId (operations.js): max(model.idTeller, bestaande id's) + 1 — vrijgekomen id's worden niet hergebruikt.
 function idMaker(model) {
-  const bezet = new Set(COLLECTIE_NAMEN.flatMap((c) => (model[c] || []).map((x) => x.id)));
+  const uitgedeeld = [];
   return (collectie) => {
-    const pre = COLLECTIES[collectie];
-    let max = 0;
-    for (const id of bezet) {
-      const m = new RegExp(`^${pre}(\\d+)$`).exec(id);
-      if (m) max = Math.max(max, Number(m[1]));
-    }
-    let n = max + 1;
-    while (bezet.has(`${pre}${n}`)) n++;
-    const id = `${pre}${n}`;
-    bezet.add(id);
+    const id = volgendId(model, collectie, uitgedeeld);
+    uitgedeeld.push(id);
     return id;
   };
 }
@@ -438,12 +432,24 @@ export function ruimteContourBijPunt(model, niveau, punt) {
  * Ids van de muren op `niveau` die op de buitenrand liggen: minstens één zijvlak grenst aan het gebied
  * buiten alle muren. Afbraakmuren tellen niet mee (en worden nooit teruggegeven).
  * Is het plan niet gesloten, dan lekt "buiten" naar binnen en worden ook binnenmuren teruggegeven.
+ *
+ * Niveau ONDER EEN DAK (v2): heeft het niveau `soort: 'zolder'`, of geen enkele omsloten ruimte, en rusten er hellende
+ * daken (status ≠ afbraak) op zijn vloerpeil, dan is er geen gesloten gevel om mee te werken (de flood-fill zou alles
+ * bereiken). Dan geldt: een wand is een buitenmuur enkel als hij op de buitenrand van de dakvoetafdruk (contour zonder
+ * overstek, unie van die daken) ligt — bv. een topgevel; alle andere wanden zijn binnenwanden.
  */
 export function buitenMuren(model, niveau) {
   const R = bouwRaster(model, niveau);
   if (!R) return [];
   const buiten = buitenGebied(R);
-  const delta = R.schuin ? R.cel * 1.5 : 0.25;
+  const daken = dakVoetafdrukkenOpPeil(model, niveau);
+  const nv = model.niveaus.find((n) => n.id === niveau);
+  const onderDak = daken.length > 0 && (nv?.soort === 'zolder' || !heeftBinnenruimte(R, buiten));
+  // onder een dak: "buiten" = buiten de unie van de dakvoetafdrukken (50 mm voorbij het zijvlak)
+  const isBuiten = onderDak
+    ? (p) => !inEenVan(p, daken, 0)
+    : (p) => { const c = celVan(R, p); return c < 0 || buiten[c] === 1; };
+  const delta = onderDak ? DAKRAND_TOL : (R.schuin ? R.cel * 1.5 : 0.25);
   const uit = [];
   for (const m of R.muren) {
     const r = muurRichting(m);
@@ -455,13 +461,31 @@ export function buitenMuren(model, niveau) {
       const p = puntOpMuur(m, t);
       for (const s of [1, -1]) {
         const off = s * (m.dikte / 2 + delta);
-        const c = celVan(R, [p[0] + r.nx * off, p[1] + r.ny * off]);
-        if (c < 0 || buiten[c]) { gevonden = true; break; }
+        if (isBuiten([p[0] + r.nx * off, p[1] + r.ny * off])) { gevonden = true; break; }
       }
     }
     if (gevonden) uit.push(m.id);
   }
   return uit;
+}
+
+/** Afstand (mm) voorbij het zijvlak waarop gekeken wordt of een wand op de rand van de dakvoetafdruk ligt. */
+const DAKRAND_TOL = 50;
+
+/** Contouren (zonder overstek) van de hellende daken (status ≠ afbraak) die op het vloerpeil van `niveau` rusten. */
+function dakVoetafdrukkenOpPeil(model, niveau) {
+  const nv = model.niveaus.find((n) => n.id === niveau);
+  if (!nv) return [];
+  return (model.daken || [])
+    .filter((d) => d.status !== 'afbraak' && d.type !== 'plat' && isGetal(d.helling) && d.helling > 0
+      && Array.isArray(d.contour) && d.contour.length >= 3 && Math.abs(niveauBovenkant(model, d.niveau) - nv.peil) < 1)
+    .map((d) => d.contour);
+}
+
+/** Is er minstens één vrije cel die niet "buiten" ligt (een door muren omsloten gebied)? */
+function heeftBinnenruimte(R, buiten) {
+  for (let c = 0; c < buiten.length; c++) if (!buiten[c] && !R.dicht[c]) return true;
+  return false;
 }
 
 /** Rechthoek (tegenwijzerzin) rond de buitenzijde van de (niet-afbraak) muren van een niveau, of null. */

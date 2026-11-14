@@ -125,7 +125,9 @@ export const ENUMS = {
 
 // perceel (optioneel): { contour: [[x,y],...] } — perceelgrens in hetzelfde assenstelsel (x mag negatief zijn).
 // programma (optioneel, v2): { eisen: [...] } — programma van eisen, zie js/model/programma.js.
-export const MODEL_VELDEN = ['schemaVersie', 'id', 'naam', 'beschrijving', 'basis', 'gewijzigd', 'perceel', 'programma', ...COLLECTIE_NAMEN];
+// idTeller (optioneel, v2): { [voorvoegsel]: hoogste ooit uitgedeelde nummer } — boekhouding van applyOps, zodat
+//   vrijgekomen id's niet hergebruikt worden. Niet via de operatie `ontwerp` te wijzigen; diff negeert het.
+export const MODEL_VELDEN = ['schemaVersie', 'id', 'naam', 'beschrijving', 'basis', 'gewijzigd', 'perceel', 'programma', 'idTeller', ...COLLECTIE_NAMEN];
 /** Ontwerpvelden die met de operatie `ontwerp` gewijzigd mogen worden. */
 export const ONTWERP_VELDEN = ['naam', 'beschrijving', 'basis', 'perceel', 'programma'];
 

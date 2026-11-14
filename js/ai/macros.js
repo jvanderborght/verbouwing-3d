@@ -21,8 +21,8 @@
 // `item` / `velden` van toevoegen, wijzigen en ontwerp mogen een object zijn of een JSON-TEKST (zo staan ze in het
 // antwoordschema: zie prompt.js, limiet op optionele velden van structured outputs).
 
-import { applyOps } from '../model/operations.js';
-import { COLLECTIES, COLLECTIE_NAMEN } from '../model/schema.js';
+import { applyOps, volgendId } from '../model/operations.js';
+import { COLLECTIE_NAMEN } from '../model/schema.js';
 import {
   opsAfbraakZone, opsZolderNiveau, opsTrapPlaatsen, opsInrichtingPlaatsen, opsMuurSplitsen,
 } from '../model/bewerkingen.js';
@@ -64,17 +64,9 @@ function hernoemInfo(info, map) {
 
 const alleIds = (model) => new Set(COLLECTIE_NAMEN.flatMap((c) => (model[c] || []).map((x) => x.id)));
 
-/** Vrij id met voorvoegsel van de collectie, buiten `bezet`. */
-function vrijId(collectie, bezet) {
-  const pre = COLLECTIES[collectie];
-  let max = 0;
-  for (const id of bezet) {
-    const m = new RegExp(`^${pre}(\\d+)$`).exec(id);
-    if (m) max = Math.max(max, Number(m[1]));
-  }
-  let n = max + 1;
-  while (bezet.has(`${pre}${n}`)) n++;
-  return `${pre}${n}`;
+/** Vrij id met voorvoegsel van de collectie, buiten `bezet` en boven model.idTeller (vrijgekomen id's niet hergebruiken). */
+function vrijId(collectie, bezet, model = {}) {
+  return volgendId(model, collectie, [...bezet]);
 }
 
 /** Leest een JSON-tekst (item/velden) of laat een object ongemoeid. Gooit Error met een Nederlandse melding. */
@@ -201,9 +193,9 @@ export function vouwUit(basis, ops, { instellingen = null } = {}) {
       const id = o.item.id;
       if (map.has(id)) continue;
       // een gegenereerd id dat toevallig gelijk is aan het gevraagde id van deze macro (maar voor een ander element)
-      if (r.gevraagd && id === r.gevraagd.nieuw) { const ander = vrijId(o.collectie, verboden); verboden.add(ander); map.set(id, ander); continue; }
+      if (r.gevraagd && id === r.gevraagd.nieuw) { const ander = vrijId(o.collectie, verboden, model); verboden.add(ander); map.set(id, ander); continue; }
       if (gereserveerd.has(id)) {
-        const ander = vrijId(o.collectie, verboden);
+        const ander = vrijId(o.collectie, verboden, model);
         verboden.add(ander);
         map.set(id, ander);
       }
