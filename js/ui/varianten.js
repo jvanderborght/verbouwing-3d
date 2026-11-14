@@ -3,7 +3,7 @@
 // (conflict, overschrijven) worden als async callbacks meegegeven.
 
 import { migreer, validate, formatteerFouten, naarJson, dupliceer, leegModel, Geschiedenis } from '../model/index.js';
-import { LokaleOpslag, GitHubClient, GitHubFout, modelHash, SLEUTELS } from './opslag.js';
+import { LokaleOpslag, GitHubClient, GitHubFout, modelHash, oudeModelHash, HASH_VERSIE, SLEUTELS } from './opslag.js';
 
 const GERESERVEERD = new Set(['index', 'prijzen']);
 export const ID_PATROON = /^[a-z0-9][a-z0-9-_]*$/;
@@ -80,6 +80,65 @@ export function kiesBijLaden({ lokaal, basis, github, basisTijd = 0, nu = Date.n
   }
   if (basis != null && lokaal === basis) return { bron: 'github', toestand: 'gelijk', githubBetrouwbaar: true };
   return { bron: 'werkkopie', toestand: 'conflict', githubBetrouwbaar: true };
+}
+
+const isObj = (x) => x && typeof x === 'object' && !Array.isArray(x);
+
+/**
+ * Kopie van `obj` met de sleutelvolgorde van `sjabloon` (recursief; lijsten van elementen met `id` worden op id
+ * gekoppeld, andere lijsten op index). Sleutels die niet in het sjabloon staan komen achteraan.
+ */
+export function ordenZoals(obj, sjabloon) {
+  if (Array.isArray(obj)) {
+    const opId = Array.isArray(sjabloon) ? new Map(sjabloon.filter((x) => isObj(x) && x.id != null).map((x) => [x.id, x])) : new Map();
+    return obj.map((x, i) => ordenZoals(x, isObj(x) && opId.has(x.id) ? opId.get(x.id) : (Array.isArray(sjabloon) ? sjabloon[i] : undefined)));
+  }
+  if (!isObj(obj)) return obj;
+  const sj = isObj(sjabloon) ? sjabloon : {};
+  const uit = {};
+  for (const k of Object.keys(sj)) if (k in obj) uit[k] = ordenZoals(obj[k], sj[k]);
+  for (const k of Object.keys(obj)) if (!(k in uit)) uit[k] = ordenZoals(obj[k], undefined);
+  return uit;
+}
+
+/**
+ * Een v2-model terug in de vorm van een (ongewijzigd) v1-bestand, enkel als het verschil louter de migratie is
+ * (lege `trappen`/`inrichting`), met de sleutelvolgorde van `sjabloon` (de v1-werkkopie). Anders null.
+ */
+export function alsV1(model, sjabloon) {
+  if (!isObj(model) || model.schemaVersie !== 2) return null;
+  if ((model.trappen || []).length || (model.inrichting || []).length) return null;
+  const m = { ...model, schemaVersie: 1 };
+  if (Array.isArray(m.trappen) && !(isObj(sjabloon) && 'trappen' in sjabloon)) delete m.trappen;
+  if (Array.isArray(m.inrichting) && !(isObj(sjabloon) && 'inrichting' in sjabloon)) delete m.inrichting;
+  return ordenZoals(m, sjabloon);
+}
+
+/**
+ * Basis-hash van een werkkopie omzetten naar de huidige hashfunctie (HASH_VERSIE).
+ * Oudere werkkopieën (v1-schema en/of hash met naarJson) bewaren een basis-hash die niet meer te vergelijken is met
+ * modelHash; zonder omzetting zou een ongewijzigde v1-werkkopie tegenover hetzelfde ontwerp als v2-bestand op GitHub
+ * als "conflict" verschijnen. Herkend:
+ *  - de werkkopie zelf is de basis (lokaal ongewijzigd) ⇒ modelHash(werkkopie);
+ *  - de GitHub-versie is de basis (eventueel enkel gemigreerd naar v2 en/of met een andere sleutelvolgorde) ⇒ modelHash(github).
+ * Niet te herkennen ⇒ null (geen gemeenschappelijke basis: verschil met GitHub = conflict, zoals voorheen).
+ * @param {{ model: object, basisHash: string|null, hashVersie?: number, github?: object|null }} o  model = werkkopie zoals bewaard (niet gemigreerd)
+ * @returns {string|null}
+ */
+export function normaliseerBasis({ model, basisHash, hashVersie, github = null }) {
+  if (basisHash == null) return null;
+  if (hashVersie === HASH_VERSIE) return basisHash;
+  for (const m of [model, github]) {
+    if (!m) continue;
+    const nieuw = modelHash(m);
+    if (basisHash === nieuw || basisHash === oudeModelHash(m)) return nieuw;
+    if (m === github && model) {
+      const v1 = alsV1(github, model);
+      if (v1 && oudeModelHash(v1) === basisHash) return nieuw;
+      if (oudeModelHash(ordenZoals(github, model)) === basisHash) return nieuw;
+    }
+  }
+  return null;
 }
 
 /** JSON-tekst → gevalideerd ontwerp. Gooit nooit; geeft leesbare fouten terug. */
@@ -188,7 +247,7 @@ export class VariantBeheer {
   toestand(id) {
     const g = this.geschiedenissen.get(id);
     const wk = g ? null : this.opslag.werkkopie(id);
-    const meta = this.meta.get(id) || (wk ? { basisHash: wk.basisHash ?? null } : null);
+    const meta = this.meta.get(id) || (wk ? { basisHash: normaliseerBasis({ model: wk.model, basisHash: wk.basisHash ?? null, hashVersie: wk.hashVersie, github: this.github.get(id)?.model }) } : null);
     if (!g && !wk) return this.index.some((o) => o.id === id) ? 'gelijk' : 'enkel-lokaal';
     if (meta?.conflict) return 'conflict';
     const lokaal = modelHash(g ? g.huidig : wk.model);
@@ -224,19 +283,22 @@ export class VariantBeheer {
       } catch (e) { meldingen.push(e.message); }
     }
 
-    let model, meta;
+    let model, meta, herschrijf = false;
     if (wk) {
       const lk = leesOntwerpTekst(JSON.stringify(wk.model));
       const lokaalOk = lk.ok;
       if (!lokaalOk) meldingen.push(`De lokale kopie van "${id}" is ongeldig en wordt genegeerd:\n${lk.fouten.join('\n')}`);
+      // oudere werkkopie (v1-schema of oude hashfunctie): basis omzetten vóór het vergelijken
+      const basis = normaliseerBasis({ model: wk.model, basisHash: wk.basisHash ?? null, hashVersie: wk.hashVersie, github: gh?.model });
+      herschrijf = wk.hashVersie !== HASH_VERSIE || wk.model?.schemaVersie !== lk.model?.schemaVersie;
       const keuze = lokaalOk
-        ? kiesBijLaden({ lokaal: modelHash(lk.model), basis: wk.basisHash ?? null, github: gh?.hash ?? null, basisTijd: wk.basisTijd || 0, nu: this.nu(), gezaghebbend: gh?.gezaghebbend })
+        ? kiesBijLaden({ lokaal: modelHash(lk.model), basis, github: gh?.hash ?? null, basisTijd: wk.basisTijd || 0, nu: this.nu(), gezaghebbend: gh?.gezaghebbend })
         : { bron: 'github', githubBetrouwbaar: true };
       if (keuze.bron === 'werkkopie') {
         model = lk.model;
         const syncNu = gh && gh.hash === modelHash(model);
         meta = {
-          basisHash: syncNu ? gh.hash : (wk.basisHash ?? null),
+          basisHash: syncNu ? gh.hash : basis,
           basisSha: syncNu ? (gh.sha ?? wk.basisSha ?? null) : (wk.basisSha ?? null),
           basisTijd: wk.basisTijd || 0,
           githubBetrouwbaar: keuze.githubBetrouwbaar,
@@ -257,6 +319,8 @@ export class VariantBeheer {
 
     this.meta.set(id, meta);
     this.#maakGeschiedenis(id, model);
+    // werkkopie in het nieuwe formaat wegschrijven (gemigreerd model + omgezette basis-hash)
+    if (herschrijf && this.opslag.werkkopie(id)) this.#bewaar(id);
     this.#activeer(id);
     return { ok: true, melding: meldingen.join('\n') || undefined, waarschuwingen: validate(model).waarschuwingen };
   }
@@ -307,7 +371,7 @@ export class VariantBeheer {
     const g = this.geschiedenissen.get(id);
     if (!g) return true;
     const m = this.meta.get(id) || {};
-    const ok = this.opslag.bewaarWerkkopie(id, { model: g.huidig, basisHash: m.basisHash ?? null, basisSha: m.basisSha ?? null, basisTijd: m.basisTijd || 0 });
+    const ok = this.opslag.bewaarWerkkopie(id, { model: g.huidig, basisHash: m.basisHash ?? null, basisSha: m.basisSha ?? null, basisTijd: m.basisTijd || 0, hashVersie: HASH_VERSIE });
     if (!ok) this.#melden('opslag-fout', { id });
     return ok;
   }
