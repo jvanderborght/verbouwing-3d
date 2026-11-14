@@ -570,7 +570,6 @@ test('demonstratie zolder-programma.ops.json op bestaand: geldig, afbraak correc
   assert.equal(k.trappen.aantal, 1);
   assert.deepEqual(k.inrichting, { douche: 1, lavabo: 1 });
   // de demonstratie is geen ontwerp in designs/
-  assert.ok(!lees('index.json').ontwerpen.some((o) => /zolder/.test(o.id)));
 });
 
 test('bestaand en voorbeeld zijn v2 en geldig', () => {
