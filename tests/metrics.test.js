@@ -337,3 +337,14 @@ test('notatie nl-BE', () => {
   assert.equal(fmtDelta(-3, { decimalen: 2, eenheid: 'm²' }), '−3,00 m²');
   assert.equal(fmtDelta(0.001, { decimalen: 2, eenheid: 'm²' }), '=');
 });
+
+test('prijsregel (CLAUDE.md): elke ingevulde prijs heeft bron, bereik en opmerking, en ligt binnen het bereik', async () => {
+  const { readFileSync } = await import('node:fs');
+  const p = JSON.parse(readFileSync(new URL('../designs/prijzen.json', import.meta.url), 'utf8'));
+  for (const [k, v] of Object.entries(p.eenheidsprijzen)) {
+    if (v.prijs == null) continue;
+    assert.ok(Array.isArray(v.bron) && v.bron.length && v.bron.every((u) => /^https?:\/\//.test(u)), `${k}: bron ontbreekt`);
+    assert.ok(Array.isArray(v.bereik) && v.bereik.length === 2 && v.bereik[0] <= v.prijs && v.prijs <= v.bereik[1], `${k}: prijs buiten bereik`);
+    assert.ok(typeof v.opmerking === 'string' && v.opmerking.length > 0, `${k}: opmerking ontbreekt`);
+  }
+});

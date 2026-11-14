@@ -75,6 +75,7 @@ export function ontbrekendUitleg(r) {
 /** Vermelding btw + datum prijzen + disclaimer. */
 export function prijsVoetnoot(r) {
   return h('div', { class: 'kc-voetnoot' },
+    r.herkomst ? h('p', { class: 'kc-let-op kc-herkomst' }, h('strong', {}, r.herkomst)) : null,
     h('p', {}, r.btw === 'incl' || r.btw === 'excl' ? `Bedragen ${btwTekst(r.btw)}.` : `${btwTekst(r.btw).replace(/^btw/, 'Btw')}.`, r.bijgewerkt ? ` Prijzen bijgewerkt: ${r.bijgewerkt}.` : ''),
     h('p', {}, h('strong', {}, DISCLAIMER)));
 }

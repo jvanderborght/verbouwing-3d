@@ -39,7 +39,7 @@ export function leesPrijzen(prijzenJson) {
   const prijzen = new Map();
   if (!prijzenJson || typeof prijzenJson !== 'object') {
     waarschuwingen.push('designs/prijzen.json kon niet gelezen worden: alle prijzen ontbreken.');
-    return { valuta: 'EUR', btw: null, bijgewerkt: null, controle: null, uitleg: null, prijzen, waarschuwingen };
+    return { valuta: 'EUR', btw: null, bijgewerkt: null, controle: null, uitleg: null, herkomst: null, prijzen, waarschuwingen };
   }
   const valuta = typeof prijzenJson.valuta === 'string' && /^[A-Z]{3}$/.test(prijzenJson.valuta) ? prijzenJson.valuta : 'EUR';
   const btw = tekstOfNull(prijzenJson.btw);
@@ -74,7 +74,7 @@ export function leesPrijzen(prijzenJson) {
   }
   return {
     valuta, btw, prijzen, waarschuwingen,
-    bijgewerkt: tekstOfNull(prijzenJson._bijgewerkt), controle: tekstOfNull(prijzenJson._controle), uitleg: tekstOfNull(prijzenJson._uitleg),
+    bijgewerkt: tekstOfNull(prijzenJson._bijgewerkt), controle: tekstOfNull(prijzenJson._controle), uitleg: tekstOfNull(prijzenJson._uitleg), herkomst: tekstOfNull(prijzenJson._herkomst),
   };
 }
 
@@ -98,7 +98,7 @@ export function leesPrijzen(prijzenJson) {
  */
 export function raming(model, prijzenJson, { kerncijfers } = {}) {
   const k = kerncijfers || berekenKerncijfers(model);
-  const { valuta, btw, bijgewerkt, controle, prijzen, waarschuwingen } = leesPrijzen(prijzenJson);
+  const { valuta, btw, bijgewerkt, controle, uitleg, herkomst, prijzen, waarschuwingen } = leesPrijzen(prijzenJson);
   const posten = POSTEN.map((p) => {
     const info = prijzen.get(p.sleutel);
     const prijs = info?.prijs ?? null;
@@ -114,7 +114,7 @@ export function raming(model, prijzenJson, { kerncijfers } = {}) {
   const heeftBereik = posten.some((p) => p.bereik);
   const ontbrekend = posten.filter((p) => p.bedrag == null).map((p) => p.sleutel);
   return {
-    valuta, btw, bijgewerkt, controle, posten,
+    valuta, btw, bijgewerkt, controle, uitleg, herkomst, posten,
     totaal: posten.reduce((s, p) => s + (p.bedrag ?? 0), 0),
     bandbreedte: heeftBereik
       ? { min: posten.reduce((s, p) => s + (p.bedragMin ?? 0), 0), max: posten.reduce((s, p) => s + (p.bedragMax ?? 0), 0) }

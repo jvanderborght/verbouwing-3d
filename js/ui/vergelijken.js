@@ -256,7 +256,7 @@ export class Vergelijken {
     if (!this._rijen) return null;
     const namen = this.modellen.map(({ model }) => model.naam);
     const r0 = cijfersVoor(this.modellen[0].model).raming;
-    const tekst = naarCsv(namen, this._rijen, { btw: r0.btw, bijgewerkt: r0.bijgewerkt, datum: new Date().toLocaleString('nl-BE') });
+    const tekst = naarCsv(namen, this._rijen, { btw: r0.btw, bijgewerkt: r0.bijgewerkt, herkomst: r0.herkomst, datum: new Date().toLocaleString('nl-BE') });
     const naam = `vergelijking-${this.modellen.map((m) => m.id).join('-')}.csv`;
     const url = URL.createObjectURL(new Blob([tekst], { type: 'text/csv;charset=utf-8' }));
     const a = h('a', { href: url, download: naam, hidden: true });

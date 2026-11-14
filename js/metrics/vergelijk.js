@@ -146,7 +146,9 @@ export function csvGetal(v, dec) {
 }
 
 function csvVeld(t) {
-  const s = String(t ?? '');
+  let s = String(t ?? '');
+  // bescherming tegen formule-injectie in Excel (tekst die met = + @ of - begint, behalve getallen)
+  if (/^[=+@\t]/.test(s) || (/^-/.test(s) && !/^-[\d.,]+$/.test(s))) s = `'${s}`;
   return /[;"\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
@@ -156,7 +158,7 @@ function csvVeld(t) {
  * @param {string[]} namen kolomnamen (variantnamen; eerste = referentie)
  * @param {ReturnType<typeof vergelijkingsRijen>} rijen
  */
-export function naarCsv(namen, rijen, { datum, btw, bijgewerkt } = {}) {
+export function naarCsv(namen, rijen, { datum, btw, bijgewerkt, herkomst } = {}) {
   const regels = [];
   const kop = ['Groep', 'Kerncijfer', 'Eenheid', `${namen[0]} (referentie)`];
   for (const n of namen.slice(1)) kop.push(n, `Δ ${n}`);
@@ -172,6 +174,7 @@ export function naarCsv(namen, rijen, { datum, btw, bijgewerkt } = {}) {
     regels.push(rij);
   }
   regels.push([]);
+  if (herkomst) regels.push([herkomst]);
   regels.push([DISCLAIMER]);
   regels.push(['Prijzen enkel uit designs/prijzen.json; "—" = prijs ontbreekt, "minstens" = raming onvolledig.']);
   regels.push([`Btw: ${btwTekst(btw)}`]);

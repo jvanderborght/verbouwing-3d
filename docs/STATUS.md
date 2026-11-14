@@ -1,6 +1,6 @@
 # Status
 
-_Laatst bijgewerkt: 2026-11-14 — bestaande toestand opnieuw opgebouwd uit het bestaande plan (DXF, kader 'origineel'); branch `bestaand/dxf`, wacht op QA._
+_Laatst bijgewerkt: 2026-11-14 — fase 3 (kerncijfers, raming, vergelijken) na QA op `main`; bestaande toestand uit DXF-plan._
 
 ## Live
 - App: https://jvanderborght.github.io/verbouwing-3d/ (GitHub Pages via Actions; deploy bij elke push naar `main`).
@@ -17,7 +17,7 @@ _Laatst bijgewerkt: 2026-11-14 — bestaande toestand opnieuw opgebouwd uit het 
 - Tests: `npm test` (150+ tests + validatie designs).
 - QA-opvolging: getalinvoer begrijpt "1.200" als 1200; 422 van GitHub enkel als conflict bij sha-fout; workflow least-privilege.
 - `designs/bestaand.json`: **Bestaande toestand** — plattegronden (muren, diktes, ramen, deuren, 15 ruimtes, garages) uit het bestaande plan (DXF, kader 'origineel', cm): woning 7,00 × 12,50 m, hoofdvolume 8 m diep + achterbouw. Hoogtes, dak, borstweringen en perceelligging blijven schatting/aanname (het DXF bevat geen doorsnedes). Details, bronnen, twijfels en open vragen: `docs/BESTAAND.md`; sanity-tests in `tests/bestaand.test.js`.
-- `designs/voorbeeld.json`: FICTIEF testhuis (7 m breed, perceel 14 m; rest aannames). `designs/prijzen.json`: leeg sjabloon.
+- `designs/voorbeeld.json`: FICTIEF testhuis (7 m breed, perceel 14 m; rest aannames). `designs/prijzen.json`: richtprijzen van internet met bronnen (zie fase 3).
 
 ## Fase 2 — tekengereedschap ✅ (QA goedgekeurd)
 - Taakbalk: Selecteren · Muur · Deur · Raam · Ruimte · Verwijderen · Niveau + · Dak (telefoon: onderaan, scrollbaar; sneltoetsen V M D R N X).
