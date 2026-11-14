@@ -1,16 +1,63 @@
 {
-  "_uitleg": "Vul hier JOUW eenheidsprijzen in (bv. uit offertes). Laat null staan wat je niet weet: de raming toont dan '—' en meldt dat ze onvolledig is. De app verzint geen prijzen.",
+  "_uitleg": "Indicatieve richtprijzen voor Vlaanderen/België, op vraag van de gebruiker opgezocht op internet op 2026-11-14. Bronnen zijn commerciële sites (aannemers, vergelijkingssites), geen officiële prijsindex; ze spreken elkaar deels tegen en vermelden niet altijd of btw inbegrepen is. 'prijs' = centrale waarde binnen 'bereik' (keuze van de coördinator, geen bronwaarde). Vervang door eigen offerteprijzen zodra beschikbaar. Geen offerte; stabiliteit, EPB, vergunning, architect, nutsvoorzieningen en afwerking (pleister, schilderwerk, elektriciteit, sanitair) niet inbegrepen tenzij vermeld.",
+  "_bijgewerkt": "2026-11-14",
+  "_controle": "Ter vergelijking: een volledig afgewerkte aanbouw kost volgens bronnen ongeveer 1.400–2.500 €/m² (belgianliftpower.be, homedeal.be, waterpasconstruction.be).",
   "valuta": "EUR",
-  "btw": null,
+  "btw": "gemengd — bronnen deels incl., deels excl. 21% btw (renovatie van woningen > 10 jaar kan onder 6% vallen; na te gaan)",
   "eenheidsprijzen": {
-    "muur_nieuw_buiten": { "eenheid": "m²", "prijs": null, "omschrijving": "Nieuwe buitenmuur (opbouw, isolatie, gevel)" },
-    "muur_nieuw_binnen": { "eenheid": "m²", "prijs": null, "omschrijving": "Nieuwe binnenmuur" },
-    "muur_afbraak": { "eenheid": "m²", "prijs": null, "omschrijving": "Afbraak muur incl. afvoer" },
-    "raam_nieuw": { "eenheid": "m²", "prijs": null, "omschrijving": "Nieuw raam / glaspartij" },
-    "deur_nieuw": { "eenheid": "stuk", "prijs": null, "omschrijving": "Nieuwe deur" },
-    "vloer_nieuw": { "eenheid": "m²", "prijs": null, "omschrijving": "Nieuwe vloer (fundering/welfsels + afwerking)" },
-    "dak_plat_nieuw": { "eenheid": "m²", "prijs": null, "omschrijving": "Nieuw plat dak" },
-    "dak_hellend_nieuw": { "eenheid": "m²", "prijs": null, "omschrijving": "Nieuw hellend dak" },
-    "afwerking_nieuw_vloeroppervlak": { "eenheid": "m²", "prijs": null, "omschrijving": "Afwerking per m² nieuw netto vloeroppervlak" }
+    "muur_nieuw_buiten": {
+      "eenheid": "m²", "prijs": 240, "bereik": [200, 320],
+      "omschrijving": "Nieuwe spouwmuur compleet (binnenblad + isolatie + gevelsteen), metselwerk incl. plaatsing; excl. fundering en binnenafwerking",
+      "bron": ["https://www.bouwadviseur.be/renovatiewerken/prijs-metselwerken/", "https://vandaagwonen.be/prijs-metselwerken/", "https://www.homedeal.be/nl/metselwerk/prijs-metselwerk-per-m2/"],
+      "opmerking": "Bronnen: 220–250 €/m² (bouwadviseur, VandaagWonen, incl. isolatie) en 200–320 €/m² (Homedeal). Eén bron (bbuilt.be) noemt 100–180 €/m²; afwijkend en niet gebruikt."
+    },
+    "muur_nieuw_binnen": {
+      "eenheid": "m²", "prijs": 50, "bereik": [35, 75],
+      "omschrijving": "Nieuwe binnenwand (gyproc scheidingswand met profielen en isolatie), incl. plaatsing; excl. plamuren/schilderen",
+      "bron": ["https://www.gyprocwerken.be/gyproc-plaatsen-prijs", "https://www.crepi.be/pleisterwerken", "https://blog.trustup.be/nl/prijs-installatiegipsplaten/"],
+      "opmerking": "40–45 €/m² excl. btw (gyprocwerken), 50–75 €/m² incl. btw (crepi.be), gemiddeld 44 €/m² (Trustup). Gemetselde binnenmuur niet opgezocht (duurder)."
+    },
+    "muur_afbraak": {
+      "eenheid": "m²", "prijs": 25, "bereik": [15, 45],
+      "omschrijving": "Afbraak muur (binnenmuur tot spouwmuur); excl. asbest, stabiliteitsvoorzieningen (balk/stempeling) en mogelijk afvoer",
+      "bron": ["https://www.renovatiewerken-dj.be/afbraakwerken-prijzen/", "https://www.bouwadviseur.be/renovatiewerken/prijs-afbraakwerken/", "https://www.praesy.be/afbraakwerken/"],
+      "opmerking": "Binnenmuur 15–25 €/m²; spouwmuur ca. 41,60 €/m² (praesy). Eén bron (verbouw-prijzen.be) noemt 45–65 €/m²; afwijkend. Een draagmuur wegnemen vraagt een ingenieur + stalen balk: niet inbegrepen."
+    },
+    "raam_nieuw": {
+      "eenheid": "m²", "prijs": 600, "bereik": [350, 950],
+      "omschrijving": "Nieuw raam/glaspartij (PVC of aluminium, HR++), incl. plaatsing",
+      "bron": ["https://www.deralux.be/nieuws/hoeveel-kosten-nieuwe-ramen/", "https://prijs-ramen-deuren.be/gidsen/prijs-ramen/", "https://camba-ramen.be/prijs-ramen/"],
+      "opmerking": "Bronnen spreken elkaar sterk tegen: PVC ca. 350–550 en aluminium ca. 600–950 €/m² geplaatst; andere sites noemen veel lagere bedragen. Grote schuiframen kosten doorgaans meer per m²."
+    },
+    "deur_nieuw": {
+      "eenheid": "stuk", "prijs": 450, "bereik": [300, 650],
+      "omschrijving": "Nieuwe binnendeur standaard (deurblad + kader + plaatsing); buitendeur niet opgezocht (duurder)",
+      "bron": ["https://camba-ramen.be/deuren/binnendeuren/prijs/", "https://www.homedeal.be/nl/schrijnwerker/schrijnwerker-binnendeuren/", "https://www.binnen-deur.be/binnendeuren-prijzen/"],
+      "opmerking": "Standaard 450–650 € (incl. kozijn en plaatsing) of gemiddeld ca. 370 €; massief hout 400–700 €, glas 500–900 €, schuifdeur 600–1.200 €."
+    },
+    "vloer_nieuw": {
+      "eenheid": "m²", "prijs": 175, "bereik": [130, 245],
+      "omschrijving": "Nieuwe gelijkvloerse vloer: funderingsplaat (incl. wapening) + vloerisolatie + chape; excl. vloerafwerking",
+      "bron": ["https://vakmanprijzen.be/metselaar-ruwbouw/fundering", "https://elsabouw.be/kosten-woning/richtprijzen-bouwwerken-belgie-2025/", "https://blog.trustup.be/nl/prijs-van-vloerisolatie/", "https://blog.trustup.be/nl/?p=7115"],
+      "opmerking": "Samengesteld (eigen optelling, geen bronwaarde): funderingsplaat 100–150 €/m², graafwerk 15–30 €/m², vloerisolatie 20–40 €/m², chape 12–25 €/m². Een verdiepingsvloer (welfsels/hout) is iets anders en niet opgezocht."
+    },
+    "dak_plat_nieuw": {
+      "eenheid": "m²", "prijs": 130, "bereik": [90, 200],
+      "omschrijving": "Nieuw plat dak: isolatie (PIR) + EPDM, incl. plaatsing; excl. draagstructuur en dakranden",
+      "bron": ["https://dakwerkenvyverman.be/blog/epdm-dakbedekking-prijs-per-m2/", "https://www.homedeal.be/nl/dakwerken/nieuw-dak/", "https://www.dakvergelijken.be/dakwerken-prijzen"],
+      "opmerking": "Met nieuwe isolatie: 90–130, 100–180 of 140–200 €/m² naargelang de bron."
+    },
+    "dak_hellend_nieuw": {
+      "eenheid": "m²", "prijs": 170, "bereik": [100, 250],
+      "omschrijving": "Nieuw hellend dak per m² dakvlak: pannen, onderdak, latten en isolatie, incl. plaatsing; excl. nieuwe dakstructuur",
+      "bron": ["https://www.homedeal.be/nl/dakwerken/nieuw-dak/", "https://www.renovatie-calculator.be/blog/dakrenovatie-prijs-per-m2-belgie/", "https://www.bkgdakwerken.be/prijs-nieuw-dak"],
+      "opmerking": "Pannendak met isolatie 140–220 €/m² (Homedeal), 120–200 €/m² (Renovatie-Calculator), 130–200 €/m² (dakwerker)."
+    },
+    "afwerking_nieuw_vloeroppervlak": {
+      "eenheid": "m²", "prijs": 60, "bereik": [25, 100],
+      "omschrijving": "Vloerafwerking leggen (tegels/parket) per m² nieuw vloeroppervlak; excl. pleisterwerk, schilderwerk, elektriciteit, sanitair, keuken",
+      "bron": ["https://elsabouw.be/kosten-woning/richtprijzen-bouwwerken-belgie-2025/"],
+      "opmerking": "Slechts één algemene bron ('vloeren leggen 25–100 €/m²'); onzeker. Volledige binnenafwerking kost veel meer (zie _controle)."
+    }
   }
 }

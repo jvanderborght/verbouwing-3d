@@ -31,7 +31,7 @@ Schets- en vergelijkingstool, géén BIM/CAD: stabiliteit, EPB en vergunning bli
 - Varianten maken/bewerken = JSON in `designs/` aanpassen (of operaties toepassen met `node tools/apply-ops.mjs`).
 - Daarna altijd: `node tools/validate.mjs` (valideert alle ontwerpen) en `npm test`.
 - Nieuwe variant? Voeg ze toe aan `designs/index.json`.
-- Prijzen: `designs/prijzen.json` vult de gebruiker zelf in. **Nooit prijzen verzinnen.**
+- Prijzen: `designs/prijzen.json`. **Nooit prijzen verzinnen.** Enkel prijzen van de gebruiker, of — op uitdrukkelijke vraag van de gebruiker — opgezochte richtprijzen met `bron` (URL's), `bereik` en `opmerking` per post en datum in `_bijgewerkt`.
 
 ## Structuur
 
