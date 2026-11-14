@@ -7,9 +7,12 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import {
   muurRichting, muurLengte, muurHoogte, muurAansluiting, muurSegmenten,
-  dakVlakken, dakGevels, niveauBovenkant, polygoonOffset,
+  dakVlakken, dakGevels, niveauBovenkant, polygoonOffset, puntInPolygoon,
 } from '../model/geometry.js';
+import { inrichtingContour } from '../model/vormen.js';
 import { verborgenIds } from './bouwstenen.js';
+import { muurProfielen, knipStuk, stukVlakken } from './muurprofiel.js';
+import { trapBlokken, trapgatenOp, inrichtingHoogte } from './symbolen.js';
 
 // Kleurcode: bestaand grijs, nieuw blauw, afbraak rood transparant.
 const KLEUR = {
@@ -19,6 +22,8 @@ const KLEUR = {
   kader: { bestaand: 0x4d4d4d, nieuw: 0x1d4f8f, afbraak: 0xe0403a },
   deur: { bestaand: 0x8b6b4a, nieuw: 0x2a64a8, afbraak: 0xe0403a },
   glas: { bestaand: 0xbfe0f5, nieuw: 0x8cc4ff, afbraak: 0xe0403a },
+  trap: { bestaand: 0xb5aca2, nieuw: 0x5b9be6, afbraak: 0xe0403a },
+  inrichting: { bestaand: 0xe4e0da, nieuw: 0x9cc3f2, afbraak: 0xe0403a },
 };
 const SELECTIE = 0xff8a00;
 const AFBRAAK_OPACITEIT = 0.35;
@@ -85,8 +90,11 @@ export class Viewer3D {
 
   /**
    * @param {object} model
-   * @param {{ verborgenNiveaus?: string[], doorsnede?: number|null, selectie?: string|null }} opties
+   * @param {{ verborgenNiveaus?: string[], doorsnede?: number|null, selectie?: string|null, instellingen?: object }} opties
    *   doorsnede = z (mm) waarboven alles weggesneden wordt; null = geen doorsnede
+   *   instellingen = (gedeeltelijke) instellingen voor de trapgeometrie (werkwaarden aantrede/draaitreden), zie js/model/instellingen.js
+   * Trappen worden als treden getekend (op hun vanNiveau), inrichting als blokken; het trapgat is een uitsparing in de
+   * vloer van naarNiveau. Muren onder een dak volgen de onderkant van het dak (zie muurprofiel.js).
    */
   render(model, opties = {}) {
     this._model = model;
@@ -224,6 +232,22 @@ export class Viewer3D {
     return mesh;
   }
 
+  /** Muurstuk met afgeknipte bovenkant (uit knipStuk): lokale [t, s, z] → model. z0 = vloerpeil. */
+  _wandStuk(muur, geknipt, z0, mat, id) {
+    const { ux, uy, nx, ny } = muurRichting(muur);
+    const [sx, sy] = muur.start;
+    const pos = [];
+    const P = ([t, s, z]) => [sx + ux * t + nx * s, sy + uy * t + ny * s, z0 + z];
+    for (const q of stukVlakken(geknipt, muur.dikte)) {
+      const [a, b, c, d] = q.map(P);
+      pos.push(...a, ...b, ...c, ...a, ...c, ...d);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.computeVertexNormals();
+    return this._voegToe(geo, mat, id);
+  }
+
   _bouw(model) {
     const verborgen = verborgenIds(model, this._opties.verborgenNiveaus || []);
     const niveau = new Map(model.niveaus.map((n) => [n.id, n]));
@@ -242,13 +266,22 @@ export class Viewer3D {
       this.groep.add(lijn);
     }
 
-    // Vloeren: extrusie van de contour, dikte onder het peil
+    // Vloeren: extrusie van de contour, dikte onder het peil; trapgaten (naarNiveau) als uitsparing
+    const instOpties = this._opties.instellingen ? { instellingen: this._opties.instellingen } : {};
+    const gatenPerNiveau = new Map();
     for (const v of model.vloeren) {
       if (verborgen.has(v.id)) continue;
       const n = niveau.get(v.niveau);
       if (!n || v.contour.length < 3) continue;
       // 3 mm naar binnen: voorkomt z-fighting met het buitenvlak van de muren
       const vorm = new THREE.Shape(polygoonOffset(v.contour, -3).map(([x, y]) => new THREE.Vector2(x, y)));
+      if (!gatenPerNiveau.has(v.niveau)) gatenPerNiveau.set(v.niveau, trapgatenOp(model, v.niveau, instOpties));
+      for (const gat of gatenPerNiveau.get(v.niveau)) {
+        // enkel gaten die volledig binnen deze vloer liggen (anders faalt de triangulatie)
+        const rand = polygoonOffset(v.contour, -10);
+        if (!gat.contour.every((p) => puntInPolygoon(p, rand))) continue;
+        vorm.holes.push(new THREE.Path(gat.contour.map(([x, y]) => new THREE.Vector2(x, y))));
+      }
       const geo = new THREE.ExtrudeGeometry(vorm, { depth: v.dikte, bevelEnabled: false });
       const mesh = this._voegToe(geo, this._mat('vloer', v.status, v.id), v.id);
       mesh.position.z = n.peil - v.dikte;
@@ -267,8 +300,13 @@ export class Viewer3D {
       const gaten = ops.filter((o) => o.status !== 'afbraak');
       const a = muurAansluiting(model.muren, muur);
       const mat = this._mat('muur', muur.status, muur.id);
-      for (const s of muurSegmenten(-a.start, L + a.eind, H, gaten))
-        this._balk(muur, s.t0, s.t1, z0 + s.z0, z0 + s.z1, muur.dikte, mat, muur.id);
+      // bovenkant onder een dak: profiel per zijvlak (anders gewone balken)
+      const prof = muurProfielen(model, muur, -a.start, L + a.eind);
+      for (const s of muurSegmenten(-a.start, L + a.eind, H, gaten)) {
+        if (prof.vrij) { this._balk(muur, s.t0, s.t1, z0 + s.z0, z0 + s.z1, muur.dikte, mat, muur.id); continue; }
+        const k = knipStuk(s, prof.links, prof.rechts);
+        if (k) this._wandStuk(muur, k, z0, mat, muur.id);
+      }
 
       for (const o of ops) {
         const t0 = o.positie, t1 = o.positie + o.breedte;
@@ -297,6 +335,36 @@ export class Viewer3D {
           this._balk(muur, t0 + KADER, t1 - KADER, b0, b1 - KADER, 45, this._mat('deur', o.status, o.id), o.id);
         }
       }
+    }
+
+    // Trappen: treden als blokken (spiraal: dunne treden + kolom)
+    for (const t of model.trappen || []) {
+      if (verborgen.has(t.id)) continue;
+      const { treden, kolom } = trapBlokken(model, t, instOpties);
+      const mat = this._mat('trap', t.status, t.id);
+      for (const tr of treden) {
+        if (!(tr.z1 - tr.z0 > 0.5) || tr.contour.length < 3) continue;
+        const vorm = new THREE.Shape(tr.contour.map(([x, y]) => new THREE.Vector2(x, y)));
+        const mesh = this._voegToe(new THREE.ExtrudeGeometry(vorm, { depth: tr.z1 - tr.z0, bevelEnabled: false }), mat, t.id);
+        mesh.position.z = tr.z0;
+      }
+      if (kolom) {
+        const geo = new THREE.CylinderGeometry(kolom.straal, kolom.straal, kolom.z1 - kolom.z0, 16);
+        geo.rotateX(Math.PI / 2); // cilinderas langs z (model)
+        const mesh = this._voegToe(geo, mat, t.id);
+        mesh.position.set(kolom.midden[0], kolom.midden[1], (kolom.z0 + kolom.z1) / 2);
+      }
+    }
+
+    // Inrichting: eenvoudige blokken (hoogte uit het element of weergavewaarde per soort)
+    for (const i of model.inrichting || []) {
+      if (verborgen.has(i.id)) continue;
+      const n = niveau.get(i.niveau);
+      if (!n || !Array.isArray(i.positie) || !(i.breedte > 0) || !(i.diepte > 0)) continue;
+      const vorm = new THREE.Shape(inrichtingContour(i).map(([x, y]) => new THREE.Vector2(x, y)));
+      const h = inrichtingHoogte(i);
+      const mesh = this._voegToe(new THREE.ExtrudeGeometry(vorm, { depth: h, bevelEnabled: false }), this._mat('inrichting', i.status, i.id), i.id);
+      mesh.position.z = n.peil + 1; // 1 mm boven de vloer: geen z-fighting
     }
 
     // Daken (+ gevelvullingen)

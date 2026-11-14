@@ -1,7 +1,13 @@
 // 2D-plattegrond (SVG) van één niveau. y-as naar boven (straat onderaan): svg-coördinaten = [x, −y].
 //
 // Publieke interface (zie ook docs/FASE2.md, deel C):
-//   render(model, { niveau, selectie?, toonMaten? })  volledige herbouw van de tekening (niet van de hulplaag)
+//   render(model, { niveau, selectie?, toonMaten?, toonHoogtelijnen?, hoogtegrenzen?, instellingen? })
+//       volledige herbouw van de tekening (niet van de hulplaag).
+//       toonHoogtelijnen (standaard false): hoogtelijnen + lichte vulling per hoogteband, enkel op niveaus onder een
+//         dak (soort zolder of een hellend dak dat in het niveau zit). hoogtegrenzen (mm, standaard de werkwaarde
+//         hoogte.hoogtelijnen uit de instellingen). instellingen = (gedeeltelijke) instellingen (js/model/instellingen.js).
+//       Trappen: op vanNiveau treden + looplijn met pijl naar boven; op naarNiveau het trapgat (gearceerd).
+//       Inrichting: symbool per soort. Beide selecteerbaar (data-id) en raakbaar (doel in opPointer).
 //   opSelectie(fn(id|null))                            tik/klik in modus 'navigeren'
 //   schermNaarModel(clientX, clientY) → [x, y] mm      modelNaarScherm(x, y) → [px, py] t.o.v. de container
 //   zoomAlles()   dispose()
@@ -18,7 +24,8 @@
 //       (hover). Alle 'beweeg' worden gebundeld per animatieframe.
 //   opPointer(fn({ soort, punt: [x, y] mm, doel: id|'greep:<i>'|null, pointerType, shift, ctrl, schaal }))
 //       doel: greep (i = index in toonHulp().punten; hitzone 22 px touch/pen, 10 px muis) > opening > muur
-//       > ruimte op het actieve niveau (tolerantie 10 px). ctrl = ctrlKey of metaKey. schaal = px per mm.
+//       > inrichting > trap > ruimte op het actieve niveau (tolerantie 10 px voor muren/openingen; zie raakDoel).
+//       ctrl = ctrlKey of metaKey. schaal = px per mm.
 //   zetSleepbaar(ids: string[])
 //   toonHulp({ lijnen, punten, labels, polygonen } | null)  overlay in mm boven de tekening; overleeft render().
 //       lijnen: { van, naar, stijl: 'voorbeeld'|'hulplijn'|'maat', dikte?, tekst? } (maat: tekst standaard = lengte)
@@ -36,6 +43,10 @@ import {
   passendeView, viewBoxVan, schermNaarModelV, modelNaarSchermV, zoomRond, verschuif, niveauEronder,
   formatteerMaat, GEBAAR, isSleep, isTik, isDubbeltik, raakDoel, raakGreep, strookPolygoon,
 } from './bouwstenen.js';
+import { inrichtingSymbool, trapSymbool, formatteerHoogte, niveauOnderDak, hoogteBanden, vrijLijnLabel } from './symbolen.js';
+import { hoogtelijnen, niveauBegrenzing } from '../model/hoogte.js';
+import { metInstellingen, instelling } from '../model/instellingen.js';
+import { trapGeometrie } from '../model/trappen.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const KLEUR = { bestaand: '#6f6b66', nieuw: '#3b7fd9', afbraak: 'url(#p2d-afbraak)' };
@@ -43,6 +54,8 @@ let volgnummer = 0; // uniek patroon-id per plattegrond (meerdere plattegronden 
 const RAND = { bestaand: '#3f3c39', nieuw: '#1f5aa8', afbraak: '#d83a33' };
 const MAAT_MARGE = 2600; // ruimte rond het niveau voor maatlijnen bij zoomAlles (mm)
 const MAAT_STAP = 550; // afstand tussen maatlijnrijen (mm), zoals standaard in muurMaten()
+const BAND_KLASSE = ['hb-laag', 'hb-midden', 'hb-hoog'];
+const hoogteCache = new WeakMap(); // model → Map(sleutel → hoogtelijnen-resultaat); modellen zijn onveranderlijk
 
 const STIJL = `
   .p2d * { vector-effect: non-scaling-stroke; }
@@ -71,6 +84,24 @@ const STIJL = `
   .p2d .opening.mark .raak { fill: rgba(255,138,0,0.14); }
   .p2d .opening.mark .lijn { stroke: #e07a00; }
   .p2d .hulp { pointer-events: none; }
+  .p2d .trap .omtrek { fill: rgba(255,255,255,0.88); stroke-width: 1.25px; }
+  .p2d .trap .trede { fill: none; stroke-width: 0.6px; stroke-opacity: 0.6; }
+  .p2d .trap .loop { fill: none; stroke-width: 1.6px; }
+  .p2d .trap .kolom { fill: #fff; stroke-width: 1px; }
+  .p2d .trap.afbraak .omtrek { fill: rgba(224,64,58,0.08); stroke-dasharray: 6 4; }
+  .p2d .trap.gat .omtrek { stroke-width: 1.25px; stroke-dasharray: 7 4; }
+  .p2d .inr .omtrek { fill: #ffffff; stroke-width: 1px; }
+  .p2d .inr .deel { fill: none; stroke-width: 0.75px; }
+  .p2d .inr.afbraak .omtrek { fill: rgba(224,64,58,0.1); stroke-dasharray: 4 3; }
+  .p2d .inr text { font-size: 0.8em; text-anchor: middle; dominant-baseline: central; fill: #4a4642; pointer-events: none; }
+  .p2d .mark .accent { stroke: #ff8a00; stroke-width: 1.75px; }
+  .p2d .gesel .omtrek { fill: #fff1de; }
+  .p2d .hband { stroke: none; pointer-events: none; fill-rule: evenodd; }
+  .p2d .hb-laag { fill: rgba(214,72,48,0.16); }
+  .p2d .hb-midden { fill: rgba(236,160,40,0.16); }
+  .p2d .hb-hoog { fill: none; }
+  .p2d .hlijn { fill: none; stroke: #8a4a12; stroke-width: 1.1px; stroke-dasharray: 9 4; pointer-events: none; }
+  .p2d .hlabel { font-size: 0.95em; fill: #7a3e0c; text-anchor: middle; dominant-baseline: central; paint-order: stroke; stroke: #fff; stroke-width: 3px; stroke-linejoin: round; pointer-events: none; font-weight: 600; }
   .p2d .hulp .h-voorbeeld { stroke: #3b7fd9; stroke-width: 3px; stroke-opacity: 0.7; stroke-linecap: round; fill: none; }
   .p2d .hulp .h-voorbeeld-dik { fill: rgba(59,127,217,0.38); stroke: #1f5aa8; stroke-width: 1.25px; stroke-opacity: 0.85; }
   .p2d .hulp .h-hulplijn { stroke: #0d9488; stroke-width: 1px; stroke-dasharray: 5 4; fill: none; }
@@ -109,6 +140,7 @@ export class Plattegrond {
     this._raf = 0;
 
     this._patroonId = `p2d-afbraak-${++volgnummer}`;
+    this._gatId = `p2d-gat-${volgnummer}`;
     const svg = (this.svg = el('svg', { class: 'p2d', width: '100%', height: '100%' }));
     svg.style.display = 'block';
     svg.style.touchAction = 'none';
@@ -118,6 +150,10 @@ export class Plattegrond {
       <pattern id="${this._patroonId}" patternUnits="userSpaceOnUse" width="160" height="160" patternTransform="rotate(45)">
         <rect width="160" height="160" fill="rgba(224,64,58,0.12)"/>
         <rect x="0" y="0" width="45" height="160" fill="#e0403a"/>
+      </pattern>
+      <pattern id="${this._gatId}" patternUnits="userSpaceOnUse" width="120" height="120" patternTransform="rotate(-45)">
+        <rect width="120" height="120" fill="rgba(255,255,255,0.75)"/>
+        <rect x="0" y="0" width="14" height="120" fill="#7b756e"/>
       </pattern></defs>`;
     svg.style.webkitTouchCallout = 'none';
     svg.style.webkitUserSelect = 'none';
@@ -131,7 +167,11 @@ export class Plattegrond {
     this._ro.observe(container);
   }
 
-  /** @param {object} model @param {{ niveau: string, selectie?: string|null, toonMaten?: boolean }} opties */
+  /**
+   * @param {object} model
+   * @param {{ niveau: string, selectie?: string|null, toonMaten?: boolean, toonHoogtelijnen?: boolean,
+   *   hoogtegrenzen?: number[], instellingen?: object }} opties
+   */
   render(model, opties) {
     this._model = model;
     this._opties = opties || {};
@@ -349,6 +389,20 @@ export class Plattegrond {
     }
     g.appendChild(gR);
 
+    // Hoogtebanden (vulling) onder een dak
+    const hl = o.toonHoogtelijnen ? this._hoogtelijnen(m, niv) : null;
+    if (hl) {
+      const gB = el('g');
+      hoogteBanden(niveauBegrenzing(m, niv), hl).forEach((b, k, alle) => {
+        const kl = k === 0 ? BAND_KLASSE[0] : k === alle.length - 1 ? BAND_KLASSE[2] : BAND_KLASSE[1];
+        const p = el('path', { class: `hband ${kl}`, d: padD(b.lussen) });
+        p.dataset.van = String(b.van);
+        if (b.tot != null) p.dataset.tot = String(b.tot);
+        gB.appendChild(p);
+      });
+      g.appendChild(gB);
+    }
+
     // Niveau eronder als referentie
     const onder = niveauEronder(m.niveaus, niv);
     if (onder) {
@@ -359,6 +413,10 @@ export class Plattegrond {
       }
       g.appendChild(gO);
     }
+
+    // Trapgaten (naarNiveau), trappen (vanNiveau) en inrichting
+    g.appendChild(this._trappen(m, niv, sel));
+    g.appendChild(this._inrichting(m, niv, sel));
 
     // Muren
     const alleRechth = [];
@@ -405,6 +463,23 @@ export class Plattegrond {
       g.appendChild(gMa);
     }
 
+    // Hoogtelijnen + labels ("1,50 m")
+    if (hl) {
+      const gH = el('g');
+      const vermijd = ruimtes.map((r) => polygoonZwaartepunt(r.contour));
+      for (const laag of hl) {
+        for (const l of laag.lijnen) {
+          gH.appendChild(el('polyline', { class: 'hlijn', points: pts(l) }));
+          const lab = vrijLijnLabel(l, vermijd);
+          if (!lab || lab.lengte < 600) continue;
+          const t = el('text', { class: 'hlabel', x: r2(lab.p[0]), y: r2(-lab.p[1]), transform: `rotate(${r2(lab.hoek)} ${r2(lab.p[0])} ${r2(-lab.p[1])})` });
+          t.textContent = formatteerHoogte(laag.hoogte);
+          gH.appendChild(t);
+        }
+      }
+      g.appendChild(gH);
+    }
+
     // Ruimtelabels (naam + netto oppervlakte)
     const gL = el('g');
     for (const r of ruimtes) {
@@ -419,6 +494,71 @@ export class Plattegrond {
     }
     g.appendChild(gL);
     if (this._markering != null) this._pasMarkeringToe();
+  }
+
+  /** Hoogtelijnen voor het niveau (gecachet per model), of null als het niveau niet onder een dak ligt. */
+  _hoogtelijnen(m, niv) {
+    if (!niveauOnderDak(m, niv)) return null;
+    const o = this._opties;
+    const inst = o.instellingen ? metInstellingen(o.instellingen) : undefined;
+    const grenzen = Array.isArray(o.hoogtegrenzen) ? o.hoogtegrenzen : instelling(inst, 'hoogte.hoogtelijnen');
+    if (!Array.isArray(grenzen) || !grenzen.length) return null;
+    const sleutel = `${niv}|${grenzen.join(',')}|${o.instellingen ? JSON.stringify(o.instellingen) : ''}`;
+    let c = hoogteCache.get(m);
+    if (!c) hoogteCache.set(m, (c = new Map()));
+    if (!c.has(sleutel)) c.set(sleutel, hoogtelijnen(m, niv, grenzen, inst ? { instellingen: inst } : {}));
+    return c.get(sleutel);
+  }
+
+  _trappen(m, niv, sel) {
+    const g = el('g');
+    const opties = this._opties.instellingen ? { instellingen: metInstellingen(this._opties.instellingen) } : {};
+    for (const t of m.trappen || []) {
+      const kl = (extra) => `trap ${t.status}${extra}${t.id === sel ? ' gesel' : ''}`;
+      const rand = RAND[t.status] || RAND.bestaand;
+      if (t.naarNiveau === niv) {
+        // trapgat in de vloer van naarNiveau: gearceerd
+        const gg = trapGeometrie(m, t, opties);
+        if (!gg?.voetafdruk) continue;
+        const tg = el('g', { class: kl(' gat'), 'data-id': t.id });
+        tg.appendChild(el('polygon', { class: 'omtrek accent', points: pts(gg.voetafdruk), style: `fill: url(#${this._gatId})`, stroke: rand }));
+        g.appendChild(tg);
+        continue;
+      }
+      if (t.vanNiveau !== niv) continue;
+      const sym = trapSymbool(m, t, opties);
+      if (!sym?.voetafdruk) continue;
+      const tg = el('g', { class: kl(''), 'data-id': t.id });
+      tg.appendChild(el('polygon', { class: 'omtrek accent', points: pts(sym.voetafdruk), stroke: rand }));
+      for (const c of sym.treden) tg.appendChild(el('polygon', { class: 'trede', points: pts(c), stroke: rand }));
+      if (sym.kolom) tg.appendChild(el('polygon', { class: 'kolom', points: pts(sym.kolom), stroke: rand }));
+      if (sym.looplijn.length >= 2) tg.appendChild(el('polyline', { class: 'loop', points: pts(sym.looplijn), stroke: rand }));
+      if (sym.pijl) tg.appendChild(el('polyline', { class: 'loop', points: pts(sym.pijl), stroke: rand, 'stroke-linejoin': 'miter' }));
+      if (sym.begin) tg.appendChild(el('circle', { cx: r2(sym.begin[0]), cy: r2(-sym.begin[1]), r: Math.min(45, t.breedte * 0.06), fill: rand }));
+      g.appendChild(tg);
+    }
+    return g;
+  }
+
+  _inrichting(m, niv, sel) {
+    const g = el('g');
+    for (const i of m.inrichting || []) {
+      if (i.niveau !== niv || !Array.isArray(i.positie) || !(i.breedte > 0) || !(i.diepte > 0)) continue;
+      const sym = inrichtingSymbool(i);
+      const rand = RAND[i.status] || RAND.bestaand;
+      const ig = el('g', { class: `inr ${i.status}${i.id === sel ? ' gesel' : ''}`, 'data-id': i.id });
+      ig.dataset.soort = i.soort;
+      ig.appendChild(el('polygon', { class: 'omtrek accent', points: pts(sym.contour), stroke: rand }));
+      for (const v of sym.vormen) ig.appendChild(el('polygon', { class: 'deel', points: pts(v), stroke: rand }));
+      for (const l of sym.lijnen) ig.appendChild(el('polyline', { class: 'deel', points: pts(l), stroke: rand }));
+      if (sym.label) {
+        const t = el('text', { x: r2(sym.label.p[0]), y: r2(-sym.label.p[1]) });
+        t.textContent = sym.label.tekst;
+        ig.appendChild(t);
+      }
+      g.appendChild(ig);
+    }
+    return g;
   }
 
   _opening(mu, op, sel) {
@@ -697,6 +837,7 @@ function el(naam, attrs = {}) {
 
 const pts = (lijst) => lijst.map(([x, y]) => `${r2(x)},${r2(-y)}`).join(' ');
 const r2 = (v) => Math.round(v * 100) / 100;
+const padD = (lussen) => lussen.map((l) => `M${pts(l)}Z`).join(' ');
 
 function lijn(a, b, extra = {}) {
   return el('line', { class: 'lijn', x1: r2(a[0]), y1: r2(-a[1]), x2: r2(b[0]), y2: r2(-b[1]), ...extra });

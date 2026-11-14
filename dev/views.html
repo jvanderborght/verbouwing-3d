@@ -39,6 +39,7 @@
   <label>Doorsnede <input type="range" id="doorsnede" min="0" max="9000" step="100" value="9000"><span id="dsWaarde">uit</span></label>
   <label>2D-niveau <select id="niveau2d"></select></label>
   <label><input type="checkbox" id="maten" checked> maten</label>
+  <label><input type="checkbox" id="hoogtelijnen"> hoogtelijnen</label>
   <button id="kader">Alles tonen</button>
   <label>2D-modus <select id="modus"><option value="navigeren">navigeren</option><option value="gereedschap">gereedschap (muur-demo)</option></select></label>
   <span id="info">selectie: –</span>
@@ -52,12 +53,23 @@
   import { Viewer3D } from '../js/views/viewer3d.js';
   import { Plattegrond } from '../js/views/plan2d.js';
 
-  const ontwerp = new URLSearchParams(location.search).get('ontwerp') || 'voorbeeld';
-  const model = await (await fetch(`../designs/${ontwerp}.json`)).json();
+  import { applyOps, migreer } from '../js/model/index.js';
+
+  // ?ontwerp=<id> (designs/<id>.json) en optioneel ?ops=<naam> (tools/voorbeelden/<naam>.ops.json, enkel in het geheugen toegepast)
+  const zoek = new URLSearchParams(location.search);
+  const ontwerp = zoek.get('ontwerp') || 'voorbeeld';
+  let model = migreer(await (await fetch(`../designs/${ontwerp}.json`)).json());
+  if (zoek.get('ops')) {
+    const bestand = await (await fetch(`../tools/voorbeelden/${zoek.get('ops')}.ops.json`)).json();
+    const r = applyOps(model, Array.isArray(bestand) ? bestand : bestand.ops || [bestand]);
+    if (!r.ok) console.error('ops niet toepasbaar', r.fouten);
+    else model = r.model;
+  }
 
   const v3 = new Viewer3D(document.getElementById('v3d'));
   const v2 = new Plattegrond(document.getElementById('v2d'));
-  const staat = { verborgen: new Set(), doorsnede: null, selectie: null, niveau: model.niveaus[0]?.id, maten: true };
+  const staat = { verborgen: new Set(), doorsnede: null, selectie: null, niveau: zoek.get('niveau') || model.niveaus[0]?.id, maten: true, hoogtelijnen: zoek.has('hoogtelijnen') };
+  document.getElementById('hoogtelijnen').checked = staat.hoogtelijnen;
 
   const hoogste = Math.max(...model.niveaus.map((n) => n.peil + n.hoogte)) + 5000;
   const ds = document.getElementById('doorsnede');
@@ -74,7 +86,7 @@
 
   function teken() {
     v3.render(model, { verborgenNiveaus: [...staat.verborgen], doorsnede: staat.doorsnede, selectie: staat.selectie });
-    v2.render(model, { niveau: staat.niveau, selectie: staat.selectie, toonMaten: staat.maten });
+    v2.render(model, { niveau: staat.niveau, selectie: staat.selectie, toonMaten: staat.maten, toonHoogtelijnen: staat.hoogtelijnen });
     document.getElementById('info').textContent = `selectie: ${staat.selectie ?? '–'}`;
   }
   const kies = (id) => { staat.selectie = id; teken(); };
@@ -92,7 +104,9 @@
     document.getElementById('dsWaarde').textContent = staat.doorsnede == null ? 'uit' : `${v} mm`;
     teken();
   });
+  sel2.value = staat.niveau;
   sel2.addEventListener('change', () => { staat.niveau = sel2.value; teken(); });
+  document.getElementById('hoogtelijnen').addEventListener('change', (e) => { staat.hoogtelijnen = e.target.checked; teken(); });
   document.getElementById('maten').addEventListener('change', (e) => { staat.maten = e.target.checked; teken(); });
   document.getElementById('kader').addEventListener('click', () => { v3.zoomAlles(); v2.zoomAlles(); });
 

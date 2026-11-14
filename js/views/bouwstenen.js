@@ -2,6 +2,8 @@
 // Eenheden: mm in het model. "svg"-coördinaten = [x, -y] (y-as omgekeerd zodat de straat onderaan ligt).
 
 import { lengte, muurLengte, muurRichting, puntOpMuur, begrenzing, puntInPolygoon, polygoonOppervlakte } from '../model/geometry.js';
+import { trapGeometrie } from '../model/trappen.js';
+import { inrichtingContour } from '../model/vormen.js';
 
 /** 26432000 mm² → "26,4 m²" (Vlaamse notatie, komma als decimaalteken). */
 export function formatteerOppervlakte(mm2) {
@@ -164,6 +166,8 @@ export function verborgenIds(model, verborgenNiveaus = []) {
   const ids = new Set();
   for (const k of ['muren', 'ruimtes', 'vloeren', 'daken']) for (const e of model[k] || []) if (v.has(e.niveau)) ids.add(e.id);
   for (const o of model.openingen || []) if (ids.has(o.muur)) ids.add(o.id);
+  for (const i of model.inrichting || []) if (v.has(i.niveau)) ids.add(i.id);
+  for (const t of model.trappen || []) if (v.has(t.vanNiveau)) ids.add(t.id); // een trap hoort bij zijn vertrekniveau
   return ids;
 }
 
@@ -217,10 +221,12 @@ export function afstandTotMuurvak(muur, p, t0, t1) {
 }
 
 /**
- * Element onder punt p (mm) op `niveau`, met voorkeur opening > muur > ruimte.
- * Muren en openingen krijgen een tolerantie van `tolPx` schermpixels; ruimtes moeten het punt bevatten.
- * Openingen en muren binnen de tolerantie: de dichtste wint, bij gelijke afstand de opening
- * (een punt in een opening ligt ook in haar muur). Ruimtes enkel als er geen muur/opening raak is (kleinste wint).
+ * Element onder punt p (mm) op `niveau`, met voorkeur opening > muur > inrichting > trap > ruimte.
+ * Muren en openingen krijgen een tolerantie van `tolPx` schermpixels; inrichting, trappen en ruimtes moeten het
+ * punt bevatten. Openingen en muren binnen de tolerantie: de dichtste wint, bij gelijke afstand de opening
+ * (een punt in een opening ligt ook in haar muur). Ligt het punt niet ín de muur/opening maar wel in een
+ * inrichtingselement of trap, dan wint dat element (sanitair staat vaak tegen een muur).
+ * Trappen: op hun vanNiveau (voetafdruk) en op hun naarNiveau (trapgat). Inrichting/ruimte: kleinste wint.
  * @returns {string|null}
  */
 export function raakDoel(model, niveau, p, schaal, { tolPx = GEBAAR.tolMuur } = {}) {
@@ -241,12 +247,36 @@ export function raakDoel(model, niveau, p, schaal, { tolPx = GEBAAR.tolMuur } = 
     const a = afstandTotMuurvak(mu, p, -mu.dikte / 2, muurLengte(mu) + mu.dikte / 2);
     if (a <= tol && a < besteAfst) { beste = mu.id; besteAfst = a; }
   }
+  if (beste && besteAfst <= 1e-9) return beste;
+  const element = raakElement(model, niveau, p);
+  if (element) return element;
   if (beste) return beste;
   let besteOpp = Infinity;
   for (const r of model.ruimtes || []) {
     if (r.niveau !== niveau || !(r.contour?.length >= 3) || !puntInPolygoon(p, r.contour)) continue;
     const opp = polygoonOppervlakte(r.contour);
     if (opp < besteOpp) { beste = r.id; besteOpp = opp; }
+  }
+  return beste;
+}
+
+/** Inrichtingselement (kleinste) of trap (voetafdruk/trapgat) op `niveau` dat punt p bevat, of null. */
+export function raakElement(model, niveau, p) {
+  let beste = null, besteOpp = Infinity;
+  for (const i of model.inrichting || []) {
+    if (i.niveau !== niveau || !Array.isArray(i.positie) || !(i.breedte > 0) || !(i.diepte > 0)) continue;
+    const c = inrichtingContour(i);
+    if (!puntInPolygoon(p, c)) continue;
+    const opp = i.breedte * i.diepte;
+    if (opp < besteOpp) { beste = i.id; besteOpp = opp; }
+  }
+  if (beste) return beste;
+  for (const t of model.trappen || []) {
+    if (t.vanNiveau !== niveau && t.naarNiveau !== niveau) continue;
+    const g = trapGeometrie(model, t);
+    if (!g?.voetafdruk || !puntInPolygoon(p, g.voetafdruk)) continue;
+    const opp = polygoonOppervlakte(g.voetafdruk);
+    if (opp < besteOpp) { beste = t.id; besteOpp = opp; }
   }
   return beste;
 }
