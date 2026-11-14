@@ -48,6 +48,30 @@ Alle wijzigingen lopen via `applyOps(model, ops)` (`js/model/operations.js`). Ee
 { "op": "ontwerp",     "velden": { "naam": "Variant B", "beschrijving": "…" } }
 ```
 
+## Bewerkingen (hoog niveau)
+
+`js/model/bewerkingen.js` (ook via `js/model/index.js`) vertaalt gebruikersacties naar **operatielijsten**; ze passen niets toe.
+Vorm: `{ ops, fout?, info? }` — bij `fout` (Nederlandse melding) is `ops` leeg. Toepassen via `applyOps` / `Geschiedenis.toepassen`.
+Volledige signaturen: `docs/FASE2.md` deel A. Afspraken:
+
+- **Aansluitingen** = eindpunten van andere muren op hetzelfde niveau binnen ±1 mm. `opsMuurVerplaatsen` schuift die mee;
+  **T-aansluitingen** (eindpunt van een andere muur op de as van de verschoven muur) volgen enkel de component loodrecht op die muur.
+  `opsMuurEindpunt` / `opsMuurLengte` verplaatsen alleen samenvallende eindpunten (T-aansluitingen op een muur die draait of korter wordt, volgen niet).
+- **Openingen** behouden hun afstand tot het eindpunt dat niet beweegt (alleen `start` verplaatst ⇒ `positie` schuift mee met de lengteverandering).
+  Past een opening daarna niet meer ⇒ fout. Nieuwe opening: gecentreerd op de projectie, geklemd, `positie` op 10 mm.
+- **Ruimtedetectie** (`ruimteContourBijPunt`): muren worden als rechthoeken (met `muurAansluiting`) op een raster gezet en vanaf het punt
+  wordt een flood fill gedaan. Het raster is niet-uniform: lijnen op elke x/y van assen-evenwijdige muren ⇒ voor orthogonale plannen
+  is de contour **exact** (binnenvlakken). Schuine muren ⇒ extra uniforme lijnen (25 mm, grover bij zeer grote plannen) en een
+  vereenvoudigde (Douglas-Peucker) benadering. **Afbraakmuren tellen niet als wand** (je benoemt de nieuwe toestand); openingen tellen als dicht.
+  Raakt de vulling de rand (1 m buiten de muren) of is ze > 2000 m² ⇒ `null`. Contour: tegenwijzerzin, afgerond op 1 mm.
+- **Buitenmuren** (`buitenMuren`): niet-afbraakmuren waarvan een zijvlak grenst aan het gebied buiten alle muren (flood fill vanaf de rand).
+  `buitenContour` = rand van alles wat niet "buiten" is (terugval: rechthoekige begrenzing als het plan open is).
+- `opsNiveauToevoegen`: nieuw niveau op peil + hoogte van het niveau met het hoogste peil; gekopieerde muren zonder openingen en zonder eigen hoogte;
+  vloer = `buitenContour` van het vorige bovenste niveau (`vloerdikte`, standaard 300); daken van dat niveau verhuizen mee.
+- `opsDakInstellen`: wijzigt het eerste dak op het niveau (of optie `id`); anders nieuw dak op de rechthoekige begrenzing van de buitenzijde van de muren.
+
+Snappen in de plattegrond: `js/ui/snap.js` (`snap`, `snapDelta`), prioriteit eindpunt > midden > muuras > uitlijning (x/y van bestaande eindpunten) > ortho > raster.
+
 ## Vanuit Claude Code
 
 ```bash
