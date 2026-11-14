@@ -4,3 +4,10 @@ node_modules/
 .env
 test-results/
 .claude/worktrees/
+docs/plannen/
+*.jpg
+*.jpeg
+*.png
+*.heic
+*.pdf
+!docs/schermafdrukken/*.png

@@ -11,4 +11,5 @@ Checklist:
 3. Alle wijzigingen gaan via operaties; views muteren het model niet.
 4. Rooktest: statische server + Playwright (chromium is voorgeïnstalleerd), console-fouten = blokkerend; screenshot desktop + telefoonformaat.
 5. Prijzen nergens verzonnen.
+6. Anonimiteit (CLAUDE.md regel 8): geen adres, plaatsnaam, coördinaten, perceelnummer, foto's/afbeeldingen van de woning of persoonsnamen in bestanden of commitberichten (`git log`). Elk afbeeldingsbestand buiten js/vendor is verdacht.
 Rapporteer: BLOKKEREND / BELANGRIJK / KLEIN, met bestand:regel. Eindig met "GOEDGEKEURD" of "NIET GOEDGEKEURD".

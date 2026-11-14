@@ -12,7 +12,11 @@ Schets- en vergelijkingstool, géén BIM/CAD: stabiliteit, EPB en vergunning bli
 5. **Ontwerpen zijn JSON in `designs/`**: één bestand per variant (`designs/<id>.json`), opgesomd in `designs/index.json`.
 6. **Geen secrets in git.** API-keys (Anthropic, GitHub-token) leven enkel in `localStorage` van de browser van de gebruiker.
 7. **`docs/STATUS.md` bijwerken aan het einde van elke sessie** (wat werkt, wat niet, volgende stap).
-8. Taal van UI, code-commentaar en docs: **Nederlands** (Vlaams). Identifiers in het datamodel zijn Nederlands.
+8. **Anoniem houden (repo is publiek).** Geen adres, straatnaam, gemeente, perceelnummer, GPS-coördinaten,
+   foto's of beelden van de woning, Street View-/kaartbeelden, namen van bewoners of buren in de repo —
+   ook niet in commitberichten, ontwerpnamen of beschrijvingen. Aangeleverde plannen/foto's worden enkel
+   gebruikt om maten af te lezen; ze worden **niet** gecommit. Enkel de afgeleide maten komen in `designs/`.
+9. Taal van UI, code-commentaar en docs: **Nederlands** (Vlaams). Identifiers in het datamodel zijn Nederlands.
 
 ## Datamodel = kern van alles
 
@@ -40,7 +44,7 @@ js/ui/                app-logica, taakbalk, eigenschappenpaneel, variantbeheer, 
 js/metrics/           kerncijfers en kostenraming (fase 3)
 js/ai/                promptveld / Anthropic API (fase 4)
 designs/              ontwerpen (JSON) + prijzen.json
-docs/                 STATUS.md, DATAMODEL.md, plannen/ (aangeleverde plannen)
+docs/                 STATUS.md, DATAMODEL.md (plannen/foto's NIET in de repo — zie regel 8)
 tests/                node --test (geen afhankelijkheden)
 tools/                CLI-hulpjes voor Claude Code
 ```
