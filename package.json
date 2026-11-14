@@ -1,0 +1,9 @@
+{
+  "name": "verbouwing-3d",
+  "private": true,
+  "type": "module",
+  "description": "Geen buildstap en geen afhankelijkheden; dit bestand dient enkel om ES-modules en tests in Node te draaien.",
+  "scripts": {
+    "test": "node --test tests/*.test.js && node tools/validate.mjs"
+  }
+}

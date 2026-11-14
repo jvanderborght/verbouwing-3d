@@ -1,0 +1,387 @@
+{
+  "schemaVersie": 1,
+  "id": "voorbeeld",
+  "naam": "Voorbeeldhuis",
+  "beschrijving": "Fictief testhuis (7 m breed, perceel 14 m). Diepte, hoogtes en indeling zijn aannames — NIET de bestaande toestand.",
+  "basis": null,
+  "perceel": {
+    "contour": [
+      [-3500, -8000],
+      [10500, -8000],
+      [10500, 30000],
+      [-3500, 30000]
+    ]
+  },
+  "niveaus": [
+    {
+      "id": "N0",
+      "naam": "Gelijkvloers",
+      "peil": 0,
+      "hoogte": 2900
+    },
+    {
+      "id": "N1",
+      "naam": "Verdieping",
+      "peil": 2900,
+      "hoogte": 2700,
+      "vloerdikte": 300
+    }
+  ],
+  "muren": [
+    {
+      "id": "M1",
+      "niveau": "N0",
+      "start": [150, 150],
+      "eind": [6850, 150],
+      "dikte": 300,
+      "status": "bestaand"
+    },
+    {
+      "id": "M2",
+      "niveau": "N0",
+      "start": [6850, 150],
+      "eind": [6850, 8850],
+      "dikte": 300,
+      "status": "bestaand"
+    },
+    {
+      "id": "M3",
+      "niveau": "N0",
+      "start": [6850, 8850],
+      "eind": [150, 8850],
+      "dikte": 300,
+      "status": "afbraak"
+    },
+    {
+      "id": "M4",
+      "niveau": "N0",
+      "start": [150, 8850],
+      "eind": [150, 150],
+      "dikte": 300,
+      "status": "bestaand"
+    },
+    {
+      "id": "M5",
+      "niveau": "N0",
+      "start": [150, 4500],
+      "eind": [6850, 4500],
+      "dikte": 140,
+      "status": "bestaand"
+    },
+    {
+      "id": "M6",
+      "niveau": "N0",
+      "start": [3500, 150],
+      "eind": [3500, 4500],
+      "dikte": 140,
+      "status": "afbraak"
+    },
+    {
+      "id": "M7",
+      "niveau": "N0",
+      "start": [150, 8850],
+      "eind": [150, 11850],
+      "dikte": 300,
+      "status": "nieuw"
+    },
+    {
+      "id": "M8",
+      "niveau": "N0",
+      "start": [150, 11850],
+      "eind": [6850, 11850],
+      "dikte": 300,
+      "status": "nieuw"
+    },
+    {
+      "id": "M9",
+      "niveau": "N0",
+      "start": [6850, 11850],
+      "eind": [6850, 8850],
+      "dikte": 300,
+      "status": "nieuw"
+    },
+    {
+      "id": "M10",
+      "niveau": "N1",
+      "start": [150, 150],
+      "eind": [6850, 150],
+      "dikte": 300,
+      "status": "bestaand"
+    },
+    {
+      "id": "M11",
+      "niveau": "N1",
+      "start": [6850, 150],
+      "eind": [6850, 8850],
+      "dikte": 300,
+      "status": "bestaand"
+    },
+    {
+      "id": "M12",
+      "niveau": "N1",
+      "start": [6850, 8850],
+      "eind": [150, 8850],
+      "dikte": 300,
+      "status": "bestaand"
+    },
+    {
+      "id": "M13",
+      "niveau": "N1",
+      "start": [150, 8850],
+      "eind": [150, 150],
+      "dikte": 300,
+      "status": "bestaand"
+    },
+    {
+      "id": "M14",
+      "niveau": "N1",
+      "start": [150, 4500],
+      "eind": [6850, 4500],
+      "dikte": 140,
+      "status": "bestaand"
+    },
+    {
+      "id": "M15",
+      "niveau": "N1",
+      "start": [4000, 4500],
+      "eind": [4000, 8850],
+      "dikte": 100,
+      "status": "nieuw"
+    }
+  ],
+  "openingen": [
+    {
+      "id": "O1",
+      "muur": "M1",
+      "type": "deur",
+      "positie": 900,
+      "breedte": 1000,
+      "hoogte": 2200,
+      "borstwering": 0,
+      "status": "bestaand"
+    },
+    {
+      "id": "O2",
+      "muur": "M1",
+      "type": "raam",
+      "positie": 3000,
+      "breedte": 2800,
+      "hoogte": 1600,
+      "borstwering": 700,
+      "status": "bestaand"
+    },
+    {
+      "id": "O3",
+      "muur": "M5",
+      "type": "deur",
+      "positie": 600,
+      "breedte": 900,
+      "hoogte": 2100,
+      "borstwering": 0,
+      "status": "bestaand"
+    },
+    {
+      "id": "O4",
+      "muur": "M8",
+      "type": "raam",
+      "positie": 800,
+      "breedte": 5000,
+      "hoogte": 2400,
+      "borstwering": 0,
+      "status": "nieuw"
+    },
+    {
+      "id": "O5",
+      "muur": "M2",
+      "type": "raam",
+      "positie": 5500,
+      "breedte": 1200,
+      "hoogte": 1200,
+      "borstwering": 1000,
+      "status": "bestaand"
+    },
+    {
+      "id": "O6",
+      "muur": "M10",
+      "type": "raam",
+      "positie": 800,
+      "breedte": 1800,
+      "hoogte": 1400,
+      "borstwering": 900,
+      "status": "bestaand"
+    },
+    {
+      "id": "O7",
+      "muur": "M10",
+      "type": "raam",
+      "positie": 4000,
+      "breedte": 1800,
+      "hoogte": 1400,
+      "borstwering": 900,
+      "status": "bestaand"
+    },
+    {
+      "id": "O8",
+      "muur": "M12",
+      "type": "raam",
+      "positie": 800,
+      "breedte": 1500,
+      "hoogte": 1400,
+      "borstwering": 900,
+      "status": "bestaand"
+    },
+    {
+      "id": "O9",
+      "muur": "M14",
+      "type": "deur",
+      "positie": 500,
+      "breedte": 900,
+      "hoogte": 2100,
+      "borstwering": 0,
+      "status": "bestaand"
+    },
+    {
+      "id": "O10",
+      "muur": "M15",
+      "type": "deur",
+      "positie": 300,
+      "breedte": 800,
+      "hoogte": 2100,
+      "borstwering": 0,
+      "status": "nieuw"
+    }
+  ],
+  "ruimtes": [
+    {
+      "id": "R1",
+      "niveau": "N0",
+      "naam": "Woonkamer",
+      "functie": "woonkamer",
+      "contour": [
+        [300, 300],
+        [6700, 300],
+        [6700, 4430],
+        [300, 4430]
+      ]
+    },
+    {
+      "id": "R2",
+      "niveau": "N0",
+      "naam": "Leefkeuken",
+      "functie": "keuken",
+      "contour": [
+        [300, 4570],
+        [6700, 4570],
+        [6700, 11700],
+        [300, 11700]
+      ]
+    },
+    {
+      "id": "R3",
+      "niveau": "N1",
+      "naam": "Slaapkamer 1",
+      "functie": "slaapkamer",
+      "contour": [
+        [300, 300],
+        [6700, 300],
+        [6700, 4430],
+        [300, 4430]
+      ]
+    },
+    {
+      "id": "R4",
+      "niveau": "N1",
+      "naam": "Slaapkamer 2",
+      "functie": "slaapkamer",
+      "contour": [
+        [300, 4570],
+        [3950, 4570],
+        [3950, 8700],
+        [300, 8700]
+      ]
+    },
+    {
+      "id": "R5",
+      "niveau": "N1",
+      "naam": "Badkamer",
+      "functie": "badkamer",
+      "contour": [
+        [4050, 4570],
+        [6700, 4570],
+        [6700, 8700],
+        [4050, 8700]
+      ]
+    }
+  ],
+  "vloeren": [
+    {
+      "id": "V1",
+      "niveau": "N0",
+      "contour": [
+        [0, 0],
+        [7000, 0],
+        [7000, 9000],
+        [0, 9000]
+      ],
+      "dikte": 300,
+      "status": "bestaand"
+    },
+    {
+      "id": "V2",
+      "niveau": "N0",
+      "contour": [
+        [0, 9000],
+        [7000, 9000],
+        [7000, 12000],
+        [0, 12000]
+      ],
+      "dikte": 300,
+      "status": "nieuw"
+    },
+    {
+      "id": "V3",
+      "niveau": "N1",
+      "contour": [
+        [0, 0],
+        [7000, 0],
+        [7000, 9000],
+        [0, 9000]
+      ],
+      "dikte": 300,
+      "status": "bestaand"
+    }
+  ],
+  "daken": [
+    {
+      "id": "D1",
+      "niveau": "N1",
+      "type": "zadel",
+      "contour": [
+        [0, 0],
+        [7000, 0],
+        [7000, 9000],
+        [0, 9000]
+      ],
+      "helling": 40,
+      "nokrichting": "x",
+      "overstek": 300,
+      "dikte": 300,
+      "status": "bestaand"
+    },
+    {
+      "id": "D2",
+      "niveau": "N0",
+      "type": "plat",
+      "contour": [
+        [0, 9000],
+        [7000, 9000],
+        [7000, 12000],
+        [0, 12000]
+      ],
+      "helling": 0,
+      "overstek": 0,
+      "dikte": 350,
+      "status": "nieuw"
+    }
+  ]
+}

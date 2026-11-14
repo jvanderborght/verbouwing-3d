@@ -1,0 +1,16 @@
+{
+  "_uitleg": "Vul hier JOUW eenheidsprijzen in (bv. uit offertes). Laat null staan wat je niet weet: de raming toont dan '—' en meldt dat ze onvolledig is. De app verzint geen prijzen.",
+  "valuta": "EUR",
+  "btw": null,
+  "eenheidsprijzen": {
+    "muur_nieuw_buiten": { "eenheid": "m²", "prijs": null, "omschrijving": "Nieuwe buitenmuur (opbouw, isolatie, gevel)" },
+    "muur_nieuw_binnen": { "eenheid": "m²", "prijs": null, "omschrijving": "Nieuwe binnenmuur" },
+    "muur_afbraak": { "eenheid": "m²", "prijs": null, "omschrijving": "Afbraak muur incl. afvoer" },
+    "raam_nieuw": { "eenheid": "m²", "prijs": null, "omschrijving": "Nieuw raam / glaspartij" },
+    "deur_nieuw": { "eenheid": "stuk", "prijs": null, "omschrijving": "Nieuwe deur" },
+    "vloer_nieuw": { "eenheid": "m²", "prijs": null, "omschrijving": "Nieuwe vloer (fundering/welfsels + afwerking)" },
+    "dak_plat_nieuw": { "eenheid": "m²", "prijs": null, "omschrijving": "Nieuw plat dak" },
+    "dak_hellend_nieuw": { "eenheid": "m²", "prijs": null, "omschrijving": "Nieuw hellend dak" },
+    "afwerking_nieuw_vloeroppervlak": { "eenheid": "m²", "prijs": null, "omschrijving": "Afwerking per m² nieuw netto vloeroppervlak" }
+  }
+}
