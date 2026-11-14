@@ -1,6 +1,8 @@
 // Promptveld "Opdracht aan Claude" (fase 4): opdracht → Claude geeft operaties → validatie → diff-preview → bevestigen.
 // Niet-modaal paneel (desktop rechts, telefoon onderaan) zodat de plattegrond het voorbeeld blijft tonen.
 // Alle wijzigingen lopen via de callbacks van de app (operaties op de Geschiedenis / nieuwe varianten).
+// Twee werkwijzen (fase 5c): "Met API-key" (rechtstreeks naar de Anthropic API) en "Handmatig" (zonder key: de opdracht
+// wordt gekopieerd naar een Claude-chat naar keuze en het JSON-antwoord wordt teruggeplakt; zelfde verwerking en preview).
 
 import { h, leeg } from './dom.js';
 import { meld } from './dialogen.js';
@@ -10,9 +12,31 @@ import { normaliseerInstellingen, MODELLEN, MAX_VARIANTEN } from '../ai/prompt.j
 import { AiClient, PRIJZEN_BRON } from '../ai/client.js';
 import { Gesprek } from '../ai/gesprek.js';
 import { voorbeeldHulp } from '../ai/verwerk.js';
+import { HandmatigGesprek, tekstGrootte } from '../ai/handmatig.js';
 
 const FASE = { vraag: 'Claude denkt na…', herstel: 'Fouten teruggestuurd naar Claude (herstelpoging)…' };
 const SOORT_LABEL = { nieuw: 'nieuw', afbraak: 'afbraak', gewijzigd: 'gewijzigd', verwijderd: 'verwijderd' };
+
+const PRIVACY = {
+  api: 'Het actieve ontwerp (JSON met maten) en je opdracht gaan naar de Anthropic API, met je eigen key; de kosten zijn voor je API-account. Er wordt niets toegepast zonder jouw bevestiging.',
+  handmatig: 'Privacy: de gekopieerde tekst bevat het volledige actieve ontwerp (JSON met maten en ruimtenamen) en je opdracht; die komen terecht in de Claude-chat waarin je ze plakt (en in de geschiedenis van dat account). Plak ze enkel in een chat die je organisatie toelaat. Er wordt niets toegepast zonder jouw bevestiging.',
+};
+
+/** Tekst naar het klembord. → true als het lukte (anders toont de UI de tekst om zelf te kopiëren). */
+async function naarKlembord(tekst) {
+  try {
+    if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(tekst); return true; }
+  } catch { /* terugval hieronder */ }
+  try {
+    const ta = h('textarea', { readonly: true, style: 'position:fixed;left:-9999px;top:0;opacity:0' });
+    ta.value = tekst;
+    document.body.append(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    ta.remove();
+    return !!ok;
+  } catch { return false; }
+}
 
 const delta = (a, b, fmt) => {
   if (a == null || b == null) return '';
@@ -62,7 +86,7 @@ export class OpdrachtPaneel {
     this.vernieuwKey();
     this.o.opOpen?.(true);
     this.toonVoorbeeld();
-    setTimeout(() => { if (!this.bezig && this.o.aiOpslag.key()) this.invoer.focus({ preventScroll: true }); }, 0);
+    setTimeout(() => { if (!this.bezig) this.invoer.focus({ preventScroll: true }); }, 0);
   }
 
   sluit() {
@@ -86,6 +110,11 @@ export class OpdrachtPaneel {
     });
     this.aantal = h('select', { id: 'ai-aantal', class: 'compact' }, ...Array.from({ length: MAX_VARIANTEN }, (_, i) => h('option', { value: String(i + 1) }, String(i + 1))));
     this.genKnop = h('button', { type: 'button', class: 'knop primair', id: 'ai-genereer', onclick: () => this.genereer() }, 'Genereer');
+    this.kopKnop = h('button', { type: 'button', class: 'knop primair', id: 'ai-kopieer', hidden: true, onclick: () => this.kopieer() }, 'Kopieer opdracht voor Claude');
+    const modusKnop = (m, label) => h('button', { type: 'button', class: 'knop klein', 'data-modus': m, 'aria-pressed': 'false', onclick: () => this.zetModus(m) }, label);
+    this.modusKnoppen = { api: modusKnop('api', 'Met API-key'), handmatig: modusKnop('handmatig', 'Handmatig (zonder key)') };
+    this.modusRij = h('div', { class: 'ai-modus', role: 'group', 'aria-label': 'Werkwijze' }, this.modusKnoppen.api, this.modusKnoppen.handmatig);
+    this.privacy = h('p', { class: 'ai-privacy' });
     this.annKnop = h('button', { type: 'button', class: 'knop', id: 'ai-annuleer', hidden: true, onclick: () => this.bezig?.abort() }, 'Annuleren');
     this.voortgang = h('div', { class: 'ai-voortgang', role: 'status', 'aria-live': 'polite' });
     this.geenKey = h('div', { class: 'ai-geen-key', hidden: true });
@@ -95,31 +124,70 @@ export class OpdrachtPaneel {
       h('div', { class: 'ai-rij' },
         h('label', { class: 'ai-aantal', for: 'ai-aantal' }, 'Varianten', this.aantal),
         h('span', { class: 'ai-spatie' }),
-        this.annKnop, this.genKnop),
+        this.annKnop, this.genKnop, this.kopKnop),
       this.voortgang,
-      h('p', { class: 'ai-privacy' }, 'Het actieve ontwerp (JSON met maten) en je opdracht gaan naar de Anthropic API, met je eigen key; de kosten zijn voor je API-account. Er wordt niets toegepast zonder jouw bevestiging.'));
+      this.privacy);
+    // handmatige modus: kopiëren → in een Claude-chat plakken → antwoord terugplakken
+    this.kopieInfo = h('p', { class: 'ai-kopie-info', id: 'ai-kopie-info', role: 'status', 'aria-live': 'polite' });
+    this.kopieVak = h('textarea', { id: 'ai-kopie-tekst', class: 'ai-kopie-tekst', rows: 4, readonly: true, hidden: true, 'aria-label': 'Tekst voor Claude (zelf selecteren en kopiëren)' });
+    this.plak = h('textarea', {
+      id: 'ai-plak', rows: 4, spellcheck: 'false', autocapitalize: 'off',
+      placeholder: 'Plak hier het volledige antwoord van Claude (het JSON-codeblok mag met de tekst errond).',
+      onkeydown: (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); this.verwerkGeplakt(); } },
+    });
+    this.verwerkKnop = h('button', { type: 'button', class: 'knop primair', id: 'ai-verwerk', onclick: () => this.verwerkGeplakt() }, 'Verwerken');
+    this.handBlok = h('div', { class: 'ai-hand', hidden: true },
+      h('ol', { class: 'ai-stappen' },
+        h('li', {}, 'Typ je opdracht en klik "Kopieer opdracht voor Claude".'),
+        h('li', {}, 'Plak de tekst als nieuw gesprek in een Claude-chat die je organisatie toelaat. Dat werkt met elke Claude-chat: de tekst bevat de regels, het antwoordschema en het ontwerp.'),
+        h('li', {}, 'Kopieer het antwoord van Claude, plak het hieronder en klik "Verwerken". Je krijgt dezelfde controle en hetzelfde voorbeeld als met een API-key.')),
+      this.kopieInfo, this.kopieVak,
+      h('label', { class: 'veld-label', for: 'ai-plak' }, 'Plak het antwoord van Claude'),
+      this.plak,
+      h('div', { class: 'ai-rij' }, h('span', { class: 'ai-spatie' }), this.verwerkKnop));
     this.uitvoer = h('div', { class: 'ai-uitvoer', id: 'ai-uitvoer' });
     const kop = h('div', { class: 'ai-kop' },
       h('h2', { id: 'ai-titel' }, 'Opdracht aan Claude'),
       h('button', { type: 'button', class: 'knop klein ai-inklap', 'aria-label': 'In- of uitklappen', title: 'In-/uitklappen (plattegrond bekijken)', onclick: () => this.el.classList.toggle('ingeklapt') }, '▾'),
       h('button', { type: 'button', class: 'knop klein', 'aria-label': 'Sluiten', title: 'Sluiten', onclick: () => this.sluit() }, '×'));
-    this.el.append(kop, h('div', { class: 'ai-romp' }, this.geenKey, this.formulier, this.uitvoer));
+    this.el.append(kop, h('div', { class: 'ai-romp' }, this.modusRij, this.geenKey, this.formulier, this.handBlok, this.uitvoer));
     this.el.setAttribute('aria-labelledby', 'ai-titel');
+  }
+
+  /** 'api' (met key) of 'handmatig' (zonder key altijd, of als de gebruiker dat kiest). */
+  get modus() { return this.o.aiOpslag.key() && this.o.aiOpslag.modus() !== 'handmatig' ? 'api' : 'handmatig'; }
+
+  zetModus(m) {
+    if (this.bezig) return;
+    if (m === 'api' && !this.o.aiOpslag.key()) { this.vernieuwKey(); return; }
+    this.o.aiOpslag.bewaarModus(m);
+    this.vernieuwKey();
   }
 
   vernieuwKey() {
     const heeft = !!this.o.aiOpslag.key();
+    const hand = this.modus === 'handmatig';
+    for (const [m, k] of Object.entries(this.modusKnoppen)) {
+      k.setAttribute('aria-pressed', String((m === 'handmatig') === hand));
+      k.classList.toggle('actief', (m === 'handmatig') === hand);
+    }
+    this.modusKnoppen.api.disabled = !heeft || !!this.bezig;
+    this.modusKnoppen.api.title = heeft ? 'Rechtstreeks via de Anthropic API met je eigen key' : 'Geen API-key ingesteld op dit toestel';
     this.geenKey.hidden = heeft;
-    this.formulier.classList.toggle('uit', !heeft);
-    this.invoer.disabled = !heeft || !!this.bezig;
+    this.formulier.classList.remove('uit');
+    this.handBlok.hidden = !hand;
+    this.genKnop.hidden = hand;
+    this.kopKnop.hidden = !hand;
+    this.invoer.disabled = !!this.bezig;
     this.genKnop.disabled = !heeft || !!this.bezig;
+    this.privacy.textContent = PRIVACY[hand ? 'handmatig' : 'api'];
+    this.el.classList.toggle('handmatig', hand);
     if (!heeft) {
       leeg(this.geenKey);
       this.geenKey.append(
-        h('p', {}, h('strong', {}, 'Nog geen Anthropic API-key op dit toestel.')),
-        h('p', {}, 'Het promptveld stuurt je opdracht rechtstreeks vanuit deze browser naar de Anthropic API. Daarvoor heb je een eigen API-key nodig (aan te maken op console.anthropic.com → API Keys; het verbruik wordt aangerekend op dat account).'),
-        h('p', {}, 'De key wordt enkel in deze browser bewaard (localStorage), nooit in git of in het ontwerp.'),
-        h('button', { type: 'button', class: 'knop primair', id: 'ai-key-instellen', onclick: async () => { await this.o.opInstellingen(); this.vernieuwKey(); } }, 'API-key instellen'));
+        h('p', {}, 'Geen API-key op dit toestel: je werkt ', h('strong', {}, 'handmatig'), ' (kopiëren en plakken naar een Claude-chat). Daarvoor is geen key nodig.'),
+        h('p', { class: 'ai-key-link' }, 'Heb je wel een eigen Anthropic API-key? ',
+          h('button', { type: 'button', class: 'link', id: 'ai-key-instellen', onclick: async () => { await this.o.opInstellingen(); this.vernieuwKey(); } }, 'API-key instellen')));
     }
   }
 
@@ -128,6 +196,7 @@ export class OpdrachtPaneel {
   #instellingen() { return normaliseerInstellingen(this.o.aiOpslag.instellingen()); }
 
   async genereer() {
+    if (this.modus === 'handmatig') { await this.kopieer(); return; }
     const tekst = this.invoer.value.trim();
     if (this.bezig) return;
     if (!tekst) { this.invoer.focus(); meld('Typ eerst een opdracht.', 'info', { duur: 2500 }); return; }
@@ -148,7 +217,92 @@ export class OpdrachtPaneel {
 
   async beantwoord(tekst) {
     if (!this.gesprek || this.bezig || !tekst.trim()) return;
+    if (this.gesprek.handmatig) { await this.#kopieerAntwoord(tekst); return; }
     await this.#voerUit((opties) => this.gesprek.beantwoord(tekst.trim(), opties));
+  }
+
+  // ---------------------------------------------------------------- handmatig (zonder key)
+
+  #nieuwHandGesprek() {
+    const basis = this.o.beheer.model;
+    if (!basis) return null;
+    const ctx = this.o.context();
+    this.basisId = this.o.beheer.actiefId;
+    this.gesprek = new HandmatigGesprek({ basis, niveau: ctx.niveau, selectie: ctx.selectie, aantal: Number(this.aantal.value) || 1 });
+    this.resultaat = null;
+    this.o.opVoorbeeld(null);
+    leeg(this.uitvoer);
+    return this.gesprek;
+  }
+
+  /** Toont een tekst die niet naar het klembord kon, om zelf te selecteren en te kopiëren. */
+  #toonKopieVak(tekst) {
+    this.kopieVak.value = tekst;
+    this.kopieVak.hidden = false;
+    this.kopieVak.focus({ preventScroll: true });
+    this.kopieVak.select();
+  }
+
+  /** "Kopieer opdracht voor Claude": systeemprompt + schema + context + opdracht naar het klembord. */
+  async kopieer() {
+    if (this.bezig) return;
+    const opdracht = this.invoer.value.trim();
+    if (!opdracht) { this.invoer.focus(); meld('Typ eerst een opdracht.', 'info', { duur: 2500 }); return; }
+    const g = this.#nieuwHandGesprek();
+    if (!g) return;
+    const tekst = g.kopieertekst(opdracht);
+    const { tekens, kB } = tekstGrootte(tekst);
+    const grootte = `${fmtGetal(tekens, 0)} tekens, ${fmtGetal(kB, 1)} kB`;
+    this.kopieVak.hidden = true;
+    this.plak.value = '';
+    if (await naarKlembord(tekst)) {
+      this.kopieInfo.textContent = `Opdracht gekopieerd (${grootte}). Plak ze als nieuw gesprek in een Claude-chat en plak het antwoord hieronder.`;
+      meld('Opdracht gekopieerd naar het klembord.', 'ok', { duur: 2500 });
+      this.plak.focus({ preventScroll: true });
+    } else {
+      this.kopieInfo.textContent = `Kopiëren naar het klembord lukte niet. Selecteer de tekst hieronder (${grootte}) en kopieer ze zelf.`;
+      this.#toonKopieVak(tekst);
+    }
+  }
+
+  /** "Verwerken": JSON uit het geplakte antwoord halen en verwerken zoals een API-antwoord. */
+  verwerkGeplakt() {
+    if (this.bezig) return;
+    const tekst = this.plak.value;
+    if (!tekst.trim()) { this.plak.focus(); meld('Plak eerst het antwoord van Claude.', 'info', { duur: 2500 }); return; }
+    const g = this.gesprek?.handmatig ? this.gesprek : this.#nieuwHandGesprek();
+    if (!g) return;
+    const r = g.verwerk(tekst);
+    if (r.actie === 'leeg') { meld(r.melding, 'info', { duur: 2500 }); return; }
+    this.resultaat = r;
+    this.actief = 0;
+    this.#nieuwResultaat = true;
+    this.render();
+  }
+
+  async #kopieerHerstel() {
+    const t = this.resultaat?.herstelvraag;
+    if (!t) return;
+    if (await naarKlembord(t)) {
+      meld('Herstelvraag gekopieerd. Plak ze in hetzelfde gesprek met Claude.', 'ok', { duur: 3000 });
+      this.plak.value = '';
+      this.plak.focus({ preventScroll: true });
+    } else {
+      this.kopieInfo.textContent = 'Kopiëren lukte niet. Selecteer de herstelvraag hieronder en kopieer ze zelf.';
+      this.#toonKopieVak(t);
+    }
+  }
+
+  async #kopieerAntwoord(tekst) {
+    const t = this.gesprek.antwoord(tekst.trim());
+    if (await naarKlembord(t)) {
+      meld('Antwoord gekopieerd. Plak het in hetzelfde gesprek met Claude en plak daarna het nieuwe JSON-antwoord hierboven.', 'ok', { duur: 4000 });
+      this.plak.value = '';
+      this.plak.focus({ preventScroll: true });
+    } else {
+      this.kopieInfo.textContent = 'Kopiëren lukte niet. Selecteer de tekst hieronder en kopieer ze zelf.';
+      this.#toonKopieVak(t);
+    }
   }
 
   async #voerUit(fn) {
@@ -189,6 +343,9 @@ export class OpdrachtPaneel {
   #zetBezig(aan) {
     this.annKnop.hidden = !aan;
     this.genKnop.disabled = aan || !this.o.aiOpslag.key();
+    this.kopKnop.disabled = aan;
+    this.verwerkKnop.disabled = aan;
+    for (const k of Object.values(this.modusKnoppen)) k.disabled = aan || (k === this.modusKnoppen.api && !this.o.aiOpslag.key());
     this.invoer.disabled = aan;
     this.aantal.disabled = aan;
     this.el.classList.toggle('bezig', aan);
@@ -218,6 +375,9 @@ export class OpdrachtPaneel {
 
     if (r.actie === 'fout') {
       this.uitvoer.append(h('div', { class: 'ai-fout', role: 'alert' }, ...String(r.melding).split('\n').flatMap((x, i) => (i ? [h('br'), x] : [x]))));
+      if (g?.handmatig) this.uitvoer.append(h('p', { class: 'ai-uitleg' }, 'Begin opnieuw met "Kopieer opdracht voor Claude" (in een nieuw gesprek), eventueel met een eenvoudigere opdracht of minder varianten.'));
+    } else if (r.actie === 'herstel') {
+      this.#renderHerstel(r);
     } else if (r.actie === 'vragen') {
       this.#renderVragen(r.data.vragen);
     } else if (r.actie === 'toon') {
@@ -232,6 +392,18 @@ export class OpdrachtPaneel {
 
   #nieuwResultaat = false;
 
+  /** Handmatig: het antwoord kon niet verwerkt worden ⇒ fouten + knop om de herstelvraag te kopiëren (één herstelpoging). */
+  #renderHerstel(r) {
+    // enkel de foutregels ("- …"); de macro-info ("· …") staat wel in de herstelvraag voor Claude
+    const regels = String(r.foutTekst || '').split('\n').filter((x) => /^- /.test(x)).map((x) => x.slice(2));
+    this.uitvoer.append(
+      h('div', { class: 'ai-fout ai-herstel', role: 'alert' },
+        h('strong', {}, 'Het antwoord kon niet verwerkt worden; er werd niets gewijzigd.'),
+        h('ul', {}, ...regels.map((x) => h('li', {}, x)))),
+      h('p', { class: 'ai-uitleg' }, 'Kopieer de herstelvraag, plak ze in HETZELFDE gesprek met Claude, en plak het verbeterde antwoord hierboven. Dat kan één keer.'),
+      h('div', { class: 'ai-acties' }, h('button', { type: 'button', class: 'knop primair', id: 'ai-herstel-kopieer', onclick: () => this.#kopieerHerstel() }, 'Kopieer herstelvraag')));
+  }
+
   #renderVragen(vragen) {
     const antw = h('textarea', { id: 'ai-antwoord', rows: 3, enterkeyhint: 'send', placeholder: 'Je antwoord…' });
     const stuur = () => this.beantwoord(antw.value);
@@ -241,7 +413,8 @@ export class OpdrachtPaneel {
       h('ol', {}, ...vragen.map((v) => h('li', {}, v))),
       h('label', { class: 'veld-label', for: 'ai-antwoord' }, 'Antwoord'),
       antw,
-      h('div', { class: 'ai-rij' }, h('span', { class: 'ai-spatie' }), h('button', { type: 'button', class: 'knop primair', id: 'ai-antwoord-stuur', onclick: stuur }, 'Antwoord versturen'))));
+      this.gesprek?.handmatig ? h('p', { class: 'ai-uitleg' }, 'Je antwoord wordt gekopieerd; plak het in hetzelfde gesprek met Claude en plak daarna het nieuwe antwoord hierboven.') : null,
+      h('div', { class: 'ai-rij' }, h('span', { class: 'ai-spatie' }), h('button', { type: 'button', class: 'knop primair', id: 'ai-antwoord-stuur', onclick: stuur }, this.gesprek?.handmatig ? 'Kopieer antwoord voor Claude' : 'Antwoord versturen'))));
     setTimeout(() => antw.focus({ preventScroll: true }), 0);
   }
 
@@ -324,6 +497,8 @@ export class OpdrachtPaneel {
     const ok = this.o.opToepassen(v.ops, `Opdracht: ${v.naam}`);
     if (!ok) return;
     this.resultaat = null;
+    this.plak.value = '';
+    this.kopieInfo.textContent = '';
     leeg(this.uitvoer);
     this.uitvoer.append(h('p', { class: 'ai-ok', role: 'status' }, `"${v.naam}" toegepast als één stap. Ongedaan maken kan met Ctrl+Z of de knop ↶.`));
     this.#usage();

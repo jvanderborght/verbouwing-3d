@@ -89,17 +89,18 @@ function objectVan(v, naam) {
 }
 
 /**
- * Normaliseert één basisoperatie: JSON-tekst in item/velden → object; ontwerp enkel met programma/naam/beschrijving.
+ * Normaliseert één basisoperatie: JSON-tekst in item/velden → object; ontwerp enkel met programma/naam/beschrijving
+ * (`ontwerpVelden`; null = geen extra beperking, dan beslist applyOps — zo gebruikt tools/apply-ops.mjs het).
  * Gooit Error bij een ongeldige vorm.
  */
-export function normaliseerOp(op) {
+export function normaliseerOp(op, { ontwerpVelden = AI_ONTWERP_VELDEN } = {}) {
   if (!op || typeof op !== 'object' || Array.isArray(op)) throw new Error('Operatie moet een object zijn.');
   const u = { ...op };
   if (u.op === 'toevoegen' && 'item' in u) u.item = objectVan(u.item, 'item');
   if ((u.op === 'wijzigen' || u.op === 'ontwerp') && 'velden' in u) u.velden = objectVan(u.velden, 'velden');
   if (u.op === 'ontwerp') {
     if (!u.velden || typeof u.velden !== 'object') throw new Error('ontwerp vereist "velden".');
-    for (const k of Object.keys(u.velden)) if (!AI_ONTWERP_VELDEN.includes(k)) throw new Error(`Ontwerpveld "${k}" mag je niet wijzigen; enkel ${AI_ONTWERP_VELDEN.join(', ')}.`);
+    if (ontwerpVelden) for (const k of Object.keys(u.velden)) if (!ontwerpVelden.includes(k)) throw new Error(`Ontwerpveld "${k}" mag je niet wijzigen; enkel ${ontwerpVelden.join(', ')}.`);
   }
   if (u.op === 'verplaatsen') { u.dx ??= 0; u.dy ??= 0; }
   return u;
@@ -162,11 +163,12 @@ function roepMacro(model, op, instellingen) {
  * (dat doet applyOps in pasVariantenToe), maar elke operatie moet wel toepasbaar zijn.
  * @param {object} basis  het ontwerp waarop de variant vertrekt (wordt niet gewijzigd)
  * @param {Array} ops     de operaties van Claude (basis + macro's, item/velden als object of JSON-tekst)
- * @param {{ instellingen?: object }} o  instellingen voor trap/inrichting (werkwaarden, grenzen)
+ * @param {{ instellingen?: object, ontwerpVelden?: string[]|null }} o  instellingen voor trap/inrichting (werkwaarden, grenzen);
+ *   ontwerpVelden: zie normaliseerOp
  * @returns {{ ok: boolean, ops: Array, fouten: Array<{pad, melding}>, macroInfo: Array<{ index, op, info, ids }>, meldingen: string[] }}
  *   ops = uitgevouwen basisoperaties (bij ok); macroInfo = per macro de info van de bewerking (met de definitieve id's).
  */
-export function vouwUit(basis, ops, { instellingen = null } = {}) {
+export function vouwUit(basis, ops, { instellingen = null, ontwerpVelden = AI_ONTWERP_VELDEN } = {}) {
   const lijst = Array.isArray(ops) ? ops : [ops];
   const gereserveerd = expliciteIds(lijst);
   let model = kloon(basis);
@@ -179,7 +181,7 @@ export function vouwUit(basis, ops, { instellingen = null } = {}) {
     const op = lijst[i];
     if (!isMacro(op)) {
       let n;
-      try { n = normaliseerOp(op); } catch (e) { return fout(i, e.message); }
+      try { n = normaliseerOp(op, { ontwerpVelden }); } catch (e) { return fout(i, e.message); }
       const r = applyOps(model, [n], { valideer: false });
       if (!r.ok) return fout(i, r.fouten[0]?.melding || 'Operatie kan niet toegepast worden.');
       model = r.model;

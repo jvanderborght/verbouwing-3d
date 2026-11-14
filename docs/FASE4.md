@@ -183,3 +183,64 @@ zolder met wanden/trapgat/sanitair blauw, programmatoets 4 voldoet) ⇒ Toepasse
 - Hoe goed Claude de macro's en de JSON-tekst in de praktijk gebruikt, is niet gemeten (enkel nagebootste antwoorden).
 - `afbraakZone` met een `punt` en `muurSplitsen` met een punt i.p.v. een positie zitten niet in het schema (wel aanvaard door `macros.js`).
 - Instellingen van de gebruiker (trapgrenzen) worden door de UI nog niet aan het gesprek meegegeven.
+
+## Zonder API-key (fase 5c, fase5/zonder-key)
+
+Niet iedereen kan een eigen Anthropic API-key aanmaken. Twee routes werken zonder key; beide gebruiken **dezelfde operaties, macro's en
+verwerking** als het promptveld (`vouwUit` → `applyOps` + `validate` → diff, kerncijfers, programmatoets) en dezelfde systeemprompt
+(`SYSTEEMPROMPT` in `js/ai/prompt.js`) als bron van de regels.
+
+### Route 1 — Claude Code (deze repo)
+- `tools/apply-ops.mjs <id> <bestand|-> [--als <nieuw-id>] [--naam "…"] [--variant <n>] [--droog] [--designs <map>]`
+  - aanvaardt: lijst operaties, één operatie, `{ ops, _uitleg?, basis? }`, het **antwoordformaat** `{ samenvatting, vragen?, varianten:
+    [{ naam, beschrijving, ops }] }`, en tekst met zo'n JSON (bv. een gekopieerd chatantwoord met een ```json-blok);
+  - **macro's** (`afbraakZone`, `zolderNiveau`, `trapPlaatsen`, `inrichtingPlaatsen`, `muurSplitsen`) en `ontwerp`; `item`/`velden` als object
+    of JSON-tekst. Anders dan in de app mag `ontwerp` hier alle ontwerpvelden wijzigen die `applyOps` toelaat (zoals voorheen);
+  - antwoordformaat zonder `--als`: elke variant wordt een nieuw ontwerp `<id>-<slug van de naam>` (bestaat dat al: `-2`, …), met de
+    beschrijving van de variant; `--variant n` kiest er één, `--als` kan enkel bij één variant. Gewone ops zonder `--als` werken het
+    bronontwerp bij (zoals voorheen);
+  - atomair over alle varianten (één fout ⇒ niets geschreven, afsluitcode 1); `--droog` toont alles zonder te schrijven;
+  - uitvoer: diff (`beschrijfDiff`), macro-info (`macroInfoTekst`), meldingen (bv. blijvende randmuren van `afbraakZone`),
+    waarschuwingen van de validator en de toets aan het programma van eisen als het ontwerp er een heeft.
+  - Logica in `js/ai/opsbestand.js` (puur, getest); de CLI leest/schrijft enkel bestanden.
+- Project-skill `.claude/skills/ontwerp-opdracht/SKILL.md`: werkwijze voor Claude Code (ontwerp lezen → ops-bestand buiten `designs/` →
+  `--droog` → schrijven → `validate` + `npm test` → diff, meldingen en toets tonen → commit op een branch → bevestiging vóór merge).
+  Voor een branch die enkel ontwerpdata wijzigt volstaat als QA een lichte check (validate + tests groen, diff door de gebruiker gezien).
+
+### Route 2 — handmatige modus in de app
+- Opdracht-paneel: keuze **Met API-key** / **Handmatig (zonder key)**. Zonder key is het altijd handmatig; met key is de keuze bewaard in
+  localStorage (`verbouwing3d.aiModus`).
+- **"Kopieer opdracht voor Claude"** zet één tekst op het klembord (`bouwKopieertekst` in `js/ai/handmatig.js`): `SYSTEEMPROMPT` +
+  korte kanaaluitleg (één ```json-blok mag hier; `item`/`velden` als object aanbevolen) + `ANTWOORD_SCHEMA` (compact) + context
+  (`contextTekst`: ontwerp-JSON compact, kerncijfers, actief niveau, selectie, volgende vrije id's) + opdracht + "Antwoord uitsluitend met
+  JSON volgens dit schema …". Voor `bestaand` ±38 000 tekens (±37 kB); de lengte wordt gemeld. Lukt het klembord niet, dan verschijnt de
+  tekst in een vak om zelf te kopiëren.
+- **"Plak het antwoord van Claude"** + **Verwerken**: `haalJsonUit` haalt de JSON uit de geplakte tekst (```json-blok ergens in de tekst,
+  ook onafgesloten; de hele tekst; of het JSON-object op het hoogste niveau tussen inleidende/afsluitende zinnen; bij meerdere blokken wint
+  wat het best op een antwoord lijkt). Een losse operatielijst of `{ ops }` wordt één variant. Daarna `leesAntwoord` + `beoordeel` (zelfde
+  pijplijn) ⇒ dezelfde preview, kerncijfers, toets, Toepassen (één undo-stap) en Als nieuwe variant(en) bewaren.
+- Fouten: **"Kopieer herstelvraag"** (de fouten per variant + macro-info, zoals de API-herstelpoging) om in **hetzelfde** gesprek te plakken.
+  Net als bij de API: één herstelpoging; is ook het tweede antwoord fout, dan een foutmelding (opnieuw beginnen). Een per ongeluk
+  teruggeplakte opdracht, een leeg veld of afgebroken JSON krijgen een eigen melding. Vragen van Claude: het antwoord van de gebruiker
+  wordt gekopieerd om in hetzelfde gesprek te plakken.
+- Privacy: het paneel meldt dat het volledige ontwerp-JSON en de opdracht in de gebruikte Claude-chat terechtkomen (en in de
+  geschiedenis van dat account); enkel plakken in een chat die de organisatie toelaat. Er gaat niets naar `api.anthropic.com`.
+
+### Tests
+- `tests/ai-handmatig.test.js`: opbouw en compactheid van de kopieertekst; JSON-extractie (kaal, codeblok met/zonder taal, inleidende
+  tekst, onafgesloten blok, meerdere blokken, BOM); foutpaden (leeg, geen JSON, ongeldige JSON, afgebroken, teruggeplakte opdracht);
+  verwerking van het programma-voorbeeld (`antwoordPveMacro`) ⇒ toets 4 × voldoet en zelfde model als bij toepassen; herstelvraag ⇒
+  verbeterd antwoord ⇒ ok; twee keer fout ⇒ fout; vragen; `leesOpsBron`/`verwerkOpsBron`; de CLI op een kopie van `designs/`
+  (`--droog`, `--variant`/`--als`, standaard `<id>-<slug>`, foutpad zonder schrijven, verkeerd gebruik).
+- Rooktest (Playwright, lokaal, niet in CI): zonder key → kopiëren (klembord gelezen) → fout antwoord → herstelvraag → voorbeeldantwoord
+  geplakt (via het klembord) → preview (toets 4 voldoet) → Toepassen (3 niveaus, 1 trap, 2 inrichting, programma, één undo-stap) → undo;
+  met key: keuze tussen beide modi; desktop en telefoon; geen console-fouten, geen aanroep naar api.anthropic.com.
+
+### Beperkingen
+- Hoe goed een Claude-chat het formaat volgt zonder structured outputs, is niet gemeten (enkel nagebootste antwoorden). De herstelvraag
+  vangt vorm- en validatiefouten op, maar het overbrengen blijft handwerk.
+- De kopieertekst is groot (±38k tekens voor `bestaand`); sommige chatvensters kunnen lange plaksels als bijlage behandelen — dat is
+  voor de werking geen probleem, maar is niet per chat-product getest.
+- Kosten/tokens zijn in de handmatige modus niet zichtbaar (geen API-antwoord).
+- Het basisontwerp is dat van het moment van kopiëren; is het actieve ontwerp intussen gewijzigd, dan weigert Toepassen (bewaren als
+  nieuwe variant kan wel).

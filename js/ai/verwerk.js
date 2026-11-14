@@ -115,13 +115,14 @@ export function telDiff(d) {
  * Bij ok: `ops` = de UITGEVOUWEN basisoperaties (die past "Toepassen" toe), `antwoordOps` = de operaties zoals Claude ze gaf,
  * `macroInfo`/`meldingen` uit de bewerkingen, en `programmaToets` (toetsProgramma) als het ontwerp na de variant een
  * programma van eisen heeft. Bij een fout blijft `ops` de lijst van Claude (foutpaden ops[i] verwijzen ernaar).
- * @param {{ instellingen?: object }} o  instellingen (werkwaarden/grenzen) voor trap, inrichting en programmatoets
+ * @param {{ instellingen?: object, ontwerpVelden?: string[]|null }} o  instellingen (werkwaarden/grenzen) voor trap, inrichting en
+ *   programmatoets; ontwerpVelden: welke ontwerpvelden de operatie `ontwerp` mag wijzigen (zie macros.js normaliseerOp)
  * @returns {Array<{ naam, beschrijving, ops, ok, fouten, waarschuwingen, model?, diff?, diffTekst?, telling?, antwoordOps?,
  *   macroInfo?, meldingen?, programmaToets? }>}
  */
-export function pasVariantenToe(basis, varianten, { instellingen = null } = {}) {
+export function pasVariantenToe(basis, varianten, { instellingen = null, ontwerpVelden = undefined } = {}) {
   return varianten.map((v) => {
-    const u = vouwUit(basis, v.ops, { instellingen });
+    const u = vouwUit(basis, v.ops, { instellingen, ontwerpVelden });
     if (!u.ok) return { ...v, ok: false, fouten: u.fouten, waarschuwingen: [], macroInfo: u.macroInfo, meldingen: u.meldingen };
     // applyOps kloont zelf; het basismodel wordt nooit gemuteerd
     const r = applyOps(basis, u.ops);
