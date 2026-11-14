@@ -16,7 +16,8 @@ import { kerncijfers as berekenKerncijfers } from '../metrics/kerncijfers.js';
 /**
  * Keuzelijst in Instellingen. `fallbacks`: server-side fallbacks meesturen.
  * Bron: Claude API-documentatie (skill claude-api, shared/models.md), gelezen 2026-11-14:
- * Claude Haiku 5.5 heeft géén server-side fallback (een `fallbacks`-parameter geeft daar 400).
+ * Claude Haiku 5.5 heeft géén server-side fallback (de lijstvorm van `fallbacks` geeft daar 400; met "default" blijft
+ * een weigering gewoon een weigering). We sturen voor Haiku dus geen fallbacks mee.
  */
 export const MODELLEN = Object.freeze([
   { id: 'claude-opus-5-5', naam: 'Claude Opus 5.5 (standaard)', fallbacks: true },
@@ -284,7 +285,12 @@ export function antwoordBericht(antwoord, aantal = 1) {
  * midden in de geschiedenis), en zo blijft het verzoek geldig ook na een fallback naar een ander model.
  */
 export function assistentBericht(bericht) {
-  const tekst = (bericht?.content || []).filter((b) => b.type === 'text' && typeof b.text === 'string' && b.text.length);
+  // Na een fallback middenin de stream: enkel de inhoud ná het laatste `fallback`-blok (het afgebroken antwoord van
+  // het geweigerde model hoort niet als 'eigen' vorig antwoord in de geschiedenis).
+  const blokken = bericht?.content || [];
+  let start = 0;
+  blokken.forEach((b, i) => { if (b?.type === 'fallback') start = i + 1; });
+  const tekst = blokken.slice(start).filter((b) => b.type === 'text' && typeof b.text === 'string' && b.text.length);
   return { role: 'assistant', content: tekst.length ? tekst.map((b) => ({ type: 'text', text: b.text })) : [{ type: 'text', text: '{}' }] };
 }
 

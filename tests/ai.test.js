@@ -408,3 +408,9 @@ test('geen console-uitvoer met de key tijdens een volledige ronde', async () => 
   } finally { Object.assign(console, orig); }
   assert.ok(!uit.join('\n').includes(KEY));
 });
+
+test('assistentBericht: na een fallback enkel de tekst na het laatste fallback-blok', async () => {
+  const { assistentBericht } = await import('../js/ai/prompt.js');
+  const r = assistentBericht({ content: [{ type: 'text', text: '{"half' }, { type: 'fallback', from: { model: 'a' }, to: { model: 'b' } }, { type: 'text', text: '{"heel":1}' }] });
+  assert.deepEqual(r.content, [{ type: 'text', text: '{"heel":1}' }]);
+});
