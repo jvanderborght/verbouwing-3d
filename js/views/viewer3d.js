@@ -13,6 +13,7 @@ import { inrichtingContour } from '../model/vormen.js';
 import { verborgenIds } from './bouwstenen.js';
 import { muurProfielen, knipStuk, stukVlakken } from './muurprofiel.js';
 import { trapBlokken, trapgatenOp, inrichtingHoogte } from './symbolen.js';
+import { vlakkenMetUitsparingen, dakkapelDelen } from '../model/dakkapellen.js';
 
 // Kleurcode: bestaand grijs, nieuw blauw, afbraak rood transparant.
 const KLEUR = {
@@ -380,13 +381,22 @@ export class Viewer3D {
       }
       // Onderkant dak ligt op het rustvlak aan de contourrand; bovenkant = onderkant + verticale dikte.
       const dv = dikte / Math.cos((dak.helling * Math.PI) / 180);
-      for (const vlak of dakVlakken(dak))
+      // dakkapellen: uitsparing in het dakvlak (het hoofddak loopt niet door de dakkapel)
+      for (const vlak of vlakkenMetUitsparingen(model, dak, dakVlakken(dak), instOpties))
         this._voegToe(prisma(vlak.map(([x, y, h]) => [x, y, rust + h + dv]), [0, 0, -dv]), mat, dak.id);
       const murenNiveau = model.muren.filter((m) => m.niveau === dak.niveau);
       const dg = murenNiveau.length ? Math.max(...murenNiveau.map((m) => m.dikte)) : 300;
       const gevelMat = this._mat('muur', dak.status, dak.id);
       for (const g of dakGevels(dak, 5))
         this._voegToe(prisma(g.punten.map(([x, y, h]) => [x, y, rust + h]), [g.binnen[0] * dg, g.binnen[1] * dg, 0]), gevelMat, dak.id);
+    }
+
+    // Dakkapellen: voorvlak (met raam), zijwangen, dakje — zie js/model/dakkapellen.js
+    for (const k of model.dakkapellen || []) {
+      if (verborgen.has(k.id)) continue;
+      const soortMat = { wand: 'muur', dak: 'dak', kader: 'kader', glas: 'glas' };
+      for (const deel of dakkapelDelen(model, k, { kader: KADER, ...instOpties }))
+        this._voegToe(prisma(deel.punten, deel.verschuiving), this._mat(soortMat[deel.soort] || 'muur', k.status, k.id), k.id);
     }
   }
 }

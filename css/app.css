@@ -793,3 +793,9 @@ input[type="range"] { accent-color: var(--accent); width: 160px; height: var(--k
   .toets summary { min-height: 40px; align-items: center; }
   .hoogtelijnen .hl-grenzen { font-size: 16px; }
 }
+
+/* eigenschappenpaneel: dakkapel (raam als drie getallen, knoppen bij een hellend dak) */
+.raam-invoer { display: grid; grid-template-columns: auto 1fr auto 1fr auto 1fr auto; align-items: center; gap: 4px; }
+.raam-invoer input { min-width: 0; text-align: right; font-variant-numeric: tabular-nums; padding-left: 4px; padding-right: 4px; }
+.raam-invoer .as { font-size: 12px; color: var(--tekst-zacht); }
+.dakkapel-acties { justify-content: flex-start; flex-wrap: wrap; gap: 6px; align-items: center; }

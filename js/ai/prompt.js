@@ -9,7 +9,7 @@
 
 import {
   VELDEN, ENUMS, COLLECTIE_NAMEN, COLLECTIES, STATUSSEN, OPENING_TYPES, DAK_TYPES, NOKRICHTINGEN, FUNCTIES,
-  NIVEAU_SOORTEN, TRAP_TYPES, DRAAIRICHTINGEN, INRICHTING_SOORTEN,
+  NIVEAU_SOORTEN, TRAP_TYPES, DRAAIRICHTINGEN, INRICHTING_SOORTEN, DAKKAPEL_ZIJDEN,
 } from '../model/schema.js';
 import { INSTELLINGEN_STANDAARD } from '../model/instellingen.js';
 import { volgendId } from '../model/operations.js';
@@ -93,6 +93,10 @@ export const OP_SCHEMAS = Object.freeze([
     id: TEKST, soort: { type: 'string', enum: [...INRICHTING_SOORTEN] }, ruimte: TEKST, rotatie: GETAL,
   }, { positie: PUNT, niveau: TEKST, breedte: GETAL, diepte: GETAL, hoogte: GETAL }),
   opSchema('muurSplitsen', { muur: TEKST, positie: GETAL, nieuwId: TEKST }),
+  opSchema('dakkapelPlaatsen', {
+    id: TEKST, dak: TEKST, zijde: { type: 'string', enum: [...DAKKAPEL_ZIJDEN] }, positieX: GETAL, positieZ: GETAL, breedte: GETAL, hoogte: GETAL,
+    raamBreedte: GETAL, raamHoogte: GETAL,
+  }, {}, 'Dakkapel (plat dakje) in een hellend dakvlak; raamBreedte/raamHoogte 0 = geen raam.'),
 ]);
 
 /**
@@ -197,6 +201,11 @@ const UITLEG = {
   'trappen.diameter': 'enkel spiraal; leeg = 2 × breedte',
   'inrichting.positie': 'MIDDELPUNT in plan', 'inrichting.rotatie': 'graden; 0 = breedte langs +x, rugzijde aan -y (voorzijde kijkt naar +y)',
   'inrichting.hoogte': 'gebruikshoogte, voor de vrije-hoogtecontrole',
+  'dakkapellen.dak': 'hellend dak', 'dakkapellen.zijde': 'dakvlak: nokrichting x ⇒ voor|achter, y ⇒ links|rechts',
+  'dakkapellen.positieX': 'MIDDEN langs de nok (x bij nokrichting x, y bij nokrichting y)',
+  'dakkapellen.positieZ': 'onderkant van het voorvlak boven de zoldervloer; het voorvlak staat waar het dak die hoogte heeft',
+  'dakkapellen.breedte': 'buitenmaat incl. zijwangen', 'dakkapellen.hoogte': 'voorvlak tot onderkant dakje; vrije hoogte eronder = positieZ + hoogte',
+  'dakkapellen.diepte': 'leeg = tot waar het dakje het hoofddak snijdt', 'dakkapellen.raam': '{ breedte, hoogte, borstwering? (boven de zoldervloer; leeg = onderaan) }, gecentreerd',
 };
 
 function veldenTekst() {
@@ -234,7 +243,7 @@ De gebruiker geeft een opdracht in gewone taal. Je antwoordt UITSLUITEND met é�
 # Datamodel (schemaVersie 2)
 - Alle maten in millimeter (mm), hoeken in graden. Oorsprong [0, 0] = linkerbenedenhoek van het gelijkvloers (buitenhoek links-voor, straatkant).
 - Assen: x → rechts (langs de straatgevel), y → naar achter (richting tuin; in de plattegrond omhoog), z → omhoog. Hoek 0° = +x, 90° = +y.
-- Elk element heeft een "id", uniek over het HELE ontwerp. Voorvoegsels: N niveau, M muur, O opening, R ruimte, V vloer, D dak, T trap, I inrichting.
+- Elk element heeft een "id", uniek over het HELE ontwerp. Voorvoegsels: N niveau, M muur, O opening, R ruimte, V vloer, D dak, T trap, I inrichting, K dakkapel.
 - status ∈ bestaand | nieuw | afbraak (bestaand = blijft, nieuw = wordt gebouwd, afbraak = wordt afgebroken).
 Velden per collectie (? = optioneel):
 ${veldenTekst()}
@@ -249,6 +258,7 @@ Regels die de validator afdwingt: een opening valt binnen de lengte en de hoogte
 - Treden: "aantalTreden" = aantal OPTREDEN n; in plan liggen n − 1 treden (de laatste "trede" is de vloer erboven). Laat aantalTreden/optrede leeg, dan worden ze berekend uit het hoogteverschil (peil naarNiveau − peil vanNiveau). Het trapgat = de voetafdruk in de vloer van naarNiveau; je hoeft het niet apart te tekenen.
 - Zolder: een niveau met "soort": "zolder" op de bovenkant van het niveau eronder (peil = peil + hoogte), met als hoogte de nokhoogte. Het dak blijft op het niveau eronder rusten; de app berekent de vrije hoogte onder het dak (schuine plafonds). Wanden op de zolder (bv. knieschoten) krijgen een eigen, lagere "hoogte" die onder het dak past. Geef ruimtes onder een schuin dak "hoogtegrenzen" (bv. [1500, 2200]) zodat de oppervlakte per hoogteband zichtbaar wordt.
 - Inrichting (sanitair, meubels): "positie" = middelpunt, "rotatie" 0 = rug tegen een wand aan de -y-zijde (voorzijde naar +y); 90 = rug aan +x, 180 = rug aan +y, 270 = rug aan -x. Koppel ze met "ruimte" aan hun ruimte. Plaats ze waar de vrije hoogte volstaat (douche niet onder het laagste deel van een schuin dak).
+- Dakkapel (collectie dakkapellen, optioneel): staat in één dakvlak van een hellend dak ("dak" + "zijde"). "positieX" = midden langs de nok, "positieZ" = onderkant van het voorvlak boven de zoldervloer (het voorvlak komt waar de onderkant van het dak die hoogte heeft), "hoogte" = voorvlak tot de onderkant van het platte dakje; het dakje loopt door tot het het hoofddak snijdt. Vrije hoogte onder de dakkapel = positieZ + hoogte (de app rekent ze mee in de hoogtebanden). Ze mag niet over de goot, de nok of de rand van het dakvlak en niet over een andere dakkapel in hetzelfde dakvlak.
 - Werkwaarden zijn GEEN normen. De app gebruikt enkel vertrekwaarden om iets te kunnen berekenen of plaatsen: ${werkwaardenTekst()}. Grenzen (max. optrede, min. loophoogte, …) zijn standaard NIET ingesteld en worden dan niet getoetst. Noem nooit een werkwaarde of je eigen vertrekmaat een norm, en verzin geen normen of wettelijke eisen.
 
 # Operaties
@@ -268,6 +278,7 @@ Macro's (hoog niveau). Gebruik ze waar ze passen: de app zet ze om in de juiste 
 { "op": "trapPlaatsen", "id": "T1", "van": "N1", "naar": "N2", "type": "halfdraai", "oorsprong": [x, y], "richting": 90, "breedte": 800 }   optioneel: "draairichting", "aantrede", "aantalTreden", "optrede", "diameter" (spiraal). Fout als de trap buiten de vloer van een van beide niveaus valt of een muur raakt.
 { "op": "inrichtingPlaatsen", "id": "I1", "soort": "douche", "ruimte": "R20", "rotatie": 0, "positie": [x, y], "breedte": 900, "diepte": 900, "hoogte": 2100 }   zonder "positie" zoekt de app een plek met de rug tegen een wand van de ruimte (met voldoende vrije hoogte als "hoogte" gegeven is); zonder breedte/diepte gelden de werkwaarden.
 { "op": "muurSplitsen", "muur": "M4", "positie": 2500, "nieuwId": "M40" }   muur knippen op positie mm vanaf muur.start; het eerste stuk houdt het id, het tweede krijgt nieuwId; openingen verhuizen mee.
+{ "op": "dakkapelPlaatsen", "id": "K1", "dak": "D1", "zijde": "voor", "positieX": 5000, "positieZ": 900, "breedte": 2200, "hoogte": 1400, "raamBreedte": 1600, "raamHoogte": 1100 }   dakkapel met plat dakje en raam (gecentreerd, onderaan het voorvlak; 0 = geen raam). Fout als ze niet in het dakvlak past (de melding noemt de maximale hoogte) of een andere dakkapel overlapt.
 Id's bij macro's: geef in "id" / "nieuwId" zelf het id van het nieuwe element (aanbevolen), dan kan je er later naar verwijzen. "" = de app kiest het volgende vrije nummer. Id's die een macro zelf uitdeelt (bv. het afgesplitste muurstuk of de zoldervloer) botsen nooit met id's die jij elders in de variant gebruikt: die worden zo nodig hernummerd. Verwijs dus niet naar zulke automatische id's; gebruik voor je eigen nieuwe elementen expliciete id's.
 
 Voorbeeld — een bestaande achtergevel M3 van [0, 9000] naar [6000, 9000] (300 mm dik) krijgt een uitbouw van 3 m diep over de volle breedte, met een plat dak:
@@ -309,7 +320,7 @@ Voorbeeld — achterbouw (ruimtes R5, R6) afbreken, zolder onder het zadeldak va
 8. Prijzen en kosten verzin je nooit; de app rekent zelf met de prijzen van de gebruiker.
 9. "Afbreken", "slopen", "wegnemen" van een bestaand deel = status "afbraak" op ALLE bestaande muren, openingen, vloeren, daken, trappen en inrichting van dat deel — nooit "verwijderen". Gebruik daarvoor bij voorkeur afbraakZone met de ruimtes van dat deel. Herken een deel (bv. "de achterbouw", "garage 2", "de veranda") aan de ruimtenamen en hun contour in het ontwerp-JSON. Een muur die het deel scheidt van wat blijft, blijft "bestaand" (hij wordt de nieuwe buitengevel; afbraakZone laat hem staan en meldt hem); zijn openingen naar het afgebroken deel dicht je door ze op "afbraak" te zetten. Ruimtes van een afgebroken deel verwijder je (ruimtes hebben geen status) of je geeft ze de nieuwe indeling. Breek je zonder macro af, zet dan zelf elk element op "afbraak" (operatie "wijzigen").
 10. Programma van eisen (bv. "2 slaapkamers + kleine badkamer + berging + trap"): maak voor elke gevraagde ruimte een ruimte (met de juiste functie) plus de muren/openingen die nodig zijn om ze te begrenzen en te bereiken; een gevraagde trap als trap (trapPlaatsen), sanitair en meubels als inrichting (inrichtingPlaatsen) in hun ruimte. Leg het gevraagde programma vast met { "op": "ontwerp", "velden": "{\\"programma\\": …}" }: de app toetst het ontwerp eraan (voldoet / voldoet niet / onbekend) en toont dat bij de variant. Neem in het programma enkel eisen op die de gebruiker gaf: "minOppervlakte" of "hoogteGrens" alleen als de gebruiker een oppervlakte of hoogte noemt. Kies je zelf maten voor een voorstel, vermeld ze dan in de samenvatting als aanname ("Aanname: …"); het zijn vertrekmaten, geen normen.
-11. Wat schema v2 NIET kan uitdrukken (o.a. dakkapellen en dakramen, isolatie en opbouwen (houtskelet, …), technieken (verwarming, ventilatie, leidingen), trapleuningen, plafondhoogtes los van niveau of dak): verzin GEEN velden, collecties of waarden die het schema niet kent. Meld het expliciet in "samenvatting" als "Niet modelleerbaar: …" en doe het best mogelijke met de bestaande elementen. Trappen, zolders (schuine plafonds en vrije hoogte onder het dak), knieschoten (muren met een eigen hoogte), sanitair en meubels zijn WEL modelleerbaar: gebruik daarvoor trappen, niveaus met soort "zolder", muren met "hoogte" en inrichting.`;
+11. Wat schema v2 NIET kan uitdrukken (o.a. dakramen (vlakke ramen in het dakvlak), dakkapellen met een ander dakje dan plat, isolatie en opbouwen (houtskelet, …), technieken (verwarming, ventilatie, leidingen), trapleuningen, plafondhoogtes los van niveau of dak): verzin GEEN velden, collecties of waarden die het schema niet kent. Meld het expliciet in "samenvatting" als "Niet modelleerbaar: …" en doe het best mogelijke met de bestaande elementen. Trappen, zolders (schuine plafonds en vrije hoogte onder het dak), knieschoten (muren met een eigen hoogte), dakkapellen met een plat dakje, sanitair en meubels zijn WEL modelleerbaar: gebruik daarvoor trappen, niveaus met soort "zolder", muren met "hoogte", dakkapellen (dakkapelPlaatsen) en inrichting.`;
 
 // ---------------------------------------------------------------- context en berichten
 

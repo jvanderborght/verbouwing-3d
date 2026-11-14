@@ -1,13 +1,14 @@
 // Validatie van een ontwerp. Geeft { geldig, fouten, waarschuwingen } terug.
 // fouten blokkeren toepassen/opslaan; waarschuwingen niet.
 
-import { SCHEMA_VERSIE, VELDEN, ENUMS, COLLECTIES, COLLECTIE_NAMEN, MODEL_VELDEN } from './schema.js';
+import { SCHEMA_VERSIE, VELDEN, ENUMS, COLLECTIES, COLLECTIE_NAMEN, MODEL_VELDEN, OPTIONELE_COLLECTIES } from './schema.js';
 import { muurLengte, muurHoogte, polygoonOppervlakte, muurRechthoek } from './geometry.js';
 import { INSTELLINGEN_STANDAARD, metInstellingen, instelling } from './instellingen.js';
 import { trapGeometrie } from './trappen.js';
 import { niveauBegrenzing, inEenVan, minVrijeHoogte, trapLoophoogte } from './hoogte.js';
 import { inrichtingContour, polygonenOverlappen } from './vormen.js';
 import { valideerProgramma } from './programma.js';
+import { valideerDakkapellen, valideerRaamVeld } from './dakkapel-regels.js';
 
 const isGetal = (v) => typeof v === 'number' && Number.isFinite(v);
 const isPunt = (v) => Array.isArray(v) && v.length === 2 && v.every(isGetal);
@@ -48,6 +49,7 @@ export function validate(model, opties = {}) {
 
   const ids = {};
   for (const c of COLLECTIE_NAMEN) {
+    if (model[c] === undefined && OPTIONELE_COLLECTIES.includes(c)) { ids[c] = new Map(); continue; } // optioneel: ontbreekt = leeg
     if (!Array.isArray(model[c])) { fout(c, `${c} moet een lijst zijn.`); ids[c] = new Map(); continue; }
     ids[c] = new Map();
     model[c].forEach((item, i) => {
@@ -87,6 +89,8 @@ export function validate(model, opties = {}) {
         else if (type === 'contour') {
           if (!Array.isArray(v) || v.length < 3 || !v.every(isPunt)) fout(vp, `${naam} moet minstens 3 punten [x, y] bevatten.`);
           else if (polygoonOppervlakte(v) < 1) fout(vp, `${naam} heeft geen oppervlakte.`);
+        } else if (type === 'raam') {
+          for (const m of valideerRaamVeld(v)) (m.ernst === 'fout' ? fout : let_op)(vp + (m.sub ? `.${m.sub}` : ''), m.melding);
         } else if (type.startsWith('enum:')) {
           const lijst = ENUMS[type.slice(5)];
           if (!lijst.includes(v)) fout(vp, `${naam} "${v}" is ongeldig; kies uit: ${lijst.join(', ')}.`);
@@ -226,6 +230,9 @@ export function validate(model, opties = {}) {
       if (vh != null && vh < x.hoogte - 0.5) let_op(pad, `${x.soort} ${x.id}: vrije hoogte ${Math.round(vh)} mm is lager dan het element (${x.hoogte} mm).`);
     }
   });
+
+  // dakkapellen (optionele collectie): binnen het dakvlak, geen overlap — zie js/model/dakkapel-regels.js
+  for (const p of valideerDakkapellen(model, { instellingen: inst })) (p.ernst === 'fout' ? fout : let_op)(p.pad, p.melding);
 
   if (model.programma !== undefined && model.programma !== null) {
     for (const p of valideerProgramma(model.programma)) (p.ernst === 'fout' ? fout : let_op)(p.pad, p.melding);

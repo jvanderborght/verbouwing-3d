@@ -27,3 +27,9 @@ export function naarJson(model) {
   return JSON.stringify(model, null, 2)
     .replace(/\[\s+(-?[\d.e+-]+),\s+(-?[\d.e+-]+)\s+\]/g, '[$1, $2]') + '\n';
 }
+export {
+  ZIJDEN_PER_NOK, dakvlakAssen, dakkapelReferentie, dakkapelNiveau, dakkapelDiktes, dakkapelGeometrie, dakkapelVerhoging,
+  vlakMinRechthoek, vlakkenMetUitsparingen, dakkapelDelen,
+} from './dakkapellen.js';
+export { valideerDakkapellen } from './dakkapel-regels.js';
+export { opsDakkapelPlaatsen } from './dakkapel-bewerkingen.js';

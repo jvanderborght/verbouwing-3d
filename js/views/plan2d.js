@@ -47,6 +47,7 @@ import { inrichtingSymbool, trapSymbool, formatteerHoogte, niveauOnderDak, hoogt
 import { hoogtelijnen, niveauBegrenzing } from '../model/hoogte.js';
 import { metInstellingen, instelling } from '../model/instellingen.js';
 import { trapGeometrie } from '../model/trappen.js';
+import { dakkapelSymbool } from './symbolen.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const KLEUR = { bestaand: '#6f6b66', nieuw: '#3b7fd9', afbraak: 'url(#p2d-afbraak)' };
@@ -96,6 +97,14 @@ const STIJL = `
   .p2d .inr text { font-size: 0.8em; text-anchor: middle; dominant-baseline: central; fill: #4a4642; pointer-events: none; }
   .p2d .mark .accent { stroke: #ff8a00; stroke-width: 1.75px; }
   .p2d .gesel .omtrek { fill: #fff1de; }
+  .p2d .dakkapel .omtrek { fill: rgba(59,127,217,0.06); stroke-width: 1.4px; stroke-dasharray: 10 5; }
+  .p2d .dakkapel.bestaand .omtrek { fill: rgba(80,80,80,0.05); }
+  .p2d .dakkapel.afbraak .omtrek { fill: rgba(224,64,58,0.08); }
+  .p2d .dakkapel .voorvlak { fill: none; stroke-width: 2px; stroke-dasharray: 10 5; }
+  .p2d .dakkapel .wang { fill: none; stroke-width: 0.75px; stroke-dasharray: 4 3; }
+  .p2d .dakkapel text { font-size: 0.85em; text-anchor: middle; dominant-baseline: central; fill: #1f5aa8; paint-order: stroke; stroke: #fff; stroke-width: 3px; pointer-events: none; }
+  .p2d .dakkapel.gesel .omtrek { fill: rgba(255,138,0,0.16); }
+  .p2d .dakkapel .maat { pointer-events: none; }
   .p2d .hband { stroke: none; pointer-events: none; fill-rule: evenodd; }
   .p2d .hb-laag { fill: rgba(214,72,48,0.16); }
   .p2d .hb-midden { fill: rgba(236,160,40,0.16); }
@@ -440,6 +449,9 @@ export class Plattegrond {
     g.appendChild(gM);
     g.appendChild(gOp);
 
+    // Dakkapellen (boven het snijvlak: gestreepte contour + breedtemaat), op het niveau in het dak
+    g.appendChild(this._dakkapellen(m, niv, sel, o.toonMaten !== false));
+
     // Maatlijnen
     if (o.toonMaten !== false && alleRechth.length) {
       const b = begrenzing(alleRechth.flat());
@@ -536,6 +548,26 @@ export class Plattegrond {
       if (sym.pijl) tg.appendChild(el('polyline', { class: 'loop', points: pts(sym.pijl), stroke: rand, 'stroke-linejoin': 'miter' }));
       if (sym.begin) tg.appendChild(el('circle', { cx: r2(sym.begin[0]), cy: r2(-sym.begin[1]), r: Math.min(45, t.breedte * 0.06), fill: rand }));
       g.appendChild(tg);
+    }
+    return g;
+  }
+
+  _dakkapellen(m, niv, sel, metMaat) {
+    const g = el('g');
+    const opties = this._opties.instellingen ? { instellingen: metInstellingen(this._opties.instellingen) } : {};
+    for (const k of m.dakkapellen || []) {
+      const sym = dakkapelSymbool(m, k, niv, opties);
+      if (!sym) continue;
+      const rand = RAND[k.status] || RAND.bestaand;
+      const kg = el('g', { class: `dakkapel ${k.status}${k.id === sel ? ' gesel' : ''}`, 'data-id': k.id });
+      kg.appendChild(el('polygon', { class: 'omtrek accent', points: pts(sym.contour), stroke: rand }));
+      kg.appendChild(el('polyline', { class: 'voorvlak', points: pts(sym.voorvlak), stroke: rand }));
+      for (const w of sym.wangen) kg.appendChild(el('polygon', { class: 'wang', points: pts(w), stroke: rand }));
+      const t = el('text', { x: r2(sym.label.p[0]), y: r2(-sym.label.p[1]) });
+      t.textContent = sym.label.tekst;
+      kg.appendChild(t);
+      if (metMaat) kg.appendChild(maatEl(sym.maat));
+      g.appendChild(kg);
     }
     return g;
   }

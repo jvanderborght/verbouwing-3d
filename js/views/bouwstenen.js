@@ -4,6 +4,7 @@
 import { lengte, muurLengte, muurRichting, puntOpMuur, begrenzing, puntInPolygoon, polygoonOppervlakte } from '../model/geometry.js';
 import { trapGeometrie } from '../model/trappen.js';
 import { inrichtingContour } from '../model/vormen.js';
+import { dakkapelNiveau, dakkapelGeometrie } from '../model/dakkapellen.js';
 
 /** 26432000 mm² → "26,4 m²" (Vlaamse notatie, komma als decimaalteken). */
 export function formatteerOppervlakte(mm2) {
@@ -168,6 +169,7 @@ export function verborgenIds(model, verborgenNiveaus = []) {
   for (const o of model.openingen || []) if (ids.has(o.muur)) ids.add(o.id);
   for (const i of model.inrichting || []) if (v.has(i.niveau)) ids.add(i.id);
   for (const t of model.trappen || []) if (v.has(t.vanNiveau)) ids.add(t.id); // een trap hoort bij zijn vertrekniveau
+  for (const k of model.dakkapellen || []) if (ids.has(k.dak)) ids.add(k.id); // een dakkapel hoort bij haar dak
   return ids;
 }
 
@@ -260,7 +262,7 @@ export function raakDoel(model, niveau, p, schaal, { tolPx = GEBAAR.tolMuur } = 
   return beste;
 }
 
-/** Inrichtingselement (kleinste) of trap (voetafdruk/trapgat) op `niveau` dat punt p bevat, of null. */
+/** Inrichtingselement (kleinste), trap (voetafdruk/trapgat) of dakkapel (voetafdruk) op `niveau` dat punt p bevat, of null. */
 export function raakElement(model, niveau, p) {
   let beste = null, besteOpp = Infinity;
   for (const i of model.inrichting || []) {
@@ -277,6 +279,15 @@ export function raakElement(model, niveau, p) {
     if (!g?.voetafdruk || !puntInPolygoon(p, g.voetafdruk)) continue;
     const opp = polygoonOppervlakte(g.voetafdruk);
     if (opp < besteOpp) { beste = t.id; besteOpp = opp; }
+  }
+  if (beste) return beste;
+  // dakkapellen: op het niveau in hun dak (voetafdruk)
+  for (const k of model.dakkapellen || []) {
+    if (dakkapelNiveau(model, k) !== niveau) continue;
+    const g = dakkapelGeometrie(model, k);
+    if (g.fout || !puntInPolygoon(p, g.voetafdruk)) continue;
+    const opp = polygoonOppervlakte(g.voetafdruk);
+    if (opp < besteOpp) { beste = k.id; besteOpp = opp; }
   }
   return beste;
 }

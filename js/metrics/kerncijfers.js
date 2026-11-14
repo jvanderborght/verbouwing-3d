@@ -9,6 +9,7 @@ import { buitenMuren, buitenContour } from '../model/bewerkingen.js';
 import { niveauBovenkant } from '../model/geometry.js';
 import { oppervlaktePerHoogteband } from '../model/hoogte.js';
 import { muurOppervlakteOnderDak } from '../model/muurprofiel.js';
+import { dakkapelGeometrie } from '../model/dakkapellen.js';
 
 const M2 = 1e6; // mm² per m²
 const M3 = 1e9; // mm³ per m³
@@ -61,7 +62,10 @@ export function brutoNiveau(model, niveauId) {
  *   hoogtebanden: Array<{ van, tot, m2 }>,   // v2: som over die ruimtes per band (van–tot in mm, tot null = open)
  *   trappen: { aantal, bestaand, nieuw, afbraak },  // aantal = status ≠ afbraak
  *   inrichting: { [soort]: aantal },          // status ≠ afbraak
+ *   dakkapellen: { aantal, bestaand, nieuw, afbraak, voorvlakM2, raamM2, volume },  // aantal en sommen: status ≠ afbraak
  * }}
+ * Dakkapellen: voorvlak = breedte × hoogte (bruto), raam = breedte × hoogte, volume = toename boven de onderkant van het
+ * hoofddak (m³). Dat volume telt bij het zolderniveau in dat dak (anders bij volume.daken).
  * Zolderniveau (soort 'zolder'): volume = volume van de hellende daken die op zijn peil rusten (volumeBron 'dak');
  * die daken tellen niet nog eens mee in volume.daken.
  */
@@ -90,7 +94,23 @@ export function kerncijfers(model) {
     n.volume = som(daken, (d) => dakVolume(d)) / M3;
     n.volumeBron = 'dak';
   }
-  const volumeDaken = som(dakenTellen.filter((d) => !inZolder.has(d.id)), (d) => dakVolume(d)) / M3;
+  // dakkapellen: volume bij het zolderniveau waarin hun dak zit, anders bij de daken
+  const dakkapellen = { aantal: 0, ...perStatus(() => 0), voorvlakM2: 0, raamM2: 0, volume: 0 };
+  let kapelVolumeDaken = 0;
+  for (const k of model.dakkapellen || []) {
+    if (STATUSSEN.includes(k.status)) dakkapellen[k.status]++;
+    if (!telt(k)) continue;
+    const dak = dakenTellen.find((d) => d.id === k.dak);
+    const g = dak ? dakkapelGeometrie(model, k) : null;
+    if (!g || g.fout) continue;
+    dakkapellen.aantal++;
+    dakkapellen.voorvlakM2 += g.voorvlakM2;
+    dakkapellen.raamM2 += g.raamM2;
+    dakkapellen.volume += g.volume / M3;
+    const zolder = inZolder.has(dak.id) ? niveaus.find((n) => n.volumeBron === 'dak' && Math.abs(niveauBovenkant(model, dak.niveau) - n.peil) < 1) : null;
+    if (zolder) zolder.volume += g.volume / M3; else kapelVolumeDaken += g.volume / M3;
+  }
+  const volumeDaken = som(dakenTellen.filter((d) => !inZolder.has(d.id)), (d) => dakVolume(d)) / M3 + kapelVolumeDaken;
   const volumeNiveaus = som(niveaus, (n) => n.volume);
 
   // v2: oppervlakte per hoogteband (ruimtes met hoogtegrenzen), trappen, inrichting
@@ -167,6 +187,7 @@ export function kerncijfers(model) {
     hoogtebanden,
     trappen,
     inrichting,
+    dakkapellen,
     vloerNieuw: som((model.vloeren || []).filter((v) => v.status === 'nieuw'), (v) => polygoonOppervlakte(v.contour)) / M2,
   };
 }

@@ -8,12 +8,14 @@
 //  - de onderkant van elk dak (status ≠ afbraak) dat rust op een niveau met bovenkant ≥ N.peil en waarvan de
 //    rechthoekige begrenzing p bevat: rustvlak + dakHoogteIn(dak, p). De dakdikte ligt BOVEN die lijn (zoals in
 //    de 3D-weergave: onderkant dak = rustvlak aan de contourrand), dus ze vermindert de vrije hoogte niet.
+//    Binnen de binnenvoetafdruk van een dakkapel in dat dak geldt max(onderkant dak, plafond dakkapel) (dakkapellen.js).
 //  - is er niets boven p, dan is de vrije hoogte de verdiepingshoogte van N.
 // Resultaat ≥ 0 (mm).
 
 import { begrenzing, dakHoogteIn, polygoonOppervlakte, puntInPolygoon, polygoonOffset, niveauBovenkant, lengte } from './geometry.js';
 import { INSTELLINGEN_STANDAARD, instelling } from './instellingen.js';
 import { trapGeometrie } from './trappen.js';
+import { dakkapelVerhoging } from './dakkapellen.js';
 
 const isGetal = (v) => typeof v === 'number' && Number.isFinite(v);
 const telt = (x) => x.status !== 'afbraak';
@@ -50,6 +52,7 @@ export function bovengrensFunctie(model, peilRef, opties = {}) {
   const daken = (model.daken || []).filter((d) => telt(d) && Array.isArray(d.contour) && d.contour.length >= 3)
     .map((d) => ({ d, rust: niveauBovenkant(model, d.niveau), b: begrenzing(d.contour) }))
     .filter((x) => x.rust >= peilRef - 0.5);
+  const kap = dakkapelVerhoging(model, opties); // binnen een dakkapel: plafond van de dakkapel (zie dakkapellen.js)
   const inB = (b, [x, y]) => x >= b.minX - 1e-6 && x <= b.maxX + 1e-6 && y >= b.minY - 1e-6 && y <= b.maxY + 1e-6;
   const inPoly = (o, p) => inB(o.b, p) && puntInPolygoon(p, o.contour);
   return (p) => {
@@ -59,7 +62,7 @@ export function bovengrensFunctie(model, peilRef, opties = {}) {
       if (!pl.vloeren.length) { z = Math.min(z, pl.onder); continue; }
       for (const v of pl.vloeren) if (inPoly(v, p)) z = Math.min(z, v.onder);
     }
-    for (const x of daken) if (inB(x.b, p)) z = Math.min(z, x.rust + dakHoogteIn(x.d, p[0], p[1]));
+    for (const x of daken) if (inB(x.b, p)) z = Math.min(z, x.rust + kap(x.d, p, dakHoogteIn(x.d, p[0], p[1])));
     return z === Infinity ? null : z;
   };
 }
