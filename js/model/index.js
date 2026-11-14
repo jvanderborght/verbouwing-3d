@@ -6,6 +6,11 @@ export { applyOps, volgendId, dupliceer, OPERATIES } from './operations.js';
 export { Geschiedenis } from './history.js';
 export { diff, beschrijfDiff } from './diff.js';
 export { migreer } from './migrate.js';
+export {
+  opsMuurTekenen, opsMuurVerplaatsen, opsMuurEindpunt, opsMuurLengte, opsOpeningPlaatsen,
+  ruimteContourBijPunt, opsRuimteBenoemen, opsRuimteRechthoek, opsNiveauToevoegen, opsDakInstellen,
+  buitenMuren, buitenContour, MIN_MUURLENGTE,
+} from './bewerkingen.js';
 
 /** Stabiele JSON-serialisatie voor designs/*.json (2 spaties, punten op één regel). */
 export function naarJson(model) {
