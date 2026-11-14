@@ -2,7 +2,7 @@
   "schemaVersie": 2,
   "id": "bestaand",
   "naam": "Bestaande toestand",
-  "beschrijving": "Bestaande toestand. Plattegronden (muren, diktes, ramen, deuren, indeling) uit het bestaande plan (kader \"origineel\", cm): woning 7,00 × 12,50 m buitenwerks; hoofdvolume 8,00 m diep met 2 bouwlagen, enkelvoudige achterbouw 4,50 m met plat dak; buitenmuren 28 cm (rechter zijgevel 14 cm); twee garages links-achter zoals getekend. AANGENOMEN (niet in het plan): verdiepingshoogtes 3,0 m + 2,8 m en zadeldak 45° met nok evenwijdig aan de straat (foto-schatting), vloerdiktes, borstweringen en raamhoogtes (voorgevel: foto-schatting; elders standaard 900/1400), deuren 2,1 m, hoogte garages, positie en diepte van het perceel. Balken (leefruimte) en de trap zijn niet als element gemodelleerd. Zie docs/BESTAAND.md.",
+  "beschrijving": "Bestaande toestand. Plattegronden (muren, diktes, ramen, deuren, indeling) uit het bestaande plan (kader \"origineel\", cm): woning 7,00 × 12,50 m buitenwerks; hoofdvolume 8,00 m diep met 2 bouwlagen en zolder, enkelvoudige achterbouw 4,50 m met plat dak; buitenmuren 28 cm (rechter zijgevel 14 cm); twee garages links-achter zoals getekend. Uit het 3D-model van de gebruiker (traphal, IFC/STEP): verdiepingshoogtes 2,775 + 2,775 m, tussenvloer 16 cm, zoldervloer 18,5 cm, bestaande trap 15 × 18,5 cm (vereenvoudigd tot een kwarttrap), symmetrisch zadeldak 38,5° met nok evenwijdig aan de straat. AANGENOMEN: vloerplaat gelijkvloers, borstweringen en raamhoogtes (voorgevel: foto-schatting; elders standaard 900/1400), deuren 2,1 m, hoogte garages en achterbouw (= gelijkvloers), positie en diepte van het perceel. Balken niet als element gemodelleerd. Zie docs/BESTAAND.md.",
   "basis": null,
   "perceel": {
     "contour": [
@@ -17,15 +17,23 @@
       "id": "N0",
       "naam": "Gelijkvloers",
       "peil": 0,
-      "hoogte": 3000
+      "hoogte": 2775
     },
     {
       "id": "N1",
       "naam": "Verdieping",
-      "peil": 3000,
-      "hoogte": 2800,
-      "vloerdikte": 300,
+      "peil": 2775,
+      "hoogte": 2775,
+      "vloerdikte": 160,
       "soort": "verdieping"
+    },
+    {
+      "id": "N2",
+      "naam": "Zolder",
+      "peil": 5550,
+      "hoogte": 2790,
+      "vloerdikte": 185,
+      "soort": "zolder"
     }
   ],
   "muren": [
@@ -754,6 +762,18 @@
         [360, 21320],
         [-3060, 21320]
       ]
+    },
+    {
+      "id": "R16",
+      "niveau": "N2",
+      "naam": "Zolder",
+      "functie": "zolder",
+      "contour": [
+        [280, 482],
+        [6860, 482],
+        [6860, 7498],
+        [280, 7498]
+      ]
     }
   ],
   "vloeren": [
@@ -778,7 +798,7 @@
         [7000, 8000],
         [0, 8000]
       ],
-      "dikte": 300,
+      "dikte": 160,
       "status": "bestaand"
     },
     {
@@ -804,6 +824,18 @@
       ],
       "dikte": 150,
       "status": "bestaand"
+    },
+    {
+      "id": "V5",
+      "niveau": "N2",
+      "contour": [
+        [0, 482],
+        [7000, 482],
+        [7000, 7498],
+        [0, 7498]
+      ],
+      "dikte": 185,
+      "status": "bestaand"
     }
   ],
   "daken": [
@@ -812,14 +844,14 @@
       "niveau": "N1",
       "type": "zadel",
       "contour": [
-        [0, 0],
-        [7000, 0],
-        [7000, 8000],
-        [0, 8000]
+        [0, 482],
+        [7000, 482],
+        [7000, 7498],
+        [0, 7498]
       ],
-      "helling": 45,
+      "helling": 38.5,
       "nokrichting": "x",
-      "overstek": 500,
+      "overstek": 480,
       "dikte": 300,
       "status": "bestaand"
     },
@@ -869,6 +901,21 @@
       "status": "bestaand"
     }
   ],
-  "trappen": [],
+  "trappen": [
+    {
+      "id": "T1",
+      "vanNiveau": "N0",
+      "naarNiveau": "N1",
+      "type": "kwart",
+      "oorsprong": [690, 2775],
+      "richting": 90,
+      "breedte": 780,
+      "aantalTreden": 15,
+      "optrede": 185,
+      "aantrede": 185,
+      "draairichting": "rechts",
+      "status": "bestaand"
+    }
+  ],
   "inrichting": []
 }

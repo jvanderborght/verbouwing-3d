@@ -3,22 +3,33 @@
 // BRON van de plattegrond: het bestaande plan (DXF, kader 'origineel'), getekend in cm.
 // Alle x/y-maten hieronder staan in **cm** zoals afgelezen in dat kader (lokaal assenstelsel:
 // oorsprong = buitenhoek links-voor gelijkvloers, x naar rechts, y naar achter) en worden
-// met `mm()` omgerekend (× 10). Hoogtes staan in mm en zijn AANNAMES of foto-schattingen —
-// een grondplan bevat geen hoogtes. Volledige verantwoording: docs/BESTAAND.md.
+// met `mm()` omgerekend (× 10).
+// BRON van de hoogtes, de bestaande trap en de dakhelling: een 3D-model van de gebruiker (IFC- en STEP-export van
+// dezelfde SketchUp-file; enkel de traphal en het dak). Het bestand zelf staat NIET in de repo (CLAUDE.md regel 8);
+// enkel de afgelezen maten. Overige hoogtes (ramen, deuren, garages) blijven aannames. Verantwoording: docs/BESTAAND.md.
 //
 // Na wijzigen: `node tools/maak-bestaand.mjs && npm test`.
 import { writeFileSync } from 'node:fs';
-import { validate, formatteerFouten, naarJson, ruimteContourBijPunt } from '../js/model/index.js';
+import { validate, formatteerFouten, naarJson, ruimteContourBijPunt, applyOps, opsZolderNiveau } from '../js/model/index.js';
 
 const S = 'bestaand';
 const mm = (cm) => Math.round(cm * 10);
 const P = (x, y) => [mm(x), mm(y)];
 const rh = (x0, y0, x1, y1) => [P(x0, y0), P(x1, y0), P(x1, y1), P(x0, y1)];
 
-// ── Hoogtes (mm) — NIET in het plan; foto-schatting / aanname ─────────────────
-const H0 = 3000;          // gelijkvloers vloer-tot-vloer (foto-schatting)
-const H1 = 2800;          // verdieping vloer-tot-vloer (foto-schatting)
-const VLOER = 300;        // vloerdikte (aanname)
+// ── Hoogtes (mm) — uit het IFC (traphal), z t.o.v. vloerpas verdieping ────────
+// vloerpas GV −2775; tussenvloer −160 … 0; zoldervloer 2590 … 2775. Treden: 15 optreden van 185 mm per trap.
+const H0 = 2775;          // gelijkvloers vloer-tot-vloer (IFC)
+const H1 = 2775;          // verdieping vloer-tot-vloer = bovenkant zoldervloer (IFC)
+const VLOER1 = 160;       // tussenvloer GV/verdieping (IFC)
+const VLOER2 = 185;       // zoldervloer (IFC)
+const VLOER = 300;        // vloerplaat gelijkvloers (aanname; niet in het IFC)
+const OPTREDE = 185;      // optrede van de bestaande trap (IFC: 15 × 185 = 2775)
+// Dak (STEP-export, zonder doorsnede): symmetrisch zadeldak, nok evenwijdig aan de straat. Bovenvlak voorzijde stijgt
+// 3700 mm over 4655 mm ⇒ helling atan(0,795) = 38,5°. Dikte ±300 mm loodrecht. Het ONDERVLAK raakt de zoldervloer
+// (z = bovenkant N1) ±482 mm binnen de buitenzijde van de voorgevel; nok in het midden van de diepte (y ±3990).
+const DAK_HELLING = 38.5;
+const DAK_Y0 = 48.2, DAK_Y1 = 749.8; // cm: lijnen waar het ondervlak de zoldervloer raakt (symmetrisch rond y 399)
 const DEUR_H = 2100;      // binnendeuren en doorgangen (aanname)
 const RAAM = { hoogte: 1400, borstwering: 900 }; // standaardraam (aanname)
 
@@ -141,34 +152,46 @@ const m = {
   naam: 'Bestaande toestand',
   beschrijving:
     'Bestaande toestand. Plattegronden (muren, diktes, ramen, deuren, indeling) uit het bestaande plan (kader "origineel", cm): ' +
-    'woning 7,00 × 12,50 m buitenwerks; hoofdvolume 8,00 m diep met 2 bouwlagen, enkelvoudige achterbouw 4,50 m met plat dak; ' +
+    'woning 7,00 × 12,50 m buitenwerks; hoofdvolume 8,00 m diep met 2 bouwlagen en zolder, enkelvoudige achterbouw 4,50 m met plat dak; ' +
     'buitenmuren 28 cm (rechter zijgevel 14 cm); twee garages links-achter zoals getekend. ' +
-    'AANGENOMEN (niet in het plan): verdiepingshoogtes 3,0 m + 2,8 m en zadeldak 45° met nok evenwijdig aan de straat (foto-schatting), ' +
-    'vloerdiktes, borstweringen en raamhoogtes (voorgevel: foto-schatting; elders standaard 900/1400), deuren 2,1 m, ' +
-    'hoogte garages, positie en diepte van het perceel. Balken (leefruimte) en de trap zijn niet als element gemodelleerd. Zie docs/BESTAAND.md.',
+    'Uit het 3D-model van de gebruiker (traphal, IFC/STEP): verdiepingshoogtes 2,775 + 2,775 m, tussenvloer 16 cm, zoldervloer 18,5 cm, ' +
+    'bestaande trap 15 × 18,5 cm (vereenvoudigd tot een kwarttrap), symmetrisch zadeldak 38,5° met nok evenwijdig aan de straat. ' +
+    'AANGENOMEN: vloerplaat gelijkvloers, borstweringen en raamhoogtes (voorgevel: foto-schatting; elders standaard 900/1400), deuren 2,1 m, ' +
+    'hoogte garages en achterbouw (= gelijkvloers), positie en diepte van het perceel. Balken niet als element gemodelleerd. Zie docs/BESTAAND.md.',
   basis: null,
   // AANNAME: perceel 14 m breed (gegeven); woning tegen de rechter perceelgrens, voortuin 8 m, tot achter de garages.
   perceel: { contour: [[-7000, -8000], [7000, -8000], [7000, 22000], [-7000, 22000]] },
   niveaus: [
     { id: 'N0', naam: 'Gelijkvloers', peil: 0, hoogte: H0 },
-    { id: 'N1', naam: 'Verdieping', peil: H0, hoogte: H1, vloerdikte: VLOER, soort: 'verdieping' },
+    { id: 'N1', naam: 'Verdieping', peil: H0, hoogte: H1, vloerdikte: VLOER1, soort: 'verdieping' },
   ],
   muren,
   openingen,
   ruimtes: [],
   vloeren: [
     { id: 'V1', niveau: 'N0', contour: rh(0, 0, B, D), dikte: VLOER, status: S },
-    { id: 'V2', niveau: 'N1', contour: rh(0, 0, B, D_HOOFD), dikte: VLOER, status: S },
+    { id: 'V2', niveau: 'N1', contour: rh(0, 0, B, D_HOOFD), dikte: VLOER1, status: S },
     { id: 'V3', niveau: 'N0', contour: rh(-801, 1360, -306, 2140), dikte: 150, status: S },
     { id: 'V4', niveau: 'N0', contour: rh(-306, 1540, 44, 2140), dikte: 150, status: S },
   ],
   daken: [
-    { id: 'D1', niveau: 'N1', type: 'zadel', contour: rh(0, 0, B, D_HOOFD), helling: 45, nokrichting: 'x', overstek: 500, dikte: 300, status: S },
+    // contour = waar het ondervlak de zoldervloer raakt; overstek 480 brengt het dakvlak tot aan de buitenzijde van de gevels
+    // (geen echte overstek; aan de zijgevels steekt het model daardoor 480 mm uit — weergave-artefact, zie docs/BESTAAND.md)
+    { id: 'D1', niveau: 'N1', type: 'zadel', contour: rh(0, DAK_Y0, B, DAK_Y1), helling: DAK_HELLING, nokrichting: 'x', overstek: 480, dikte: 300, status: S },
     { id: 'D2', niveau: 'N0', type: 'plat', contour: rh(0, D_HOOFD, B, D), helling: 0, overstek: 0, dikte: 300, status: S },
     { id: 'D3', niveau: 'N0', type: 'plat', contour: rh(-801, 1360, -306, 2140), helling: 0, overstek: 0, dikte: 250, status: S },
     { id: 'D4', niveau: 'N0', type: 'plat', contour: rh(-306, 1540, 44, 2140), helling: 0, overstek: 0, dikte: 250, status: S },
   ],
-  trappen: [], // de bestaande trap GV → verdieping is niet uit het plan af te leiden (zie docs/BESTAAND.md)
+  // Bestaande trap GV → verdieping (IFC, getransformeerd naar het app-assenstelsel; zie docs/BESTAAND.md):
+  // werkelijk 1 trede naar −x, kwartbordes, rechte vlucht van 6 treden naar +y langs de linker zijgevel (x 340..1080),
+  // 3 draaitreden en 2 treden naar +x; 15 × 185 mm. Het schema kent geen trap met twee kwartdraaien en ongelijke vluchten:
+  // VEREENVOUDIGD tot een kwarttrap die de vlucht langs de zijgevel, de draai en de aankomst naar +x volgt
+  // (de onderste trede + bordes, y 1885..2655, vallen weg; vlucht 2 is langer dan in werkelijkheid).
+  // Overlapt in plan de wand van de kast onder de trap (M10) — in werkelijkheid staat die kast ónder de trap.
+  trappen: [
+    { id: 'T1', vanNiveau: 'N0', naarNiveau: 'N1', type: 'kwart', oorsprong: [690, 2775], richting: 90, breedte: 780,
+      aantalTreden: 15, optrede: OPTREDE, aantrede: 185, draairichting: 'rechts', status: S },
+  ],
   inrichting: [],
 };
 
@@ -196,7 +219,19 @@ RUIMTES.forEach(([niveau, x, y, naam, functie], i) => {
   m.ruimtes.push({ id: `R${i + 1}`, niveau, naam, functie, contour });
 });
 
-const r = validate(m);
+// ── Zolder (N2): bestaand, onbewoond. Opgebouwd zoals opsZolderNiveau: peil = bovenkant verdieping (IFC 2775 boven
+// vloerpas verdieping), hoogte = nokhoogte, vloer = dakcontour (waar het dakondervlak de zoldervloer raakt), dikte 185 (IFC).
+const zr = opsZolderNiveau(m, { onderNiveau: 'N1', naam: 'Zolder', vloerdikte: VLOER2, status: S });
+if (zr.fout) { console.error(zr.fout); process.exit(1); }
+const za = applyOps(m, zr.ops);
+if (!za.ok) { console.error(formatteerFouten(za)); process.exit(1); }
+const uit = za.model;
+const zv = uit.vloeren.find((v) => v.niveau === zr.info.id);
+// netto: tussen de binnenvlakken van de zijgevels, tot waar het dak de vloer raakt
+uit.ruimtes.push({ id: `R${uit.ruimtes.length + 1}`, niveau: zr.info.id, naam: 'Zolder', functie: 'zolder',
+  contour: [[mm(28), zv.contour[0][1]], [mm(686), zv.contour[0][1]], [mm(686), zv.contour[2][1]], [mm(28), zv.contour[2][1]]] });
+
+const r = validate(uit);
 if (!r.geldig) { console.error(formatteerFouten(r)); process.exit(1); }
-writeFileSync(new URL('../designs/bestaand.json', import.meta.url), naarJson(m));
+writeFileSync(new URL('../designs/bestaand.json', import.meta.url), naarJson(uit));
 console.log('designs/bestaand.json geschreven' + (r.waarschuwingen.length ? '\n' + formatteerFouten(r) : ''));

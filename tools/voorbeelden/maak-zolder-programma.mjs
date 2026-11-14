@@ -9,7 +9,7 @@
 // Toepassen als variant: node tools/apply-ops.mjs bestaand tools/voorbeelden/zolder-programma.ops.json --als <id> --naam "<naam>"
 import { readFileSync, writeFileSync } from 'node:fs';
 import {
-  migreer, applyOps, formatteerFouten, opsAfbraakZone, opsZolderNiveau, opsMuurTekenen, opsOpeningPlaatsen, opsRuimteRechthoek,
+  migreer, applyOps, formatteerFouten, opsAfbraakZone, opsMuurTekenen, opsOpeningPlaatsen, opsRuimteRechthoek,
   opsTrapPlaatsen, opsInrichtingPlaatsen, vrijeHoogte,
 } from '../../js/model/index.js';
 
@@ -28,8 +28,9 @@ function stap(label, r) {
 stap('afbraak achterbouw', opsAfbraakZone(model, { ruimte: ['R5', 'R6', 'R7'] }));
 stap('afbraak garage 2', opsAfbraakZone(model, { ruimte: 'R15' }));
 
-// 2. Zolderniveau onder het zadeldak van de verdieping
-const Z = stap('zolder', opsZolderNiveau(model, { onderNiveau: 'N1', naam: 'Zolder' })).id;
+// 2. Zolder: bestaat al in designs/bestaand.json (N2, onder het zadeldak); de onbenoemde zolderruimte maakt plaats
+const Z = model.niveaus.find((n) => n.soort === 'zolder').id;
+for (const x of model.ruimtes.filter((y) => y.niveau === Z)) stap('zolderruimte weg', { ops: [{ op: 'verwijderen', collectie: 'ruimtes', id: x.id }] });
 
 // 3. Wanden op de zolder (100 mm). Knieschotten op y 1200 en 6800, hoogte = vrije hoogte aan hun buitenvlak.
 const W = 100;
@@ -37,15 +38,17 @@ const knie = (y, buiten) => Math.floor(vrijeHoogte(model, Z, [3500, buiten]));
 const muur = (label, start, eind, hoogte) => stap(label, opsMuurTekenen(model, { niveau: Z, start, eind, dikte: W, status: 'nieuw', hoogte })).id;
 muur('knieschot voor', [280, 1200], [6720, 1200], knie(1200, 1150));
 muur('knieschot achter', [280, 6800], [6720, 6800], knie(6800, 6850));
-const wb = muur('wand badkamer/slaapkamer 1 ↔ overloop', [280, 3500], [6720, 3500]);
-muur('wand badkamer ↔ slaapkamer 1', [2250, 1200], [2250, 3500]);
+// De badkamer loopt door tot y 3900: de douche (gebruikshoogte 2100) past enkel dicht bij de nok (dak 38,5°).
+const wb = muur('wand slaapkamer 1 ↔ overloop', [2250, 3500], [6720, 3500]);
+const wbad = muur('wand badkamer ↔ overloop', [280, 3900], [2250, 3900]);
+muur('wand badkamer ↔ slaapkamer 1', [2250, 1200], [2250, 3900]);
 const wm = muur('wand overloop ↔ berging/slaapkamer 2', [2750, 4400], [6720, 4400]);
 muur('wand overloop ↔ berging', [2750, 4400], [2750, 6800]);
 muur('wand berging ↔ slaapkamer 2', [3750, 4400], [3750, 6800]);
 
 // 4. Deuren
 const deur = (label, m, punt, breedte) => stap(label, opsOpeningPlaatsen(model, m, punt, { type: 'deur', breedte }));
-deur('deur badkamer', wb, [1700, 3500], 700);
+deur('deur badkamer', wbad, [1700, 3900], 700);
 deur('deur slaapkamer 1', wb, [3200, 3500], 800);
 deur('deur berging', wm, [3250, 4400], 700);
 deur('deur slaapkamer 2', wm, [4600, 4400], 800);
@@ -57,13 +60,13 @@ const ruimte = (naam, functie, p1, p2) => {
   r.ops[0].item.hoogtegrenzen = GRENZEN;
   return stap(naam, r).id;
 };
-const badkamer = ruimte('Badkamer', 'badkamer', [280, 1250], [2200, 3450]);
+const badkamer = ruimte('Badkamer', 'badkamer', [280, 1250], [2200, 3850]);
 ruimte('Slaapkamer 1', 'slaapkamer', [2300, 1250], [6720, 3450]);
 ruimte('Berging', 'berging', [2800, 4450], [3700, 6750]);
 ruimte('Slaapkamer 2', 'slaapkamer', [3800, 4450], [6720, 6750]);
 stap('overloop', { ops: [{ op: 'toevoegen', collectie: 'ruimtes', item: {
   niveau: Z, naam: 'Overloop zolder', functie: 'hal', hoogtegrenzen: GRENZEN,
-  contour: [[280, 3550], [6720, 3550], [6720, 4350], [2700, 4350], [2700, 6750], [280, 6750]],
+  contour: [[2300, 3550], [6720, 3550], [6720, 4350], [2700, 4350], [2700, 6750], [280, 6750], [280, 3950], [2300, 3950]],
 } }] });
 
 // 6. Draaitrap (halfdraai, draaitreden) van de verdieping naar de zolder, in de slaapkamer links-achter (R10) die traphal wordt.
@@ -72,12 +75,12 @@ stap('trap', opsTrapPlaatsen(model, { van: 'N1', naar: Z, type: 'halfdraai', oor
 stap('traphal', { ops: [{ op: 'wijzigen', collectie: 'ruimtes', id: 'R10', velden: { naam: 'Traphal (trap naar zolder)', functie: 'trap' } }] });
 
 // 7. Sanitair in de badkamer, waar de vrije hoogte volstaat (douche: gebruikshoogte 2100 mm = voorstel, geen norm)
-stap('douche', opsInrichtingPlaatsen(model, { ruimte: badkamer, soort: 'douche', positie: [730, 2950], rotatie: 0, breedte: 900, diepte: 900, hoogte: 2100 }));
+stap('douche', opsInrichtingPlaatsen(model, { ruimte: badkamer, soort: 'douche', positie: [730, 3500], rotatie: 180, breedte: 900, diepte: 700, hoogte: 2100 }));
 stap('lavabo', opsInrichtingPlaatsen(model, { ruimte: badkamer, soort: 'lavabo', positie: [1975, 2600], rotatie: 90 }));
 
 // 8. Programma van eisen + beschrijving
 alleOps.push({ op: 'ontwerp', velden: {
-  beschrijving: 'VOORBEELD (demonstratie fase 5, geen ontwerp): achterbouw en garage 2 afgebroken; zolder onder het zadeldak met '
+  beschrijving: 'VOORBEELD (demonstratie fase 5, geen ontwerp): achterbouw en garage 2 afgebroken; bestaande zolder onder het zadeldak met '
     + 'halfdraaitrap vanuit de verdieping, 2 slaapkamers, berging en badkamer (lavabo + douche). Maten zijn een plausibel voorstel; '
     + 'hoogtegrenzen 1,50/2,20 m zijn voorbeeldwaarden, geen norm. Stabiliteit, EPB en vergunning niet beoordeeld.',
   programma: {

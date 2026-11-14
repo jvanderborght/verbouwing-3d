@@ -19,10 +19,10 @@ test('bestaand: geldig, id en naam', () => {
   assert.equal(index.ontwerpen.find((o) => o.id === 'bestaand')?.naam, m.naam);
 });
 
-test('bestaand: twee niveaus, alles bestaand', () => {
+test('bestaand: drie niveaus (GV, verdieping, zolder), alles bestaand', () => {
   const m = model();
-  assert.deepEqual(m.niveaus.map((n) => n.id), ['N0', 'N1']);
-  for (const c of ['muren', 'openingen', 'vloeren', 'daken']) for (const x of m[c]) assert.equal(x.status, 'bestaand', `${c} ${x.id}`);
+  assert.deepEqual(m.niveaus.map((n) => n.id), ['N0', 'N1', 'N2']);
+  for (const c of ['muren', 'openingen', 'vloeren', 'daken', 'trappen']) for (const x of m[c]) assert.equal(x.status, 'bestaand', `${c} ${x.id}`);
 });
 
 test('bestaand: woning bruto 7000 × 12500 op N0, 7000 × 8000 op N1', () => {
@@ -71,6 +71,7 @@ test('bestaand: buitenmuren zijn gesloten en elke ruimte is detecteerbaar', () =
   for (const r of m.ruimtes) {
     // een punt net binnen de eerste hoek van de contour vindt dezelfde ruimte terug
     const [x, y] = r.contour[0];
+    if (r.niveau === 'N2') continue; // zolder zonder wanden: contour = begrenzing onder het dak (zie bestaand-ifc.test.js)
     const c = ruimteContourBijPunt(m, r.niveau, [x + 20, y + 20]);
     assert.ok(c, r.naam);
     assert.ok(Math.abs(polygoonOppervlakte(c) - polygoonOppervlakte(r.contour)) < 1, r.naam);

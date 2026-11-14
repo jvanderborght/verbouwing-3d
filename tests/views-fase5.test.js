@@ -20,8 +20,9 @@ const dichtbij = (a, b, eps = 1e-6) => assert.ok(Math.abs(a - b) < eps, `${a} â‰
 
 /** bestaand.json + de demonstratie (zolder, halfdraaitrap, badkamer met douche en lavabo). */
 function demo() {
-  const m = migreer(lees('../designs/bestaand.json'));
-  const r = applyOps(m, lees('../tools/voorbeelden/zolder-programma.ops.json').ops);
+  // vaste testbasis (fase 5): tests/fixtures/, los van designs/bestaand.json en het (geregenereerde) voorbeeld
+  const m = migreer(lees('./fixtures/bestaand-fase5.json'));
+  const r = applyOps(m, lees('./fixtures/zolder-programma-fase5.ops.json').ops);
   assert.ok(r.ok, JSON.stringify(r.fouten));
   return r.model;
 }

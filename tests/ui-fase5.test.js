@@ -20,7 +20,9 @@ import { LokaleOpslag, modelHash, oudeModelHash, stabieleJson, HASH_VERSIE, SLEU
 import { VariantBeheer, normaliseerBasis, alsV1, ordenZoals, kiesBijLaden } from '../js/ui/varianten.js';
 
 const lees = (naam) => readFileSync(new URL(`../designs/${naam}.json`, import.meta.url), 'utf8');
-const bestaand = () => JSON.parse(lees('bestaand'));
+// Vaste testbasis: de bestaande toestand zoals bij fase 5 (zonder zolder, hoogtes 3000/2800) in tests/fixtures/,
+// los van designs/bestaand.json (die evolueert met nieuwe opmetingen).
+const bestaand = () => JSON.parse(readFileSync(new URL('./fixtures/bestaand-fase5.json', import.meta.url), 'utf8'));
 const voorbeeld = () => JSON.parse(lees('voorbeeld'));
 
 /** bestaand + afbraak achterbouw + zolder (N2) — basis voor trap/inrichting-tests. */

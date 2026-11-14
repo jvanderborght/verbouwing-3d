@@ -153,6 +153,10 @@ Functies die rekenen aanvaarden een optie `{ instellingen }` (gedeeltelijk objec
 | halfdraai | U: vlucht 1 + draaizone (2·`breedte` × `breedte`) met 2k draaitreden + vlucht 2 evenwijdig terug, naast vlucht 1 (geen trapoog) |
 | spiraal | cirkel met `diameter` (48-hoek); treden = sectoren met hoek aantrede / (R/2) (looplijn op halve straal) |
 
+**Niet uit te drukken** (gebleken bij het 3D-model van de bestaande woning, zie `docs/BESTAAND.md`): een trap met twee kwartdraaien
+en een tussenvlucht (U met ongelijke vluchten of een rechte vlucht tussen de draaien), een bordes in de ene draai en draaitreden in de
+andere, en een vluchtverdeling anders dan "vlucht 1 krijgt de extra trede". Zulke trappen worden benaderd met het best passende type.
+
 **Vereenvoudigingen:** het **trapgat = de volledige voetafdruk** in de vloer van `naarNiveau` (in werkelijkheid hoeft het enkel zo groot
 te zijn als nodig voor de loophoogte); draaitreden zijn een gelijke verdeling van de buitenrand, niet volgens een verzwaaimethode;
 geen trapboom- of spildikte. Loophoogte (`trapLoophoogte`, `js/model/hoogte.js`) = per trede de vrije hoogte boven het zwaartepunt van de trede.
@@ -226,7 +230,15 @@ npm test
 Een ops-bestand is een lijst operaties, één operatie, of `{ "ops": [...], "_uitleg": "…", "basis": "<ontwerp-id>" }`.
 Beide tools migreren het ontwerp eerst naar de huidige schemaVersie.
 
-**Demonstratie** (fase 5): `tools/voorbeelden/zolder-programma.ops.json` — afbraak achterbouw + garage 2, zolder, halfdraaitrap van de
-verdieping naar de zolder, 2 slaapkamers, berging, badkamer met lavabo en douche, programma van eisen. Gegenereerd met de bewerkingen door
-`node tools/voorbeelden/maak-zolder-programma.mjs`; getest in `tests/fase5.test.js`. Het is **geen ontwerp** (staat niet in `designs/`);
-de maten zijn een plausibel voorstel.
+**Demonstratie** (fase 5): `tools/voorbeelden/zolder-programma.ops.json` — afbraak achterbouw + garage 2, (bestaande) zolder, halfdraaitrap
+van de verdieping naar de zolder in de slaapkamer links-achter, 2 slaapkamers, berging, badkamer met lavabo en douche, programma van eisen.
+Gegenereerd met de bewerkingen door `node tools/voorbeelden/maak-zolder-programma.mjs`; getest in `tests/fase5.test.js`. Het is **geen
+ontwerp** (staat niet in `designs/`); de maten zijn een plausibel voorstel.
+
+**Variant** `designs/zolder-programma-trap-hal.json` ("Zolder volgens programma — trap in bestaande traphal"), gegenereerd door
+`node tools/voorbeelden/maak-zolder-trap-hal.mjs`: zelfde programma, maar met de trap naar de zolder die de gebruiker tekende (3D-model,
+vereenvoudigd tot een halfdraaitrap) in de bestaande traphal, zonder een slaapkamer op te offeren. Getest in `tests/bestaand-ifc.test.js`.
+
+Tests van de app-logica (bewerkingen, promptveld, weergave, UI) gebruiken een **vaste** kopie van de bestaande toestand en de demonstratie
+zoals bij fase 5 (`tests/fixtures/bestaand-fase5.json`, `tests/fixtures/zolder-programma-fase5.ops.json`), zodat nieuwe opmetingen in
+`designs/bestaand.json` die tests niet breken. Tests over de ontwerpen zelf lezen `designs/`.

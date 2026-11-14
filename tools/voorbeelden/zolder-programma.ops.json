@@ -156,7 +156,7 @@
       "op": "toevoegen",
       "collectie": "vloeren",
       "item": {
-        "id": "V5",
+        "id": "V6",
         "niveau": "N0",
         "contour": [
           [0, 7860],
@@ -245,32 +245,9 @@
       "id": "R15"
     },
     {
-      "op": "toevoegen",
-      "collectie": "niveaus",
-      "item": {
-        "id": "N2",
-        "naam": "Zolder",
-        "peil": 5800,
-        "hoogte": 4000,
-        "vloerdikte": 300,
-        "soort": "zolder"
-      }
-    },
-    {
-      "op": "toevoegen",
-      "collectie": "vloeren",
-      "item": {
-        "id": "V6",
-        "niveau": "N2",
-        "contour": [
-          [0, 0],
-          [7000, 0],
-          [7000, 8000],
-          [0, 8000]
-        ],
-        "dikte": 300,
-        "status": "nieuw"
-      }
+      "op": "verwijderen",
+      "collectie": "ruimtes",
+      "id": "R16"
     },
     {
       "op": "toevoegen",
@@ -282,7 +259,7 @@
         "eind": [6720, 1200],
         "dikte": 100,
         "status": "nieuw",
-        "hoogte": 1150
+        "hoogte": 531
       }
     },
     {
@@ -295,7 +272,7 @@
         "eind": [6720, 6800],
         "dikte": 100,
         "status": "nieuw",
-        "hoogte": 1150
+        "hoogte": 515
       }
     },
     {
@@ -304,7 +281,7 @@
       "item": {
         "id": "M34",
         "niveau": "N2",
-        "start": [280, 3500],
+        "start": [2250, 3500],
         "eind": [6720, 3500],
         "dikte": 100,
         "status": "nieuw"
@@ -316,8 +293,8 @@
       "item": {
         "id": "M35",
         "niveau": "N2",
-        "start": [2250, 1200],
-        "eind": [2250, 3500],
+        "start": [280, 3900],
+        "eind": [2250, 3900],
         "dikte": 100,
         "status": "nieuw"
       }
@@ -328,8 +305,8 @@
       "item": {
         "id": "M36",
         "niveau": "N2",
-        "start": [2750, 4400],
-        "eind": [6720, 4400],
+        "start": [2250, 1200],
+        "eind": [2250, 3900],
         "dikte": 100,
         "status": "nieuw"
       }
@@ -341,7 +318,7 @@
         "id": "M37",
         "niveau": "N2",
         "start": [2750, 4400],
-        "eind": [2750, 6800],
+        "eind": [6720, 4400],
         "dikte": 100,
         "status": "nieuw"
       }
@@ -351,6 +328,18 @@
       "collectie": "muren",
       "item": {
         "id": "M38",
+        "niveau": "N2",
+        "start": [2750, 4400],
+        "eind": [2750, 6800],
+        "dikte": 100,
+        "status": "nieuw"
+      }
+    },
+    {
+      "op": "toevoegen",
+      "collectie": "muren",
+      "item": {
+        "id": "M39",
         "niveau": "N2",
         "start": [3750, 4400],
         "eind": [3750, 6800],
@@ -363,7 +352,7 @@
       "collectie": "openingen",
       "item": {
         "id": "O31",
-        "muur": "M34",
+        "muur": "M35",
         "type": "deur",
         "positie": 1070,
         "breedte": 700,
@@ -379,7 +368,7 @@
         "id": "O32",
         "muur": "M34",
         "type": "deur",
-        "positie": 2520,
+        "positie": 550,
         "breedte": 800,
         "hoogte": 2100,
         "borstwering": 0,
@@ -391,7 +380,7 @@
       "collectie": "openingen",
       "item": {
         "id": "O33",
-        "muur": "M36",
+        "muur": "M37",
         "type": "deur",
         "positie": 150,
         "breedte": 700,
@@ -405,7 +394,7 @@
       "collectie": "openingen",
       "item": {
         "id": "O34",
-        "muur": "M36",
+        "muur": "M37",
         "type": "deur",
         "positie": 1450,
         "breedte": 800,
@@ -425,8 +414,8 @@
         "contour": [
           [280, 1250],
           [2200, 1250],
-          [2200, 3450],
-          [280, 3450]
+          [2200, 3850],
+          [280, 3850]
         ],
         "hoogtegrenzen": [1500, 2200]
       }
@@ -491,12 +480,14 @@
         "functie": "hal",
         "hoogtegrenzen": [1500, 2200],
         "contour": [
-          [280, 3550],
+          [2300, 3550],
           [6720, 3550],
           [6720, 4350],
           [2700, 4350],
           [2700, 6750],
-          [280, 6750]
+          [280, 6750],
+          [280, 3950],
+          [2300, 3950]
         ]
       }
     },
@@ -504,7 +495,7 @@
       "op": "toevoegen",
       "collectie": "trappen",
       "item": {
-        "id": "T1",
+        "id": "T2",
         "vanNiveau": "N1",
         "naarNiveau": "N2",
         "type": "halfdraai",
@@ -533,10 +524,10 @@
         "niveau": "N2",
         "ruimte": "R15",
         "soort": "douche",
-        "positie": [730, 2950],
-        "rotatie": 0,
+        "positie": [730, 3500],
+        "rotatie": 180,
         "breedte": 900,
-        "diepte": 900,
+        "diepte": 700,
         "hoogte": 2100,
         "status": "nieuw"
       }
@@ -559,7 +550,7 @@
     {
       "op": "ontwerp",
       "velden": {
-        "beschrijving": "VOORBEELD (demonstratie fase 5, geen ontwerp): achterbouw en garage 2 afgebroken; zolder onder het zadeldak met halfdraaitrap vanuit de verdieping, 2 slaapkamers, berging en badkamer (lavabo + douche). Maten zijn een plausibel voorstel; hoogtegrenzen 1,50/2,20 m zijn voorbeeldwaarden, geen norm. Stabiliteit, EPB en vergunning niet beoordeeld.",
+        "beschrijving": "VOORBEELD (demonstratie fase 5, geen ontwerp): achterbouw en garage 2 afgebroken; bestaande zolder onder het zadeldak met halfdraaitrap vanuit de verdieping, 2 slaapkamers, berging en badkamer (lavabo + douche). Maten zijn een plausibel voorstel; hoogtegrenzen 1,50/2,20 m zijn voorbeeldwaarden, geen norm. Stabiliteit, EPB en vergunning niet beoordeeld.",
         "programma": {
           "beschrijving": "Voorbeeldopdracht fase 5",
           "eisen": [
