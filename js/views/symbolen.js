@@ -324,7 +324,8 @@ export function dakkapelSymbool(model, k, niveauId, opties = {}) {
       [A.xy(u0, dVoor), A.xy(u0 + wang, dVoor), A.xy(u0 + wang, dAchter), A.xy(u0, dAchter)],
       [A.xy(u1 - wang, dVoor), A.xy(u1, dVoor), A.xy(u1, dAchter), A.xy(u1 - wang, dAchter)],
     ],
-    label: { p: A.xy(g.uMidden, (dVoor + dAchter) / 2), tekst: `Dakkapel ${k.id}` },
+    // label net achter het voorvlak (het ruimtelabel staat meestal in het midden van de kamer)
+    label: { p: A.xy(g.uMidden, dVoor + wang + Math.min(220, (dAchter - dVoor) / 4)), tekst: `Dakkapel ${k.id}` },
     maat: maatlijn(A.xy(u0, dVoor), A.xy(u1, dVoor), naarGoot, 350),
   };
 }

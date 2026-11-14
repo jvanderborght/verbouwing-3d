@@ -195,7 +195,7 @@ export function tekenEigenschappen(el, { model, selectie, opWijzig, opSelecteer,
   const wijzigVeld = (rij) => (waarde) => opWijzig([{ op: 'wijzigen', collectie, id: item.id, velden: { [rij.veld]: waarde } }], `${rij.label} wijzigen`);
   for (const rij of veldRijen(model, collectie, item)) {
     const forId = rij.soort === 'punt' && collectie !== 'ruimtes' ? `veld-${rij.veld}-x` : rij.soort === 'raam' ? 'veld-raam-breedte' : `veld-${rij.veld}`;
-    lijst.append(h('dt', {}, h('label', { for: forId }, rij.label, rij.verplicht ? '' : h('span', { class: 'optioneel' }, ' (optioneel)'))));
+    lijst.append(h('dt', rij.soort === 'raam' ? { class: 'volle-breedte' } : {}, h('label', { for: forId }, rij.label, rij.verplicht ? '' : h('span', { class: 'optioneel' }, ' (optioneel)'))));
     if (rij.soort === 'punt' && collectie === 'muren') {
       lijst.append(h('dd', {}, puntInvoer(rij, (p) => bewerk(opsMuurEindpunt(model, item.id, rij.veld, p), `${rij.veld === 'start' ? 'Startpunt' : 'Eindpunt'} wijzigen`))));
       if (rij.veld === 'eind') {
@@ -213,7 +213,7 @@ export function tekenEigenschappen(el, { model, selectie, opWijzig, opSelecteer,
       continue;
     }
     if (rij.soort === 'raam') {
-      lijst.append(h('dd', {}, raamInvoer(rij, wijzigVeld(rij), { leesGetal })));
+      lijst.append(h('dd', { class: 'volle-breedte' }, raamInvoer(rij, wijzigVeld(rij), { leesGetal })));
       continue;
     }
     lijst.append(h('dd', {}, veldInvoer(rij, wijzigVeld(rij))));

@@ -7,7 +7,7 @@ Wijzigingen ten opzichte van versie 1: zie [Migratie](#migratie) en de secties g
 
 - Alle maten in **mm**. Hoeken in graden.
 - Oorsprong `[0, 0]` = linkerbenedenhoek gelijkvloers (buitenhoek links-voor). **x** → rechts (langs de straatgevel), **y** → naar achter (tuin), **z** → omhoog.
-- Elk element heeft een `id`, uniek over het hele ontwerp. Voorvoegsels: `N` niveau, `M` muur, `O` opening, `R` ruimte, `V` vloer, `D` dak, `T` trap (v2), `I` inrichting (v2).
+- Elk element heeft een `id`, uniek over het hele ontwerp. Voorvoegsels: `N` niveau, `M` muur, `O` opening, `R` ruimte, `V` vloer, `D` dak, `T` trap (v2), `I` inrichting (v2), `K` dakkapel (optioneel).
 - `status` ∈ `bestaand` | `nieuw` | `afbraak` (kleur: grijs / blauw / rood transparant).
 
 ## Ontwerp
@@ -23,6 +23,7 @@ Wijzigingen ten opzichte van versie 1: zie [Migratie](#migratie) en de secties g
 | `programma` | `{ eisen, beschrijving? }` | optioneel (v2); programma van eisen, zie [Programma van eisen](#programma-van-eisen-v2) |
 | `idTeller` | `{ [voorvoegsel]: geheel getal ≥ 0 }` | optioneel (v2, geen nieuwe schemaVersie); hoogste ooit uitgedeelde nummer per id-voorvoegsel (`N`, `M`, `O`, `R`, `V`, `D`, `T`, `I`). Boekhouding van `applyOps`, zie [id's](#ids-worden-niet-hergebruikt) |
 | `niveaus`, `muren`, `openingen`, `ruimtes`, `vloeren`, `daken`, `trappen`, `inrichting` | lijsten | `trappen`, `inrichting` sinds v2 (verplicht, mag leeg) |
+| `dakkapellen` | lijst | **optioneel** (geen nieuwe schemaVersie): ontbreekt = leeg, zie [Dakkapellen](#dakkapellen-optionele-collectie) |
 
 ## Elementen
 
@@ -56,6 +57,9 @@ De onderkant van het dak volgt `rustvlak + dakHoogteIn(dak, x, y)`; de `dikte` l
 - `positie` = **middelpunt**; `breedte` langs de lokale x-as, `diepte` langs de lokale y-as; `rotatie` 0 ⇒ breedte langs +x, rugzijde aan −y (voorzijde kijkt naar +y).
 - `hoogte` (optioneel) wordt gebruikt voor de vrije-hoogtecontrole (bv. gebruikshoogte van een douche).
 
+**dakkapel** (optioneel, voorvoegsel `K`) — zie [Dakkapellen](#dakkapellen-optionele-collectie)
+`{ id, dak, zijde, positieX, positieZ, breedte, hoogte, type?: plat, diepte?, dakdikte?, zijwangDikte?, raam?: { breedte, hoogte, borstwering? }, status }`
+
 ## Operaties
 
 Alle wijzigingen lopen via `applyOps(model, ops)` (`js/model/operations.js`). Een lijst operaties wordt **atomair** toegepast en daarna gevalideerd; bij een fout blijft het model ongewijzigd.
@@ -69,8 +73,8 @@ Alle wijzigingen lopen via `applyOps(model, ops)` (`js/model/operations.js`). Ee
 ```
 
 Cascade bij `verwijderen`: muur ⇒ haar openingen; niveau ⇒ alles erop (muren + openingen, ruimtes, vloeren, daken, inrichting) en de
-trappen van of naar dat niveau (v2); ruimte ⇒ `inrichting.ruimte` wordt gewist (het element blijft) (v2).
-`verplaatsen` werkt ook op trappen (`oorsprong`) en inrichting (`positie`).
+trappen van of naar dat niveau (v2); ruimte ⇒ `inrichting.ruimte` wordt gewist (het element blijft) (v2); dak (ook via een niveau) ⇒ zijn dakkapellen.
+`verplaatsen` werkt ook op trappen (`oorsprong`) en inrichting (`positie`); bij een dakkapel enkel de component langs de nok (`positieX`).
 
 ### Id's worden niet hergebruikt
 
@@ -150,6 +154,64 @@ Geen nieuwe prijsposten.
 gemiddelde van beide zijvlakken, `js/model/muurprofiel.js` — dezelfde geometrie als de 3D-weergave), min de openingen. Zonder dak dat
 lager komt dan de muurhoogte: lengte × hoogte zoals voorheen.
 
+## Dakkapellen (optionele collectie)
+
+Code: `js/model/dakkapellen.js` (geometrie), `js/model/dakkapel-regels.js` (validatie), `js/model/dakkapel-bewerkingen.js` (bewerking).
+Tests: `tests/dakkapellen.test.js` (handmatig nagerekend op een zadeldak van 45°).
+
+**Waarom geen schemaVersie 3?** De collectie is optioneel: een ontwerp zonder `dakkapellen` is geldig en betekent "geen dakkapellen".
+Oude bestanden hoeven dus niet gemigreerd te worden en blijven byte-identiek (ook de v1-synchronisatie van werkkopieën blijft werken);
+`applyOps` maakt de lijst aan bij de eerste `toevoegen`. Een oudere app die een ontwerp mét dakkapellen laadt, meldt "onbekend veld"
+(waarschuwing) en toont ze niet — aanvaardbaar voor een schetstool.
+
+| veld | betekenis |
+|---|---|
+| `dak` | hellend dak (`zadel`, `lessenaar`, `schild`) |
+| `zijde` | welk dakvlak: nokrichting `x` ⇒ `voor` (goot aan min y) / `achter`; nokrichting `y` ⇒ `links` (goot aan min x) / `rechts`. Een zadeldak heeft twee dakvlakken, dus het dak alleen volstaat niet. Lessenaar: enkel de lage zijde (`voor`/`links`). |
+| `positieX` | coördinaat van het **midden** langs de nok (x bij nokrichting x, y bij nokrichting y), in het assenstelsel van het ontwerp. Midden i.p.v. linkerrand: breedte wijzigen houdt de dakkapel gecentreerd in haar kamer. |
+| `positieZ` | **onderkant van het voorvlak boven de zoldervloer** = het vloerpeil van het laagste niveau tussen het rustvlak van het dak en de nok (de zolder); zonder zo'n niveau het rustvlak (waarschuwing). Het voorvlak (buitenvlak) staat waar de onderkant van het hoofddak die hoogte heeft. `0` = voorvlak op de goot (in het gevelvlak). |
+| `breedte` | buitenmaat langs de nok, zijwangen inbegrepen |
+| `hoogte` | voorvlak van zijn onderkant (op het dakvlak) tot de onderkant van het platte dakje ⇒ **vrije hoogte onder de dakkapel = positieZ + hoogte** |
+| `type` | voorlopig enkel `plat` (leeg = plat); uitbreidbaar met andere dakjes |
+| `diepte` | horizontaal vanaf het voorvlak. Leeg ⇒ tot waar het dakje het hoofddak snijdt. Korter ⇒ achterwand. Langer ⇒ fout. |
+| `dakdikte`, `zijwangDikte` | leeg ⇒ werkwaarden `dakkapel.dakdikte` (200) en `dakkapel.zijwangDikte` (120) — weergave/binnenmaat, geen norm |
+| `raam` | `{ breedte, hoogte, borstwering? }`, gecentreerd in het voorvlak; `borstwering` = onderkant boven de zoldervloer (zoals bij openingen), leeg ⇒ onderaan het voorvlak. Eén raam als veld i.p.v. een opening op een afgeleide muur: eenvoudigst te bewerken; uitbreidbaar naar `ramen: [...]`. |
+
+**Afgeleide geometrie** (`dakkapelGeometrie(model, k)`): lokaal assenstelsel van het dakvlak (u langs de nok, d = horizontale afstand
+vanaf de goot); h(d) = onderkant hoofddak boven het rustvlak via `dakHoogteIn` (de nok wordt numeriek gezocht, dus ook bij een nok
+buiten het midden). Voorvlak op d waar h = positieZ + peil − rust; dakje op plafond = peil + positieZ + hoogte; diepte tot h = plafond − rust.
+Resultaat: `voetafdruk` (buitenmaat, plan), `binnen` (zone met verhoogd plafond: minus zijwangen en voorvlak, en achterwand),
+`uitsparing` (rechthoek in het hoofddak), `raam`, `voorvlakM2` (breedte × hoogte, bruto), `raamM2`, `volume` (toename boven de onderkant
+van het hoofddak, buitenbreedte × ∫(plafond − h) dd).
+
+**Vrije hoogte**: binnen `binnen` is de bovengrens van dat dak max(hoofddak, plafond) (`dakkapelVerhoging`, gebruikt door
+`js/model/hoogte.js` en `js/model/muurprofiel.js`). Hoogtelijnen, hoogtebanden en muurbovenkanten (zolderwanden onder een dakkapel)
+volgen dus mee.
+
+**Validatie** (fouten): verwijzing en zijde passen bij het dak; breedte, hoogte > 0; past langs de nok binnen het dak; voorvlak niet
+voorbij de goot (positieZ ≥ hoogte van de goot); dakje niet boven de nok (melding noemt de maximale hoogte); niet over een hoekkeper
+(het dakvlak moet over de hele breedte gelijk zijn); `diepte` niet langer dan afgeleid; raam binnen het voorvlak; geen overlap met
+een andere dakkapel (≠ afbraak) in hetzelfde dakvlak. Waarschuwingen: dakkapel in een af te breken dak; geen zolderniveau in het dak.
+
+**Bewerking** `opsDakkapelPlaatsen(model, { dak, zijde?, positieX?, positieZ?, punt?, breedte?, hoogte?, diepte?, dakdikte?, zijwangDikte?,
+raam?, type?, status = 'nieuw' })` — met `punt` (tikpunt): zijde = helft van het dak waarin het punt ligt, positieX = het punt, positieZ =
+hoogte van het dak in het punt (het voorvlak komt op het tikpunt). Ontbrekende breedte/hoogte/positieZ ⇒ werkwaarden
+`dakkapel.voorstelBreedte` (2000), `voorstelHoogte` (1400), `voorstelPositieZ` (800), vermeld in `info.standaard`. Fout als ze niet past
+of overlapt. `info`: `{ id, dVoor, diepte, plafond, vrijeHoogte, niveau, standaard }`.
+
+**Kerncijfers**: `dakkapellen: { aantal, bestaand, nieuw, afbraak, voorvlakM2, raamM2, volume }` (sommen over status ≠ afbraak); het
+volume telt bij het zolderniveau in dat dak (anders bij `volume.daken`). Vergelijkingstabel: rijen "Dakkapellen" (aantal, voorvlak,
+raam, volumetoename) zodra een variant er heeft. Geen prijsposten (nog geen prijzen voor dakkapellen).
+
+**Weergave**: 3D — voorvlak met raam (kader + glas), zijwangen (onderrand volgt het dakvlak), plat dakje, eventueel achterwand; het
+hoofddak krijgt een uitsparing (dakvlak min rechthoek, `vlakkenMetUitsparingen`). 2D — op de zolder: gestreepte contour (boven het
+snijvlak), voorvlak, zijwangen, label en breedtemaat aan de gootzijde; selecteerbaar. Eigenschappen: Positie x, Positie z (onderkant
+boven zoldervloer), Breedte, Hoogte, raam (B/H/borstwering), afgeleide maten; bij een hellend dak knoppen "Dakkapel voor/achter"
+(midden van het dakvlak of de dichtste vrije plek). Promptveld: macro `dakkapelPlaatsen`.
+
+**Beperkingen**: enkel plat dakje; geen dakramen (vlakke ramen in het dakvlak); het raam is altijd gecentreerd; de dakkapel moet in één
+dakvlak blijven (geen dakkapel over een kil of hoekkeper); geen constructie (kepers, raveelwerk) — stabiliteit blijft voor de ingenieur.
+
 ## Instellingen — geen normen in de code (v2)
 
 `js/model/instellingen.js` (`INSTELLINGEN_STANDAARD`, `metInstellingen(gedeeltelijk)`, `instelling(inst, 'groep.naam')`). Twee soorten:
@@ -157,7 +219,7 @@ lager komt dan de muurhoogte: lengte × hoogte zoals voorheen.
 | soort | betekenis | standaard |
 |---|---|---|
 | **grens** | regel waartegen getoetst wordt: `trap.minOptrede`, `maxOptrede`, `minAantrede`, `maxAantrede`, `minBreedte`, `minLoophoogte` | `waarde: null`, `bron: null` ⇒ **niet getoetst**. Vult de gebruiker een grens in, dan hoort er een `bron` bij. Overschrijding = waarschuwing (validator), "voldoet niet" (programmatoets), fout in `opsTrapPlaatsen` (enkel loophoogte). |
-| **werkwaarde** | vertrekwaarde die technisch nodig is om iets te berekenen; **geen norm**, de validator geeft er nooit een melding op | `trap.doelOptrede` 180 mm (enkel om een aantal treden voor te stellen), `trap.aantrede` 250 mm (voetafdruk als de trap geen aantrede heeft), `trap.draaitredenPerKwart` 3 (1 = bordes), `hoogte.hoogtelijnen` [1500, 2200] (voorbeeldwaarden CONCEPT §3.1), `hoogte.rasterStap` 25 mm, `inrichting.<soort>` breedte × diepte (vertrekmaat om een symbool te plaatsen) |
+| **werkwaarde** | vertrekwaarde die technisch nodig is om iets te berekenen; **geen norm**, de validator geeft er nooit een melding op | `dakkapel.zijwangDikte` 120, `dakkapel.dakdikte` 200, `dakkapel.voorstelBreedte/voorstelHoogte/voorstelPositieZ` 2000/1400/800 (vertrekmaten om een dakkapel te plaatsen), `trap.doelOptrede` 180 mm (enkel om een aantal treden voor te stellen), `trap.aantrede` 250 mm (voetafdruk als de trap geen aantrede heeft), `trap.draaitredenPerKwart` 3 (1 = bordes), `hoogte.hoogtelijnen` [1500, 2200] (voorbeeldwaarden CONCEPT §3.1), `hoogte.rasterStap` 25 mm, `inrichting.<soort>` breedte × diepte (vertrekmaat om een symbool te plaatsen) |
 
 Functies die rekenen aanvaarden een optie `{ instellingen }` (gedeeltelijk object). `validate(model, { instellingen })` idem;
 `applyOps` valideert met de standaard (dus zonder grenzen).
@@ -252,6 +314,10 @@ npm test
 
 Een ops-bestand is een lijst operaties, één operatie, of `{ "ops": [...], "_uitleg": "…", "basis": "<ontwerp-id>" }`.
 Beide tools migreren het ontwerp eerst naar de huidige schemaVersie.
+
+**Variant met dakkapellen**: `designs/zolder-dakkapellen.json` wordt gegenereerd door
+`node tools/voorbeelden/maak-zolder-dakkapellen.mjs [--rapport]` vanuit `designs/bestaand.json` (robuust: elementen worden op naam en
+geometrie gezocht). Draai het opnieuw na een wijziging aan `bestaand.json`. Bronnen en aannames staan in de kop van het script.
 
 **Demonstratie** (fase 5): `tools/voorbeelden/zolder-programma.ops.json` — afbraak achterbouw + garage 2, zolder, halfdraaitrap van de
 verdieping naar de zolder, 2 slaapkamers, berging, badkamer met lavabo en douche, programma van eisen. Gegenereerd met de bewerkingen door

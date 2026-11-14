@@ -67,7 +67,13 @@ _Laatst bijgewerkt: 2026-11-14 — fase 5 (schema v2: trap, zolder, inrichting, 
     Zolder-voorbeeld: nieuwe binnenmuur 62,3 m², buitenmuur 0 m² (was 78,6 m² buiten); raming met de richtprijzen 20.745 € (was 36.484 €).
   - Id's worden niet meer hergebruikt: optioneel ontwerpveld `idTeller` (bijgewerkt bij verwijderen), diff toont het niet.
 
+- Dakkapellen (`concept/dakkapellen`): optionele collectie `dakkapellen` (geen nieuwe schemaVersie), geometrie, vrije hoogte/hoogtebanden,
+  validatie, 3D (uitsparing in het dak) en 2D, eigenschappen (positie x/z, breedte, hoogte, raam) + knoppen "Dakkapel voor/achter" bij
+  een dak, macro `dakkapelPlaatsen`, kerncijfers en vergelijkingsrijen. Variant `designs/zolder-dakkapellen.json` (generator
+  `tools/voorbeelden/maak-zolder-dakkapellen.mjs`; opnieuw draaien na een wijziging aan `bestaand.json`). Zie DATAMODEL.md "Dakkapellen".
+
 ## Bekende beperkingen
+- Dakkapellen: enkel plat dakje, raam altijd gecentreerd, geen tikgereedschap in de taakbalk (wel knoppen bij een geselecteerd dak).
 - Trap en inrichting niet versleepbaar (wel via eigenschappen); trap/inrichting snappen enkel op het raster.
 - Ruimtes volgen niet mee als muren verschuiven; openingen niet versleepbaar (wel via positie in eigenschappen).
 - Muur verslepen trekt aansluitende muren scheef (geen optie om dat uit te zetten).

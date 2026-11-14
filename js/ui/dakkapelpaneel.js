@@ -16,7 +16,7 @@ export function raamInvoer(rij, wijzig, { leesGetal }) {
   const velden = [['breedte', 'B'], ['hoogte', 'H'], ['borstwering', 'borstw.']];
   const inp = Object.fromEntries(velden.map(([k]) => [k, h('input', {
     id: `veld-raam-${k}`, type: 'text', inputmode: 'decimal', value: r[k] ?? '', 'data-veld': `raam.${k}`, autocomplete: 'off',
-    placeholder: k === 'borstwering' ? 'onderaan' : '—', 'aria-label': `Raam ${k}`,
+    placeholder: '—', title: k === 'borstwering' ? 'Leeg = onderaan het voorvlak (positie z)' : null, 'aria-label': `Raam ${k}`,
   })]));
   const terug = () => { for (const [k] of velden) inp[k].value = r[k] ?? ''; };
   const opWijziging = () => {
@@ -52,6 +52,19 @@ export function dakkapelInfo(model, k) {
     h('br'), h('span', { class: 'veld-uitleg' }, 'Positie x = midden langs de nok. Positie z = onderkant van het voorvlak boven de zoldervloer; het voorvlak staat waar het dak die hoogte heeft. Maten zijn een schets, geen norm.'));
 }
 
+/** Dakkapel met vertrekmaten in het midden van het dakvlak, of — als daar al een staat — de dichtste vrije plek langs de nok. */
+export function vrijePlek(model, dak, zijde) {
+  const eerste = opsDakkapelPlaatsen(model, { dak: dak.id, zijde });
+  if (!eerste.fout) return eerste;
+  const b = dak.contour.reduce((a, [x, y]) => { const u = (dak.nokrichting || 'x') === 'y' ? y : x; return [Math.min(a[0], u), Math.max(a[1], u)]; }, [Infinity, -Infinity]);
+  const midden = (b[0] + b[1]) / 2;
+  for (let s = 100; s <= (b[1] - b[0]) / 2; s += 100) for (const u of [midden - s, midden + s]) {
+    const r = opsDakkapelPlaatsen(model, { dak: dak.id, zijde, positieX: u });
+    if (!r.fout) return r;
+  }
+  return eerste;
+}
+
 /**
  * Bij een hellend dak: knoppen "Dakkapel toevoegen (<zijde>)" — midden van het dak, vertrekmaten uit de instellingen
  * (werkwaarden, geen norm). opBewerk(r, label, nieuwId) → { ok }.
@@ -61,7 +74,7 @@ export function dakkapelKnoppen(model, dak, opBewerk) {
   const zijden = ZIJDEN_PER_NOK[dak.nokrichting || 'x'] || [];
   const knoppen = zijden.map((z) => h('button', {
     type: 'button', class: 'knop klein', 'data-dakkapel-zijde': z,
-    onclick: () => { const r = opsDakkapelPlaatsen(model, { dak: dak.id, zijde: z }); opBewerk(r, `Dakkapel (${z}) toevoegen`, r.info?.id); },
+    onclick: () => { const r = vrijePlek(model, dak, z); opBewerk(r, `Dakkapel (${z}) toevoegen`, r.info?.id); },
   }, `Dakkapel ${z}`));
   return h('div', { class: 'eig-acties dakkapel-acties' }, h('span', { class: 'veld-uitleg' }, 'Dakkapel toevoegen:'), ...knoppen);
 }
