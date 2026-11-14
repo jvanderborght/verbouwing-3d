@@ -6,6 +6,8 @@ import {
   polygoonOppervlakte, polygoonOffset, begrenzing, muurLengte, muurHoogte, dakVolume,
 } from '../model/geometry.js';
 import { buitenMuren, buitenContour } from '../model/bewerkingen.js';
+import { niveauBovenkant } from '../model/geometry.js';
+import { oppervlaktePerHoogteband } from '../model/hoogte.js';
 
 const M2 = 1e6; // mm² per m²
 const M3 = 1e9; // mm³ per m³
@@ -54,7 +56,13 @@ export function brutoNiveau(model, niveauId) {
  *   dak: { platNieuw, platBestaand, hellendNieuw, hellendBestaand, nieuw, bestaand, totaal,
  *          perDak: Array<{ id, type, status, plat: boolean, m2 }> },
  *   vloerNieuw: number,
+ *   ruimtes: Array<{ id, naam, niveau, functie, m2, grenzen, banden: Array<{van, tot, m2}> }>,  // v2: enkel ruimtes met hoogtegrenzen
+ *   hoogtebanden: Array<{ van, tot, m2 }>,   // v2: som over die ruimtes per band (van–tot in mm, tot null = open)
+ *   trappen: { aantal, bestaand, nieuw, afbraak },  // aantal = status ≠ afbraak
+ *   inrichting: { [soort]: aantal },          // status ≠ afbraak
  * }}
+ * Zolderniveau (soort 'zolder'): volume = volume van de hellende daken die op zijn peil rusten (volumeBron 'dak');
+ * die daken tellen niet nog eens mee in volume.daken.
  */
 export function kerncijfers(model) {
   const niveausGesorteerd = [...(model.niveaus || [])].sort((a, b) => a.peil - b.peil);
@@ -70,8 +78,38 @@ export function kerncijfers(model) {
   });
 
   const dakenTellen = (model.daken || []).filter(telt);
-  const volumeDaken = som(dakenTellen, (d) => dakVolume(d)) / M3;
+  // v2: een zolderniveau ligt IN het dakvolume. Zijn volume = volume van de hellende daken die op zijn peil rusten;
+  // die daken tellen dan niet nog eens mee in volume.daken (anders dubbel).
+  const inZolder = new Set();
+  for (const n of niveaus) {
+    const bron = niveausGesorteerd.find((x) => x.id === n.id);
+    if (bron?.soort !== 'zolder') continue;
+    const daken = dakenTellen.filter((d) => !isPlatDak(d) && !inZolder.has(d.id) && Math.abs(niveauBovenkant(model, d.niveau) - n.peil) < 1);
+    for (const d of daken) inZolder.add(d.id);
+    n.volume = som(daken, (d) => dakVolume(d)) / M3;
+    n.volumeBron = 'dak';
+  }
+  const volumeDaken = som(dakenTellen.filter((d) => !inZolder.has(d.id)), (d) => dakVolume(d)) / M3;
   const volumeNiveaus = som(niveaus, (n) => n.volume);
+
+  // v2: oppervlakte per hoogteband (ruimtes met hoogtegrenzen), trappen, inrichting
+  const ruimtes = [];
+  const banden = new Map();
+  for (const r of (model.ruimtes || []).filter((x) => Array.isArray(x.hoogtegrenzen) && x.hoogtegrenzen.length)) {
+    const o = oppervlaktePerHoogteband(model, r);
+    if (!o) continue;
+    ruimtes.push({ id: r.id, naam: r.naam, niveau: r.niveau, functie: r.functie, m2: o.m2, grenzen: o.grenzen, banden: o.banden });
+    for (const b of o.banden) {
+      const k = `${b.van}-${b.tot ?? ''}`;
+      if (!banden.has(k)) banden.set(k, { van: b.van, tot: b.tot, m2: 0 });
+      banden.get(k).m2 += b.m2;
+    }
+  }
+  const hoogtebanden = [...banden.values()].sort((a, b) => a.van - b.van || (a.tot ?? Infinity) - (b.tot ?? Infinity));
+  const trappen = { aantal: 0, ...perStatus(() => 0) };
+  for (const t of model.trappen || []) { if (STATUSSEN.includes(t.status)) trappen[t.status]++; if (telt(t)) trappen.aantal++; }
+  const inrichting = {};
+  for (const x of (model.inrichting || []).filter(telt)) inrichting[x.soort] = (inrichting[x.soort] || 0) + 1;
 
   // muren
   const openingenVan = new Map();
@@ -123,6 +161,10 @@ export function kerncijfers(model) {
     ramen,
     deuren,
     dak,
+    ruimtes,
+    hoogtebanden,
+    trappen,
+    inrichting,
     vloerNieuw: som((model.vloeren || []).filter((v) => v.status === 'nieuw'), (v) => polygoonOppervlakte(v.contour)) / M2,
   };
 }

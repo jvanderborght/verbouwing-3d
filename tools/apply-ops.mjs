@@ -1,16 +1,20 @@
 // Past operaties toe op een ontwerp in designs/ — voor gebruik vanuit Claude Code.
 // Gebruik: node tools/apply-ops.mjs <ontwerp-id> <ops.json | '-' voor stdin> [--als <nieuw-id> --naam "Naam"]
 //   --als: schrijf het resultaat als nieuwe variant (basis = bron) en voeg toe aan designs/index.json.
+// ops.json = lijst operaties, één operatie, of { ops: [...], _uitleg?, basis? } (zie tools/voorbeelden/).
+// Het ontwerp wordt eerst gemigreerd naar de huidige schemaVersie; het resultaat wordt in die versie opgeslagen.
 import { readFileSync, writeFileSync } from 'node:fs';
-import { applyOps, dupliceer, formatteerFouten, naarJson, diff, beschrijfDiff } from '../js/model/index.js';
+import { applyOps, dupliceer, formatteerFouten, naarJson, diff, beschrijfDiff, migreer } from '../js/model/index.js';
 
 const [id, opsBron, ...rest] = process.argv.slice(2);
 if (!id || !opsBron) { console.error('Gebruik: node tools/apply-ops.mjs <ontwerp-id> <ops.json|-> [--als <nieuw-id> --naam "Naam"]'); process.exit(2); }
 const arg = (k) => { const i = rest.indexOf(k); return i >= 0 ? rest[i + 1] : undefined; };
 const pad = (x) => new URL(`../designs/${x}`, import.meta.url);
 
-let model = JSON.parse(readFileSync(pad(`${id}.json`), 'utf8'));
-const ops = JSON.parse(readFileSync(opsBron === '-' ? 0 : opsBron, 'utf8'));
+let model = migreer(JSON.parse(readFileSync(pad(`${id}.json`), 'utf8')));
+const bron = JSON.parse(readFileSync(opsBron === '-' ? 0 : opsBron, 'utf8'));
+const ops = bron && !Array.isArray(bron) && Array.isArray(bron.ops) ? bron.ops : bron;
+if (bron?.basis && bron.basis !== id) console.warn(`Let op: dit ops-bestand is gemaakt voor "${bron.basis}", niet voor "${id}".`);
 const nieuwId = arg('--als');
 if (nieuwId) model = dupliceer(model, nieuwId, arg('--naam') || nieuwId);
 

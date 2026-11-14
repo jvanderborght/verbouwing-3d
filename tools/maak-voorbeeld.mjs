@@ -8,7 +8,7 @@ const muur = (id, niveau, start, eind, status = 'bestaand', dikte = t) => ({ id,
 const rh = (x0, y0, x1, y1) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
 
 const m = {
-  schemaVersie: 1,
+  schemaVersie: 2,
   id: 'voorbeeld',
   naam: 'Voorbeeldhuis',
   beschrijving: 'Fictief testhuis (7 m breed, perceel 14 m). Diepte, hoogtes en indeling zijn aannames — NIET de bestaande toestand.',
@@ -16,7 +16,7 @@ const m = {
   perceel: { contour: rh(-3500, -8000, 10500, 30000) },
   niveaus: [
     { id: 'N0', naam: 'Gelijkvloers', peil: 0, hoogte: 2900 },
-    { id: 'N1', naam: 'Verdieping', peil: 2900, hoogte: 2700, vloerdikte: 300 },
+    { id: 'N1', naam: 'Verdieping', peil: 2900, hoogte: 2700, vloerdikte: 300, soort: 'verdieping' },
   ],
   muren: [
     // gelijkvloers: buitenmuren (as op h van de buitengevel)
@@ -25,7 +25,7 @@ const m = {
     muur('M3', 'N0', [B - h, D - h], [h, D - h], 'afbraak'), // achtergevel → open naar uitbouw
     muur('M4', 'N0', [h, D - h], [h, h]),                 // links
     muur('M5', 'N0', [h, 4500], [B - h, 4500], 'bestaand', ti),       // binnenmuur
-    muur('M6', 'N0', [3500, h], [3500, 4500], 'afbraak', ti),         // af te breken scheidingsmuur
+    muur('M6', 'N0', [3500, h], [3500, 4500], 'bestaand', ti),        // scheidingsmuur (in de app van afbraak naar bestaand gezet)
     // uitbouw achteraan (nieuw)
     muur('M7', 'N0', [h, D - h], [h, D + UIT - h], 'nieuw'),
     muur('M8', 'N0', [h, D + UIT - h], [B - h, D + UIT - h], 'nieuw'),
@@ -66,6 +66,8 @@ const m = {
     { id: 'D1', niveau: 'N1', type: 'zadel', contour: rh(0, 0, B, D), helling: 40, nokrichting: 'x', overstek: 300, dikte: 300, status: 'bestaand' },
     { id: 'D2', niveau: 'N0', type: 'plat', contour: rh(0, D, B, D + UIT), helling: 0, overstek: 0, dikte: 350, status: 'nieuw' },
   ],
+  trappen: [],
+  inrichting: [],
 };
 
 const r = validate(m);

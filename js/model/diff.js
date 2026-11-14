@@ -9,7 +9,7 @@ const gelijk = (a, b) => JSON.stringify(a) === JSON.stringify(b);
  */
 export function diff(a, b) {
   const uit = [];
-  for (const k of ['naam', 'beschrijving', 'basis', 'perceel']) {
+  for (const k of ['naam', 'beschrijving', 'basis', 'perceel', 'programma']) {
     if (!gelijk(a[k], b[k])) uit.push({ collectie: 'ontwerp', id: b.id ?? a.id, soort: 'gewijzigd', velden: [{ veld: k, oud: a[k], nieuw: b[k] }] });
   }
   for (const c of COLLECTIE_NAMEN) {

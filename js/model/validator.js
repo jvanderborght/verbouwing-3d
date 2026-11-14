@@ -2,13 +2,22 @@
 // fouten blokkeren toepassen/opslaan; waarschuwingen niet.
 
 import { SCHEMA_VERSIE, VELDEN, ENUMS, COLLECTIE_NAMEN, MODEL_VELDEN } from './schema.js';
-import { muurLengte, muurHoogte, polygoonOppervlakte } from './geometry.js';
+import { muurLengte, muurHoogte, polygoonOppervlakte, muurRechthoek } from './geometry.js';
+import { INSTELLINGEN_STANDAARD, metInstellingen, instelling } from './instellingen.js';
+import { trapGeometrie } from './trappen.js';
+import { niveauBegrenzing, inEenVan, minVrijeHoogte, trapLoophoogte } from './hoogte.js';
+import { inrichtingContour, polygonenOverlappen } from './vormen.js';
+import { valideerProgramma } from './programma.js';
 
 const isGetal = (v) => typeof v === 'number' && Number.isFinite(v);
 const isPunt = (v) => Array.isArray(v) && v.length === 2 && v.every(isGetal);
 const MAX_MAAT = 1_000_000; // 1 km: alles daarboven is zeker een eenheidsfout
 
-export function validate(model) {
+/**
+ * @param {object} model
+ * @param {{ instellingen?: object }} [opties] gebruikersinstellingen (grenzen voor trappen e.d.; standaard: geen grenzen)
+ */
+export function validate(model, opties = {}) {
   const fouten = [];
   const waarschuwingen = [];
   const fout = (pad, melding) => fouten.push({ pad, melding });
@@ -59,7 +68,10 @@ export function validate(model) {
         const v = item[naam];
         const vp = `${pad}.${naam}`;
         if (v === undefined || v === null) { if (verplicht) fout(vp, `${naam} is verplicht.`); continue; }
-        if (type === 'string') { if (typeof v !== 'string' || (verplicht && !v.trim())) fout(vp, `${naam} moet niet-lege tekst zijn.`); }
+        if (type === 'getallen') {
+          if (!Array.isArray(v) || !v.every(isGetal)) fout(vp, `${naam} moet een lijst getallen (mm) zijn.`);
+          else if (v.some((x) => x <= 0 || x > MAX_MAAT)) fout(vp, `${naam}: elke waarde moet > 0 mm zijn.`);
+        } else if (type === 'string') { if (typeof v !== 'string' || (verplicht && !v.trim())) fout(vp, `${naam} moet niet-lege tekst zijn.`); }
         else if (type === 'number') {
           if (!isGetal(v)) fout(vp, `${naam} moet een getal (mm) zijn.`);
           else if (Math.abs(v) > MAX_MAAT) fout(vp, `${naam} = ${v} mm is onrealistisch groot (eenheid mm?).`);
@@ -138,6 +150,78 @@ export function validate(model) {
     if (d.type !== 'plat' && Array.isArray(d.contour) && d.contour.length !== 4) let_op(`${pad}.contour`, 'Hellende daken worden berekend op de rechthoekige begrenzing van de contour.');
     if (isGetal(d.overstek) && d.overstek < 0) fout(`${pad}.overstek`, 'overstek mag niet negatief zijn.');
   });
+
+  // ── schemaVersie 2 ─────────────────────────────────────────────────────────
+  const inst = opties.instellingen ? metInstellingen(opties.instellingen) : INSTELLINGEN_STANDAARD;
+  const niveauVan = (id) => ids.niveaus?.get(id);
+  const actieveMuren = (niveau) => arr('muren').filter((m) => m.niveau === niveau && m.status !== 'afbraak' && isPunt(m.start) && isPunt(m.eind) && isGetal(m.dikte) && muurLengte(m) >= 1);
+
+  arr('trappen').forEach((t, i) => {
+    const pad = `trappen[${i}]`;
+    if (!t || typeof t !== 'object') return;
+    for (const k of ['breedte', 'aantrede', 'optrede', 'diameter']) if (isGetal(t[k]) && t[k] <= 0) fout(`${pad}.${k}`, `${k} moet > 0 zijn.`);
+    if (isGetal(t.aantalTreden) && (!Number.isInteger(t.aantalTreden) || t.aantalTreden < 2)) fout(`${pad}.aantalTreden`, 'aantalTreden moet een geheel getal ≥ 2 zijn (aantal optreden).');
+    if (isGetal(t.diameter) && t.type !== 'spiraal') let_op(`${pad}.diameter`, 'diameter wordt enkel gebruikt bij een spiraaltrap.');
+    const a = niveauVan(t.vanNiveau), b = niveauVan(t.naarNiveau);
+    if (!a || !b || !isGetal(a.peil) || !isGetal(b.peil)) return;
+    if (t.vanNiveau === t.naarNiveau) { fout(pad, 'vanNiveau en naarNiveau moeten verschillen.'); return; }
+    if (b.peil <= a.peil) { fout(pad, `naarNiveau "${b.id}" moet boven vanNiveau "${a.id}" liggen.`); return; }
+    if (!isPunt(t.oorsprong) || !isGetal(t.breedte) || t.breedte <= 0 || !isGetal(t.richting)) return;
+    const g = trapGeometrie(model, t, { instellingen: inst });
+    if (!g) return;
+    if (g.fout) { fout(pad, g.fout); return; }
+    const H = b.peil - a.peil, m = g.maten;
+    if (isGetal(t.aantalTreden) && isGetal(t.optrede) && Math.abs(t.aantalTreden * t.optrede - H) > 5)
+      let_op(pad, `aantalTreden × optrede (${t.aantalTreden} × ${t.optrede}) wijkt af van het hoogteverschil ${H} mm.`);
+    // grenzen uit de instellingen (standaard leeg ⇒ niet getoetst)
+    const grensRegel = (sleutel, waarde, groter, tekst) => {
+      const gw = instelling(inst, `trap.${sleutel}`);
+      if (!isGetal(gw) || !isGetal(waarde)) return;
+      if (groter ? waarde > gw + 0.5 : waarde < gw - 0.5) let_op(pad, `${tekst} ${Math.round(waarde)} mm ${groter ? '>' : '<'} ingestelde grens ${gw} mm${inst.trap[sleutel]?.bron ? ` (${inst.trap[sleutel].bron})` : ''}.`);
+    };
+    grensRegel('maxOptrede', m.optrede, true, 'Optrede');
+    grensRegel('minOptrede', m.optrede, false, 'Optrede');
+    grensRegel('maxAantrede', m.aantrede, true, 'Aantrede');
+    grensRegel('minAantrede', m.aantrede, false, 'Aantrede');
+    grensRegel('minBreedte', t.breedte, false, 'Breedte');
+    if (isGetal(instelling(inst, 'trap.minLoophoogte'))) {
+      const lh = trapLoophoogte(model, t, { instellingen: inst });
+      if (lh?.min != null) grensRegel('minLoophoogte', lh.min, false, 'Loophoogte');
+    }
+    // binnen de begrenzing van beide niveaus (vloeren; niveau zonder vloeren ⇒ niet getoetst)
+    for (const [nid, rol] of [[t.vanNiveau, 'vanNiveau'], [t.naarNiveau, 'naarNiveau']]) {
+      const grens = niveauBegrenzing(model, nid);
+      if (!grens.length) continue;
+      if (!g.voetafdruk.every((p) => inEenVan(p, grens, 2)))
+        fout(pad, `Trap ${t.id} valt buiten de vloer(en) van ${rol} "${nid}"${rol === 'naarNiveau' ? ' (trapgat)' : ''}.`);
+    }
+    for (const nid of [t.vanNiveau, t.naarNiveau]) {
+      const botsing = actieveMuren(nid).find((mu) => polygonenOverlappen(g.voetafdruk, muurRechthoek(mu), 2));
+      if (botsing) let_op(pad, `Trap ${t.id} overlapt met muur ${botsing.id} op niveau ${nid}.`);
+    }
+  });
+
+  arr('inrichting').forEach((x, i) => {
+    const pad = `inrichting[${i}]`;
+    if (!x || typeof x !== 'object') return;
+    for (const k of ['breedte', 'diepte', 'hoogte']) if (isGetal(x[k]) && x[k] <= 0) fout(`${pad}.${k}`, `${k} moet > 0 zijn.`);
+    const r = typeof x.ruimte === 'string' ? ids.ruimtes?.get(x.ruimte) : null;
+    if (r && r.niveau !== x.niveau) fout(`${pad}.ruimte`, `Ruimte "${r.id}" ligt op niveau ${r.niveau}, niet op ${x.niveau}.`);
+    if (!niveauVan(x.niveau) || !isPunt(x.positie) || !isGetal(x.breedte) || !isGetal(x.diepte) || x.breedte <= 0 || x.diepte <= 0) return;
+    const c = inrichtingContour(x);
+    const grens = niveauBegrenzing(model, x.niveau);
+    if (grens.length && !c.every((p) => inEenVan(p, grens, 2))) fout(pad, `${x.soort} ${x.id} valt buiten de vloer(en) van niveau ${x.niveau}.`);
+    if (r && Array.isArray(r.contour) && r.contour.length >= 3 && !c.every((p) => inEenVan(p, [r.contour], 2)))
+      let_op(pad, `${x.soort} ${x.id} ligt (deels) buiten ruimte ${r.id}.`);
+    if (isGetal(x.hoogte) && x.status !== 'afbraak') {
+      const vh = minVrijeHoogte(model, x.niveau, c, { instellingen: inst });
+      if (vh != null && vh < x.hoogte - 0.5) let_op(pad, `${x.soort} ${x.id}: vrije hoogte ${Math.round(vh)} mm is lager dan het element (${x.hoogte} mm).`);
+    }
+  });
+
+  if (model.programma !== undefined && model.programma !== null) {
+    for (const p of valideerProgramma(model.programma)) (p.ernst === 'fout' ? fout : let_op)(p.pad, p.melding);
+  }
 
   return { geldig: fouten.length === 0, fouten, waarschuwingen };
 }

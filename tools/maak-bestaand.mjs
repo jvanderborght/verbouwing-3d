@@ -136,7 +136,7 @@ opening(ga2, 'deur', -253.5, -8.5, { hoogte: 2100, borstwering: 0 }); // garagep
 
 // ═════════════════════════════ Model ═════════════════════════════════════════
 const m = {
-  schemaVersie: 1,
+  schemaVersie: 2,
   id: 'bestaand',
   naam: 'Bestaande toestand',
   beschrijving:
@@ -151,7 +151,7 @@ const m = {
   perceel: { contour: [[-7000, -8000], [7000, -8000], [7000, 22000], [-7000, 22000]] },
   niveaus: [
     { id: 'N0', naam: 'Gelijkvloers', peil: 0, hoogte: H0 },
-    { id: 'N1', naam: 'Verdieping', peil: H0, hoogte: H1, vloerdikte: VLOER },
+    { id: 'N1', naam: 'Verdieping', peil: H0, hoogte: H1, vloerdikte: VLOER, soort: 'verdieping' },
   ],
   muren,
   openingen,
@@ -168,6 +168,8 @@ const m = {
     { id: 'D3', niveau: 'N0', type: 'plat', contour: rh(-801, 1360, -306, 2140), helling: 0, overstek: 0, dikte: 250, status: S },
     { id: 'D4', niveau: 'N0', type: 'plat', contour: rh(-306, 1540, 44, 2140), helling: 0, overstek: 0, dikte: 250, status: S },
   ],
+  trappen: [], // de bestaande trap GV → verdieping is niet uit het plan af te leiden (zie docs/BESTAAND.md)
+  inrichting: [],
 };
 
 // ── Ruimtes: netto contour via ruimtedetectie op een punt in de kamer (cm) ───

@@ -110,6 +110,21 @@ export function vergelijkingsRijen(varianten) {
 
   rij({ sleutel: 'vloer-nieuw', groep: 'Vloer', label: 'Nieuw vloeroppervlak', eenheid: 'm²' }, (v) => v.kerncijfers.vloerNieuw);
 
+  // v2: hoogtebanden (som over ruimtes met hoogtegrenzen), trappen, inrichting — enkel als een variant ze heeft
+  const bandMap = new Map();
+  for (const v of varianten) for (const b of v.kerncijfers.hoogtebanden || []) { const k = `${b.van}-${b.tot ?? ''}`; if (!bandMap.has(k)) bandMap.set(k, b); }
+  const mStr = (mm) => fmtGetal(mm / 1000, 2);
+  for (const [k, b] of [...bandMap.entries()].sort((x, y) => x[1].van - y[1].van || (x[1].tot ?? Infinity) - (y[1].tot ?? Infinity))) {
+    const label = b.tot == null ? `Vrije hoogte ≥ ${mStr(b.van)} m` : `Vrije hoogte ${mStr(b.van)}–${mStr(b.tot)} m`;
+    rij({ sleutel: `hoogteband-${k}`, groep: 'Hoogtebanden', label: `${label} (ruimtes met hoogtegrenzen)`, eenheid: 'm²', kleur: b.tot == null && b.van > 0 },
+      (v) => (v.kerncijfers.hoogtebanden ? (v.kerncijfers.hoogtebanden.find((x) => `${x.van}-${x.tot ?? ''}` === k)?.m2 ?? 0) : null));
+  }
+  if (varianten.some((v) => (v.kerncijfers.trappen?.aantal ?? 0) > 0))
+    rij({ sleutel: 'trappen', groep: 'Programma', label: 'Trappen', eenheid: 'st.', decimalen: 0, soort: 'aantal' }, (v) => v.kerncijfers.trappen?.aantal ?? null);
+  const soorten = [...new Set(varianten.flatMap((v) => Object.keys(v.kerncijfers.inrichting || {})))].sort();
+  for (const s of soorten)
+    rij({ sleutel: `inrichting-${s}`, groep: 'Programma', label: `Inrichting: ${s}`, eenheid: 'st.', decimalen: 0, soort: 'aantal' }, (v) => (v.kerncijfers.inrichting ? (v.kerncijfers.inrichting[s] ?? 0) : null));
+
   // raming: de prijzen zijn voor alle varianten dezelfde (één prijzen.json)
   const r0 = varianten[0]?.raming;
   const valuta = r0?.valuta || 'EUR';

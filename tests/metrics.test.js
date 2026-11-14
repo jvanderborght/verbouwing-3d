@@ -18,7 +18,7 @@ const dichtbij = (a, b, eps = 1e-6) => assert.ok(Math.abs(a - b) < eps, `${a} â‰
  */
 function doos() {
   return {
-    schemaVersie: 1, id: 'doos', naam: 'Doos', beschrijving: '',
+    schemaVersie: 2, id: 'doos', naam: 'Doos', beschrijving: '',
     niveaus: [{ id: 'N0', naam: 'Gelijkvloers', peil: 0, hoogte: 2800 }],
     muren: [
       { id: 'M1', niveau: 'N0', start: [0, 0], eind: [5000, 0], dikte: 200, status: 'bestaand' },
@@ -30,6 +30,8 @@ function doos() {
     ruimtes: [{ id: 'R1', niveau: 'N0', naam: 'Leefruimte', functie: 'leefruimte', contour: [[100, 100], [4900, 100], [4900, 3900], [100, 3900]] }],
     vloeren: [{ id: 'V1', niveau: 'N0', contour: [[-100, -100], [5100, -100], [5100, 4100], [-100, 4100]], dikte: 300, status: 'bestaand' }],
     daken: [],
+    trappen: [],
+    inrichting: [],
   };
 }
 

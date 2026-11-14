@@ -1,5 +1,5 @@
 {
-  "schemaVersie": 1,
+  "schemaVersie": 2,
   "id": "bestaand",
   "naam": "Bestaande toestand",
   "beschrijving": "Bestaande toestand. Plattegronden (muren, diktes, ramen, deuren, indeling) uit het bestaande plan (kader \"origineel\", cm): woning 7,00 × 12,50 m buitenwerks; hoofdvolume 8,00 m diep met 2 bouwlagen, enkelvoudige achterbouw 4,50 m met plat dak; buitenmuren 28 cm (rechter zijgevel 14 cm); twee garages links-achter zoals getekend. AANGENOMEN (niet in het plan): verdiepingshoogtes 3,0 m + 2,8 m en zadeldak 45° met nok evenwijdig aan de straat (foto-schatting), vloerdiktes, borstweringen en raamhoogtes (voorgevel: foto-schatting; elders standaard 900/1400), deuren 2,1 m, hoogte garages, positie en diepte van het perceel. Balken (leefruimte) en de trap zijn niet als element gemodelleerd. Zie docs/BESTAAND.md.",
@@ -24,7 +24,8 @@
       "naam": "Verdieping",
       "peil": 3000,
       "hoogte": 2800,
-      "vloerdikte": 300
+      "vloerdikte": 300,
+      "soort": "verdieping"
     }
   ],
   "muren": [
@@ -867,5 +868,7 @@
       "dikte": 250,
       "status": "bestaand"
     }
-  ]
+  ],
+  "trappen": [],
+  "inrichting": []
 }

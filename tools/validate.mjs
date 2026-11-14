@@ -1,8 +1,9 @@
 // Valideert alle ontwerpen in designs/ (of de opgegeven bestanden) en controleert designs/index.json.
 // Gebruik: node tools/validate.mjs [bestand.json ...]
+// Oudere schemaversies worden eerst gemigreerd (js/model/migrate.js) en dan gevalideerd; er wordt niets herschreven.
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, basename } from 'node:path';
-import { validate, formatteerFouten, migreer } from '../js/model/index.js';
+import { validate, formatteerFouten, migreer, SCHEMA_VERSIE } from '../js/model/index.js';
 
 const dir = new URL('../designs/', import.meta.url).pathname;
 const NIET_ONTWERP = new Set(['index.json', 'prijzen.json']);
@@ -13,13 +14,14 @@ const bestanden = process.argv.slice(2).length
 let fout = false;
 const ids = new Set();
 for (const f of bestanden) {
-  let m;
-  try { m = migreer(JSON.parse(readFileSync(f, 'utf8'))); }
+  let m, oud;
+  try { const ruw = JSON.parse(readFileSync(f, 'utf8')); oud = ruw?.schemaVersie; m = migreer(ruw); }
   catch (e) { console.log(`✗ ${basename(f)}: ongeldige JSON — ${e.message}`); fout = true; continue; }
   const r = validate(m);
   if (m.id && basename(f) !== `${m.id}.json`) { r.fouten.push({ pad: 'id', melding: `id "${m.id}" komt niet overeen met bestandsnaam ${basename(f)}.` }); r.geldig = false; }
   ids.add(m.id);
-  console.log(`${r.geldig ? '✓' : '✗'} ${basename(f)}${r.fouten.length + r.waarschuwingen.length ? '\n' + formatteerFouten(r).replace(/^/gm, '    ') : ''}`);
+  const mig = typeof oud === 'number' && oud < SCHEMA_VERSIE ? ` (schemaVersie ${oud} → ${SCHEMA_VERSIE} gemigreerd bij het laden)` : '';
+  console.log(`${r.geldig ? '✓' : '✗'} ${basename(f)}${mig}${r.fouten.length + r.waarschuwingen.length ? '\n' + formatteerFouten(r).replace(/^/gm, '    ') : ''}`);
   if (!r.geldig) fout = true;
 }
 

@@ -1,5 +1,5 @@
 {
-  "schemaVersie": 1,
+  "schemaVersie": 2,
   "id": "voorbeeld",
   "naam": "Voorbeeldhuis",
   "beschrijving": "Fictief testhuis (7 m breed, perceel 14 m). Diepte, hoogtes en indeling zijn aannames — NIET de bestaande toestand.",
@@ -24,7 +24,8 @@
       "naam": "Verdieping",
       "peil": 2900,
       "hoogte": 2700,
-      "vloerdikte": 300
+      "vloerdikte": 300,
+      "soort": "verdieping"
     }
   ],
   "muren": [
@@ -383,5 +384,7 @@
       "dikte": 350,
       "status": "nieuw"
     }
-  ]
+  ],
+  "trappen": [],
+  "inrichting": []
 }

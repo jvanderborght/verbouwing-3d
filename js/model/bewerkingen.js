@@ -3,11 +3,18 @@
 // Bij `fout` is `ops` leeg. Toepassen gebeurt via applyOps / Geschiedenis.toepassen.
 // Zie docs/FASE2.md (deel A) en docs/DATAMODEL.md ("Bewerkingen (hoog niveau)").
 
-import { COLLECTIES, COLLECTIE_NAMEN, OPENING_TYPES, STATUSSEN, DAK_TYPES, NOKRICHTINGEN, FUNCTIES } from './schema.js';
+import {
+  COLLECTIES, COLLECTIE_NAMEN, OPENING_TYPES, STATUSSEN, DAK_TYPES, NOKRICHTINGEN, FUNCTIES,
+  TRAP_TYPES, DRAAIRICHTINGEN, INRICHTING_SOORTEN,
+} from './schema.js';
 import {
   lengte, muurLengte, muurRichting, muurHoogte, puntOpMuur, afstandTotSegment, begrenzing,
-  polygoonOppervlakte, puntInPolygoon, muurAansluiting, muurDeelRechthoek,
+  polygoonOppervlakte, puntInPolygoon, muurAansluiting, muurDeelRechthoek, muurRechthoek, dakNokHoogte,
 } from './geometry.js';
+import { metInstellingen, instelling, inrichtingMaat } from './instellingen.js';
+import { trapGeometrie, trapVoetafdruk } from './trappen.js';
+import { niveauBegrenzing, inEenVan, minVrijeHoogte, trapLoophoogte } from './hoogte.js';
+import { inrichtingContour, polygonenOverlappen } from './vormen.js';
 
 export const MIN_MUURLENGTE = 10;       // mm
 export const AANSLUIT_TOL = 1;          // mm: eindpunten binnen deze afstand vallen samen
@@ -615,4 +622,433 @@ export function opsDakInstellen(model, niveau, { id, type, helling, nokrichting 
   const item = { id: did, niveau, type, contour, helling: helling ?? (type === 'plat' ? 0 : 35), nokrichting, overstek, status: status ?? 'nieuw' };
   if (dikte !== undefined) item.dikte = dikte;
   return { ops: [{ op: 'toevoegen', collectie: 'daken', item }], info: { id: did, nieuw: true } };
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Fase 5 (schemaVersie 2): muur splitsen, afbraakzone, trap, inrichting, zolder
+// ═════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Ops om een muur op de opgegeven afstanden (mm vanaf start, oplopend) in stukken te knippen.
+ * Het eerste stuk behoudt het id; de andere krijgen nieuwe id's. Openingen verhuizen mee naar hun stuk;
+ * een opening die over een knip ligt ⇒ fout.
+ * @returns {{ ops, delen: Array<{ id, t0, t1 }> } | { fout }}
+ */
+function knipOps(model, muur, ts, nieuwId) {
+  const L = muurLengte(muur);
+  const grenzen = [0, ...ts, L];
+  for (let i = 1; i < grenzen.length; i++)
+    if (grenzen[i] - grenzen[i - 1] < MIN_MUURLENGTE) return { fout: `Splitsen van muur ${muur.id} geeft een stuk korter dan ${MIN_MUURLENGTE} mm.` };
+  const delen = [];
+  const ops = [];
+  for (let i = 0; i < grenzen.length - 1; i++) {
+    const t0 = grenzen[i], t1 = grenzen[i + 1];
+    const s = rondP(puntOpMuur(muur, t0)), e = rondP(puntOpMuur(muur, t1));
+    if (i === 0) {
+      ops.push({ op: 'wijzigen', collectie: 'muren', id: muur.id, velden: { eind: e } });
+      delen.push({ id: muur.id, t0, t1 });
+    } else {
+      const id = nieuwId('muren');
+      const item = { id, niveau: muur.niveau, start: s, eind: e, dikte: muur.dikte, status: muur.status };
+      if (isGetal(muur.hoogte)) item.hoogte = muur.hoogte;
+      ops.push({ op: 'toevoegen', collectie: 'muren', item });
+      delen.push({ id, t0, t1 });
+    }
+  }
+  for (const o of model.openingen.filter((x) => x.muur === muur.id)) {
+    const deel = delen.find((d) => o.positie >= d.t0 - 0.5 && o.positie + o.breedte <= d.t1 + 0.5);
+    if (!deel) return { fout: `Opening ${o.id} ligt over de knip in muur ${muur.id}; verschuif of verklein ze eerst.` };
+    if (deel.id !== muur.id) ops.push({ op: 'wijzigen', collectie: 'openingen', id: o.id, velden: { muur: deel.id, positie: rond01(Math.max(0, o.positie - deel.t0)) } });
+  }
+  return { ops, delen };
+}
+
+/**
+ * Muur splitsen op `positie` (mm langs de as vanaf start) of op de projectie van een punt [x, y].
+ * info: { ids: [bestaand id, nieuw id] }
+ */
+export function opsMuurSplitsen(model, id, positie) {
+  const M = vindMuur(model, id);
+  if (!M) return fout(`Muur "${id}" niet gevonden.`);
+  const L = muurLengte(M);
+  const t = isPunt(positie) ? afstandTotSegment(positie, M.start, M.eind).t * L : positie;
+  if (!isGetal(t)) return fout('Geef een positie (mm vanaf het begin van de muur) of een punt [x, y].');
+  const r = knipOps(model, M, [rond01(t)], idMaker(model));
+  if (r.fout) return fout(r.fout);
+  return { ops: r.ops, info: { ids: r.delen.map((d) => d.id) } };
+}
+
+/** Op afbraak zetten: bestaand → afbraak, nieuw → verwijderen (bestond nooit), afbraak → niets. */
+function afbreekOp(collectie, item) {
+  if (item.status === 'afbraak') return null;
+  if (item.status === 'nieuw') return { op: 'verwijderen', collectie, id: item.id };
+  return { op: 'wijzigen', collectie, id: item.id, velden: { status: 'afbraak' } };
+}
+
+const ZONE_PROEF = 100; // mm voorbij het muurvlak waar gekeken wordt aan welke ruimte de muur grenst
+
+/** Snijpunten (t langs de as) van de lijn evenwijdig aan de muuras op afstand d met de randen van polygonen. */
+function snijT(muur, d, polygonen) {
+  const { ux, uy, nx, ny, L } = muurRichting(muur);
+  const ox = muur.start[0] + nx * d, oy = muur.start[1] + ny * d;
+  const uit = [];
+  for (const pts of polygonen) for (let i = 0; i < pts.length; i++) {
+    const a = pts[i], b = pts[(i + 1) % pts.length];
+    const sx = b[0] - a[0], sy = b[1] - a[1];
+    const k = ux * sy - uy * sx;
+    if (Math.abs(k) < 1e-9) continue;
+    const t = ((a[0] - ox) * sy - (a[1] - oy) * sx) / k;
+    const u = ((a[0] - ox) * uy - (a[1] - oy) * ux) / k;
+    if (u >= -1e-9 && u <= 1 + 1e-9 && t > 0 && t < L) uit.push(t);
+  }
+  return uit;
+}
+
+/**
+ * Indeling van een muur in stukken die bij de zone horen ('A' = afbreken) en stukken die blijven ('B').
+ * Een stuk hoort bij de zone als een zijde aan een zoneruimte grenst en geen zijde aan een andere ruimte.
+ * Stukken die nergens aan grenzen (bv. ter hoogte van een kruisende muur) nemen de klasse van hun buren; tussen A en B
+ * wordt geknipt op de as van een kruisende muur (anders in het midden).
+ * @returns {{ delen: Array<{c:'A'|'B', t0, t1}>, rand: boolean }} rand = blijvende muur die aan de zone grenst
+ */
+function deelMuurIn(muur, zone, behoud, andereMuren) {
+  const r = muurRichting(muur);
+  const { nx, ny, L } = r;
+  const d = muur.dikte / 2 + ZONE_PROEF;
+  const murenRh = andereMuren.map(muurRechthoek);
+  const vormen = [...zone, ...behoud, ...murenRh];
+  const ts = uniekGesorteerd([0, L, ...snijT(muur, d, vormen), ...snijT(muur, -d, vormen)]);
+  // 'muur' = de proef valt in een andere muur (aansluiting): zegt niets over zone of niet
+  const klasse = (p) => (zone.some((c) => puntInPolygoon(p, c)) ? 'zone' : behoud.some((c) => puntInPolygoon(p, c)) ? 'behoud'
+    : murenRh.some((c) => puntInPolygoon(p, c)) ? 'muur' : 'leeg');
+  const stukken = [];
+  for (let i = 0; i < ts.length - 1; i++) {
+    const tm = (ts[i] + ts[i + 1]) / 2;
+    const p = puntOpMuur(muur, tm);
+    const k = [klasse([p[0] + nx * d, p[1] + ny * d]), klasse([p[0] - nx * d, p[1] - ny * d])];
+    const c = k.includes('behoud') ? 'B' : k.includes('muur') ? 'L' : k.includes('zone') ? 'A' : 'L';
+    const rand = k.includes('zone') && k.includes('behoud');
+    const vorige = stukken[stukken.length - 1];
+    if (vorige && vorige.c === c) { vorige.t1 = ts[i + 1]; vorige.rand ||= rand; }
+    else stukken.push({ c, t0: ts[i], t1: ts[i + 1], rand });
+  }
+  const randGeraakt = stukken.some((s) => s.rand);
+  if (!stukken.some((s) => s.c === 'A')) return { delen: [{ c: 'B', t0: 0, t1: L }], rand: randGeraakt };
+  for (let i = 0; i < stukken.length; i++) {
+    const s = stukken[i];
+    if (s.c !== 'L') continue;
+    const voor = stukken[i - 1]?.c, na = stukken[i + 1]?.c;
+    if ((voor ?? na) === (na ?? voor)) { s.c = voor ?? na ?? 'B'; continue; }
+    let knip = null;
+    for (const B of andereMuren) {
+      const rb = muurRichting(B);
+      const k = r.ux * rb.uy - r.uy * rb.ux;
+      if (Math.abs(k) < 0.02) continue;
+      const t = ((B.start[0] - muur.start[0]) * rb.uy - (B.start[1] - muur.start[1]) * rb.ux) / k;
+      const u = ((B.start[0] - muur.start[0]) * r.uy - (B.start[1] - muur.start[1]) * r.ux) / k;
+      if (t > s.t0 + 0.5 && t < s.t1 - 0.5 && u >= -B.dikte && u <= rb.L + B.dikte) { knip = t; break; }
+    }
+    if (knip == null) knip = (s.t0 + s.t1) / 2;
+    stukken.splice(i, 1, { c: voor, t0: s.t0, t1: knip }, { c: na, t0: knip, t1: s.t1 });
+    i++;
+  }
+  const delen = [];
+  for (const s of stukken) {
+    const vorige = delen[delen.length - 1];
+    if (vorige && vorige.c === s.c) vorige.t1 = s.t1;
+    else delen.push({ c: s.c, t0: s.t0, t1: s.t1 });
+  }
+  const goed = delen.filter((x) => x.t1 - x.t0 > 0.5);
+  return { delen: goed, rand: goed.some((x) => x.c === 'B') && (randGeraakt || goed.some((x) => x.c === 'A')) };
+}
+
+const isRechthoek = (c) => {
+  if (!Array.isArray(c) || c.length !== 4) return false;
+  const b = begrenzing(c);
+  return Math.abs(polygoonOppervlakte(c) - b.breedte * b.diepte) < 1;
+};
+const rhPts = (x0, y0, x1, y1) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+
+/**
+ * Een gebouwdeel afbreken. Twee manieren:
+ *  - `ids`: precies die elementen (muren met hun openingen, openingen, vloeren, daken, trappen, inrichting → afbraak;
+ *    ruimtes → verwijderd; niveau-id ⇒ alle elementen op dat niveau).
+ *  - zone via `ruimte` (id of lijst id's) of `punt` (+ `niveau`: de ruimte die het punt bevat):
+ *    · muren die enkel aan zoneruimtes (of aan niets) grenzen ⇒ afbraak; muren die ook aan een blijvende ruimte
+ *      grenzen (GEDEELDE muren, bv. de oude achtergevel of een scheidingsmuur) blijven en worden gemeld als
+ *      `randMuren` (mogelijk dragend / worden buitengevel). Muren die deels in de zone liggen worden gesplitst
+ *      (op de as van de kruisende muur);
+ *    · openingen in af te breken muurstukken ⇒ afbraak; de ruimtes van de zone ⇒ verwijderd;
+ *    · vloeren/daken van dat niveau binnen de zonebegrenzing (rechthoek rond de zoneruimtes + af te breken muurstukken)
+ *      ⇒ afbraak; rechthoekige vloeren en platte daken die er deels in liggen (strook aan één zijde) ⇒ gesplitst;
+ *      anders een melding;
+ *    · trappen (vanNiveau) en inrichting in de zone ⇒ afbraak.
+ *  Elementen met status `nieuw` worden verwijderd i.p.v. op afbraak gezet (ze bestonden nog niet).
+ * info: { niveau, ruimtes, afbraak: [ids], verwijderd: [ids], gesplitst: [{ id, nieuw: [ids] }], randMuren: [ids], meldingen: [tekst] }
+ */
+export function opsAfbraakZone(model, { niveau, ids, punt, ruimte } = {}) {
+  const nieuwId = idMaker(model);
+  const ops = [];
+  const info = { niveau: niveau ?? null, ruimtes: [], afbraak: [], verwijderd: [], gesplitst: [], randMuren: [], meldingen: [] };
+  const breekAf = (collectie, item) => {
+    const op = afbreekOp(collectie, item);
+    if (!op) return;
+    ops.push(op);
+    (op.op === 'verwijderen' ? info.verwijderd : info.afbraak).push(item.id);
+  };
+  const openingenVan = (muurId) => model.openingen.filter((o) => o.muur === muurId);
+
+  if (ids !== undefined) {
+    const lijst = Array.isArray(ids) ? ids : [ids];
+    if (!lijst.length) return fout('Geef minstens één id.');
+    const gezien = new Set();
+    const doe = (c, x) => {
+      if (gezien.has(x.id)) return;
+      gezien.add(x.id);
+      if (c === 'ruimtes') { ops.push({ op: 'verwijderen', collectie: 'ruimtes', id: x.id }); info.verwijderd.push(x.id); return; }
+      if (c === 'muren' && x.status !== 'nieuw') for (const o of openingenVan(x.id)) if (!gezien.has(o.id)) { gezien.add(o.id); breekAf('openingen', o); }
+      if (c === 'muren' && x.status === 'nieuw') for (const o of openingenVan(x.id)) gezien.add(o.id); // cascade
+      breekAf(c, x);
+    };
+    for (const id of lijst) {
+      const c = COLLECTIE_NAMEN.find((cc) => (model[cc] || []).some((x) => x.id === id));
+      if (!c) return fout(`Element "${id}" niet gevonden.`);
+      if (c === 'niveaus') {
+        for (const cc of ['muren', 'vloeren', 'daken', 'inrichting', 'ruimtes']) for (const y of (model[cc] || []).filter((z) => z.niveau === id)) doe(cc, y);
+        for (const t of (model.trappen || []).filter((z) => z.vanNiveau === id)) doe('trappen', t);
+      } else doe(c, model[c].find((y) => y.id === id));
+    }
+    return { ops, info };
+  }
+
+  // ── zone ──
+  let zoneRuimtes;
+  if (ruimte !== undefined) {
+    const lijst = Array.isArray(ruimte) ? ruimte : [ruimte];
+    zoneRuimtes = lijst.map((id) => model.ruimtes.find((r) => r.id === id));
+    const i = zoneRuimtes.findIndex((r) => !r);
+    if (i >= 0) return fout(`Ruimte "${lijst[i]}" niet gevonden.`);
+  } else if (isPunt(punt)) {
+    if (!heeftNiveau(model, niveau)) return fout(`Onbekend niveau "${niveau}".`);
+    const r = model.ruimtes.find((x) => x.niveau === niveau && puntInPolygoon(punt, x.contour));
+    if (!r) return fout('Op dit punt ligt geen ruimte; benoem eerst de ruimte of geef de id\'s van de elementen.');
+    zoneRuimtes = [r];
+  } else return fout('Geef de zone op met ids, ruimte of punt.');
+  if (!zoneRuimtes.length) return fout('Geef minstens één ruimte.');
+  const nv = zoneRuimtes[0].niveau;
+  if (zoneRuimtes.some((r) => r.niveau !== nv)) return fout('Alle ruimtes van de zone moeten op hetzelfde niveau liggen.');
+  if (niveau !== undefined && niveau !== null && niveau !== nv) return fout(`Ruimte ${zoneRuimtes[0].id} ligt op niveau ${nv}, niet op ${niveau}.`);
+  info.niveau = nv;
+  info.ruimtes = zoneRuimtes.map((r) => r.id);
+  const zone = zoneRuimtes.map((r) => r.contour);
+  const zoneIds = new Set(info.ruimtes);
+  const behoud = model.ruimtes.filter((r) => r.niveau === nv && !zoneIds.has(r.id)).map((r) => r.contour);
+  const muren = model.muren.filter((m) => m.niveau === nv && m.status !== 'afbraak' && muurLengte(m) >= 1);
+
+  const afbraakDelen = []; // rechthoeken van af te breken muurstukken (voor de zonebegrenzing)
+  for (const m of muren) {
+    const { delen, rand } = deelMuurIn(m, zone, behoud, muren.filter((x) => x.id !== m.id));
+    if (rand) info.randMuren.push(m.id);
+    if (!delen.some((d) => d.c === 'A')) continue;
+    for (const d of delen) if (d.c === 'A') afbraakDelen.push(muurDeelRechthoek(m, d.t0, d.t1));
+    if (delen.length === 1) {
+      if (m.status !== 'nieuw') for (const o of openingenVan(m.id)) breekAf('openingen', o);
+      breekAf('muren', m);
+      continue;
+    }
+    const k = knipOps(model, m, delen.slice(1).map((d) => rond01(d.t0)), nieuwId);
+    if (k.fout) return fout(k.fout);
+    ops.push(...k.ops);
+    info.gesplitst.push({ id: m.id, nieuw: k.delen.slice(1).map((d) => d.id) });
+    k.delen.forEach((stuk, i) => {
+      if (delen[i].c !== 'A') return;
+      if (m.status !== 'nieuw') {
+        for (const o of openingenVan(m.id)) if (o.positie >= stuk.t0 - 0.5 && o.positie + o.breedte <= stuk.t1 + 0.5) breekAf('openingen', o);
+      }
+      breekAf('muren', { ...m, id: stuk.id });
+    });
+  }
+
+  // vloeren en daken van dit niveau
+  const zb = begrenzing([...zone.flat(), ...afbraakDelen.flat()]);
+  const binnenZb = (c, tol = 1) => c.every(([x, y]) => x >= zb.minX - tol && x <= zb.maxX + tol && y >= zb.minY - tol && y <= zb.maxY + tol);
+  for (const c of ['vloeren', 'daken']) for (const x of model[c].filter((y) => y.niveau === nv && y.status !== 'afbraak')) {
+    if (binnenZb(x.contour)) { breekAf(c, x); continue; }
+    const b = begrenzing(x.contour);
+    const ox0 = Math.max(b.minX, zb.minX), ox1 = Math.min(b.maxX, zb.maxX), oy0 = Math.max(b.minY, zb.minY), oy1 = Math.min(b.maxY, zb.maxY);
+    if (ox1 - ox0 < 1 || oy1 - oy0 < 1) continue; // raakt de zone niet
+    const hellend = c === 'daken' && x.type !== 'plat' && x.helling;
+    const volleBreedte = ox0 <= b.minX + 1 && ox1 >= b.maxX - 1, volleDiepte = oy0 <= b.minY + 1 && oy1 >= b.maxY - 1;
+    let rest = null, deel = null;
+    if (isRechthoek(x.contour) && !hellend) {
+      if (volleBreedte && oy0 <= b.minY + 1) { rest = rhPts(b.minX, oy1, b.maxX, b.maxY); deel = rhPts(b.minX, b.minY, b.maxX, oy1); }
+      else if (volleBreedte && oy1 >= b.maxY - 1) { rest = rhPts(b.minX, b.minY, b.maxX, oy0); deel = rhPts(b.minX, oy0, b.maxX, b.maxY); }
+      else if (volleDiepte && ox0 <= b.minX + 1) { rest = rhPts(ox1, b.minY, b.maxX, b.maxY); deel = rhPts(b.minX, b.minY, ox1, b.maxY); }
+      else if (volleDiepte && ox1 >= b.maxX - 1) { rest = rhPts(b.minX, b.minY, ox0, b.maxY); deel = rhPts(ox0, b.minY, b.maxX, b.maxY); }
+    }
+    const naam = c === 'vloeren' ? 'Vloer' : 'Dak';
+    if (!rest) { info.meldingen.push(`${naam} ${x.id} ligt deels in de zone en is niet aangepast (enkel rechthoekige vloeren en platte daken met een strook aan één zijde worden gesplitst).`); continue; }
+    ops.push({ op: 'wijzigen', collectie: c, id: x.id, velden: { contour: rest.map(rondP) } });
+    if (x.status === 'nieuw') { info.gesplitst.push({ id: x.id, nieuw: [] }); continue; }
+    const id = nieuwId(c);
+    ops.push({ op: 'toevoegen', collectie: c, item: { ...x, id, contour: deel.map(rondP), status: 'afbraak' } });
+    info.gesplitst.push({ id: x.id, nieuw: [id] });
+    info.afbraak.push(id);
+  }
+  for (const c of ['vloeren', 'daken']) for (const x of model[c].filter((y) => y.niveau !== nv && y.status !== 'afbraak' && binnenZb(y.contour, -1)))
+    info.meldingen.push(`${c === 'vloeren' ? 'Vloer' : 'Dak'} ${x.id} (niveau ${x.niveau}) ligt boven of onder de zone en is niet aangepast.`);
+
+  const inZone = (p) => zone.some((c) => puntInPolygoon(p, c));
+  for (const t of (model.trappen || []).filter((x) => x.vanNiveau === nv && isPunt(x.oorsprong))) {
+    const v = trapVoetafdruk(t, { model });
+    const c = v ? begrenzing(v) : null;
+    if (c && inZone([(c.minX + c.maxX) / 2, (c.minY + c.maxY) / 2])) breekAf('trappen', t);
+  }
+  for (const x of (model.inrichting || []).filter((y) => y.niveau === nv && (zoneIds.has(y.ruimte) || (!y.ruimte && isPunt(y.positie) && inZone(y.positie))))) breekAf('inrichting', x);
+  for (const r of zoneRuimtes) { ops.push({ op: 'verwijderen', collectie: 'ruimtes', id: r.id }); info.verwijderd.push(r.id); }
+  if (info.randMuren.length) info.meldingen.push(`Blijvende muren op de rand van de zone (mogelijk dragend; worden mogelijk buitengevel): ${info.randMuren.join(', ')}.`);
+  return { ops, info };
+}
+
+/**
+ * Nieuwe trap. Parameters: { van|vanNiveau, naar|naarNiveau, type, oorsprong, richting = 0, breedte, aantalTreden?, optrede?,
+ * aantrede?, draairichting? (standaard links bij kwart/halfdraai/spiraal), diameter?, status = 'nieuw', instellingen? }.
+ * Fout als: type/niveaus ongeldig, naar niet boven van, geometrie onmogelijk, voetafdruk buiten de vloer(en) van een van
+ * beide niveaus, botsing met een (niet-afbraak)muur op een van beide niveaus, of loophoogte < ingestelde grens (als die ingesteld is).
+ * info: { id, maten, voetafdruk, trapgat: { niveau, contour }, loophoogte (min, mm of null) }
+ */
+export function opsTrapPlaatsen(model, p = {}) {
+  const van = p.van ?? p.vanNiveau, naar = p.naar ?? p.naarNiveau;
+  const { type, oorsprong, richting = 0, breedte, status = 'nieuw', instellingen } = p;
+  if (!heeftNiveau(model, van)) return fout(`Onbekend vanNiveau "${van}".`);
+  if (!heeftNiveau(model, naar)) return fout(`Onbekend naarNiveau "${naar}".`);
+  if (!TRAP_TYPES.includes(type)) return fout(`Traptype "${type}" is ongeldig; kies uit: ${TRAP_TYPES.join(', ')}.`);
+  if (!isPunt(oorsprong)) return fout('Oorsprong moet [x, y] in mm zijn.');
+  if (!isGetal(richting)) return fout('Richting moet een hoek in graden zijn.');
+  if (!isGetal(breedte) || breedte <= 0) return fout('Breedte moet > 0 mm zijn.');
+  if (!STATUSSEN.includes(status)) return fout(`Status "${status}" is ongeldig.`);
+  if (p.draairichting !== undefined && !DRAAIRICHTINGEN.includes(p.draairichting)) return fout(`Draairichting moet ${DRAAIRICHTINGEN.join(' of ')} zijn.`);
+  for (const k of ['aantalTreden', 'optrede', 'aantrede', 'diameter']) if (p[k] !== undefined && p[k] !== null && (!isGetal(p[k]) || p[k] <= 0)) return fout(`${k} moet > 0 zijn.`);
+  if (p.aantalTreden != null && !Number.isInteger(p.aantalTreden)) return fout('aantalTreden moet een geheel getal zijn.');
+  const nv = (id) => model.niveaus.find((n) => n.id === id);
+  if (nv(naar).peil <= nv(van).peil) return fout(`Niveau ${naar} ligt niet boven ${van}.`);
+  const inst = metInstellingen(instellingen);
+  const id = idMaker(model)('trappen');
+  const item = { id, vanNiveau: van, naarNiveau: naar, type, oorsprong: rondP(oorsprong), richting, breedte };
+  for (const k of ['aantalTreden', 'optrede', 'aantrede', 'diameter', 'draairichting']) if (p[k] !== undefined && p[k] !== null) item[k] = p[k];
+  if (type !== 'recht' && !item.draairichting) item.draairichting = 'links';
+  item.status = status;
+  const g = trapGeometrie(model, item, { instellingen: inst });
+  if (!g || g.fout) return fout(g?.fout || 'Trapgeometrie kan niet berekend worden.');
+  for (const n of [van, naar]) {
+    const grens = niveauBegrenzing(model, n);
+    if (grens.length && !g.voetafdruk.every((q) => inEenVan(q, grens, 2))) return fout(`De trap past niet binnen de vloer(en) van niveau ${n}${n === naar ? ' (trapgat)' : ''}.`);
+    const botsing = model.muren.find((m) => m.niveau === n && m.status !== 'afbraak' && muurLengte(m) >= 1 && polygonenOverlappen(g.voetafdruk, muurRechthoek(m), 2));
+    if (botsing) return fout(`De trap botst met muur ${botsing.id} op niveau ${n}.`);
+  }
+  const lh = trapLoophoogte({ ...model, trappen: [...(model.trappen || []), item] }, item, { instellingen: inst });
+  const minLh = instelling(inst, 'trap.minLoophoogte');
+  if (isGetal(minLh) && lh?.min != null && lh.min < minLh - 0.5) return fout(`Loophoogte ${Math.round(lh.min)} mm is lager dan de ingestelde ${minLh} mm.`);
+  return {
+    ops: [{ op: 'toevoegen', collectie: 'trappen', item }],
+    info: { id, maten: g.maten, voetafdruk: g.voetafdruk, trapgat: { niveau: naar, contour: g.voetafdruk }, loophoogte: lh?.min ?? null },
+  };
+}
+
+/**
+ * Inrichtingselement (sanitair, meubel) plaatsen. Parameters: { soort, ruimte?, niveau?, positie?, rotatie?, breedte?, diepte?,
+ * hoogte?, status = 'nieuw', instellingen? }. Ontbrekende maten komen uit de instellingen (werkwaarden, geen norm).
+ * Zonder `positie` (vereist `ruimte`): eerste plek met de rugzijde tegen een rand van de ruimtecontour, volledig in de ruimte,
+ * zonder overlap met andere inrichting en (als de hoogte gekend is) met voldoende vrije hoogte. Zoekstap 50 mm.
+ * info: { id, positie, rotatie, contour }
+ */
+export function opsInrichtingPlaatsen(model, p = {}) {
+  const { soort, status = 'nieuw', instellingen } = p;
+  if (!INRICHTING_SOORTEN.includes(soort)) return fout(`Soort "${soort}" is ongeldig; kies uit: ${INRICHTING_SOORTEN.join(', ')}.`);
+  if (!STATUSSEN.includes(status)) return fout(`Status "${status}" is ongeldig.`);
+  const r = p.ruimte !== undefined && p.ruimte !== null ? model.ruimtes.find((x) => x.id === p.ruimte) : null;
+  if (p.ruimte != null && !r) return fout(`Ruimte "${p.ruimte}" niet gevonden.`);
+  const niveau = p.niveau ?? r?.niveau;
+  if (!heeftNiveau(model, niveau)) return fout(`Onbekend niveau "${niveau}".`);
+  if (r && r.niveau !== niveau) return fout(`Ruimte ${r.id} ligt niet op niveau ${niveau}.`);
+  const inst = metInstellingen(instellingen);
+  const maat = inrichtingMaat(inst, soort);
+  const breedte = p.breedte ?? maat.breedte, diepte = p.diepte ?? maat.diepte, hoogte = p.hoogte ?? maat.hoogte ?? null;
+  if (!isGetal(breedte) || breedte <= 0 || !isGetal(diepte) || diepte <= 0) return fout('Breedte en diepte moeten > 0 mm zijn.');
+  if (hoogte !== null && (!isGetal(hoogte) || hoogte <= 0)) return fout('Hoogte moet > 0 mm zijn.');
+  let positie = p.positie, rotatie = p.rotatie ?? 0;
+  if (!isGetal(rotatie)) return fout('Rotatie moet een hoek in graden zijn.');
+  if (positie === undefined || positie === null) {
+    if (!r) return fout('Geef een positie of een ruimte (dan wordt een plek tegen een wand gezocht).');
+    const plek = zoekPlek(model, r, { breedte, diepte, hoogte, instellingen: inst });
+    if (!plek) return fout(`Geen plek gevonden voor ${soort} (${breedte} × ${diepte} mm) tegen een wand van ${r.naam}${hoogte != null ? ` met vrije hoogte ≥ ${hoogte} mm` : ''}.`);
+    ({ positie, rotatie } = plek);
+  }
+  if (!isPunt(positie)) return fout('Positie moet [x, y] in mm zijn.');
+  const id = idMaker(model)('inrichting');
+  const item = { id, niveau };
+  if (r) item.ruimte = r.id;
+  Object.assign(item, { soort, positie: rondP(positie), rotatie: rond01(((rotatie % 360) + 360) % 360), breedte, diepte });
+  if (hoogte != null) item.hoogte = hoogte;
+  item.status = status;
+  return { ops: [{ op: 'toevoegen', collectie: 'inrichting', item }], info: { id, positie: item.positie, rotatie: item.rotatie, contour: inrichtingContour(item) } };
+}
+
+function zoekPlek(model, r, { breedte, diepte, hoogte, instellingen }) {
+  let c = r.contour;
+  let s = 0;
+  for (let i = 0; i < c.length; i++) { const a = c[i], b = c[(i + 1) % c.length]; s += a[0] * b[1] - b[0] * a[1]; }
+  if (s < 0) c = c.slice().reverse();
+  const anderen = (model.inrichting || []).filter((x) => x.niveau === r.niveau && x.status !== 'afbraak' && isPunt(x.positie)).map(inrichtingContour);
+  const STAP = 50;
+  for (let i = 0; i < c.length; i++) {
+    const a = c[i], b = c[(i + 1) % c.length];
+    const L = lengte(a, b);
+    if (L < breedte) continue;
+    const ex = (b[0] - a[0]) / L, ey = (b[1] - a[1]) / L;
+    const nx = -ey, ny = ex; // naar binnen (tegenwijzerzin)
+    const rotatie = (Math.atan2(ey, ex) * 180) / Math.PI;
+    for (let t = 0; t + breedte <= L + 1e-6; t += STAP) {
+      const m = [a[0] + ex * (t + breedte / 2) + nx * (diepte / 2), a[1] + ey * (t + breedte / 2) + ny * (diepte / 2)];
+      const cont = inrichtingContour({ positie: m, rotatie, breedte, diepte });
+      if (!cont.every((q) => inEenVan(q, [r.contour], 1))) continue;
+      if (anderen.some((o) => polygonenOverlappen(o, cont, 1))) continue;
+      if (hoogte != null && (minVrijeHoogte(model, r.niveau, cont, { instellingen }) ?? Infinity) < hoogte) continue;
+      return { positie: rondP(m), rotatie: rond01(((rotatie % 360) + 360) % 360) };
+    }
+  }
+  return null;
+}
+
+/**
+ * Zolderniveau onder het (hellende) dak van `onderNiveau`: nieuw niveau `soort: 'zolder'` op de bovenkant van onderNiveau
+ * (peil = peil + hoogte), hoogte = hoogste nokhoogte van de hellende daken op onderNiveau; per hellend dak een vloer met
+ * de contour van het dak (= begrenzing onder het dak). De daken blijven op onderNiveau rusten (anders zouden ze stijgen).
+ * Opties: { naam = 'Zolder', vloerdikte (standaard die van onderNiveau, anders 300 zoals opsNiveauToevoegen), status = 'nieuw' }.
+ * info: { id, hoogte, vloeren: [ids], daken: [ids] }
+ */
+export function opsZolderNiveau(model, { onderNiveau, naam = 'Zolder', vloerdikte, status = 'nieuw' } = {}) {
+  const onder = model.niveaus.find((n) => n.id === onderNiveau);
+  if (!onder) return fout(`Onbekend niveau "${onderNiveau}".`);
+  if (!STATUSSEN.includes(status)) return fout(`Status "${status}" is ongeldig.`);
+  const top = onder.peil + onder.hoogte;
+  const erboven = model.niveaus.find((n) => n.id !== onder.id && n.peil >= top - 1);
+  if (erboven) return fout(`Boven ${onder.id} ligt al niveau ${erboven.id} (${erboven.naam}).`);
+  const daken = model.daken.filter((d) => d.niveau === onder.id && d.status !== 'afbraak' && d.type !== 'plat' && d.helling > 0);
+  if (!daken.length) return fout(`Niveau ${onder.id} heeft geen hellend dak; een zolder onder een plat dak heeft geen hoogte.`);
+  const dikte = vloerdikte ?? onder.vloerdikte ?? 300;
+  if (!isGetal(dikte) || dikte <= 0) return fout('Vloerdikte moet > 0 mm zijn.');
+  const hoogte = Math.round(Math.max(...daken.map(dakNokHoogte)));
+  if (hoogte <= 0) return fout('Het dak heeft geen hoogte.');
+  const nieuw = idMaker(model);
+  const id = nieuw('niveaus');
+  const nm = typeof naam === 'string' && naam.trim() ? naam.trim() : 'Zolder';
+  const ops = [{ op: 'toevoegen', collectie: 'niveaus', item: { id, naam: nm, peil: top, hoogte, vloerdikte: dikte, soort: 'zolder' } }];
+  const vloeren = [];
+  for (const d of daken) {
+    const vid = nieuw('vloeren');
+    ops.push({ op: 'toevoegen', collectie: 'vloeren', item: { id: vid, niveau: id, contour: d.contour.map(rondP), dikte, status } });
+    vloeren.push(vid);
+  }
+  return { ops, info: { id, hoogte, vloeren, daken: daken.map((d) => d.id) } };
 }

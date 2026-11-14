@@ -1,0 +1,602 @@
+{
+  "_uitleg": "VOORBEELD — demonstratie van de voorbeeldopdracht van fase 5 op designs/bestaand.json. Gegenereerd door tools/voorbeelden/maak-zolder-programma.mjs met de bewerkingen uit js/model/bewerkingen.js. Maten zijn een plausibel voorstel, geen ontwerp en geen normen. Toepassen: node tools/apply-ops.mjs bestaand tools/voorbeelden/zolder-programma.ops.json --als <id> --naam \"<naam>\".",
+  "basis": "bestaand",
+  "ops": [
+    {
+      "op": "wijzigen",
+      "collectie": "muren",
+      "id": "M2",
+      "velden": {
+        "eind": [6930, 7860]
+      }
+    },
+    {
+      "op": "toevoegen",
+      "collectie": "muren",
+      "item": {
+        "id": "M30",
+        "niveau": "N0",
+        "start": [6930, 7860],
+        "eind": [6930, 12360],
+        "dikte": 140,
+        "status": "bestaand"
+      }
+    },
+    {
+      "op": "wijzigen",
+      "collectie": "muren",
+      "id": "M30",
+      "velden": {
+        "status": "afbraak"
+      }
+    },
+    {
+      "op": "wijzigen",
+      "collectie": "openingen",
+      "id": "O9",
+      "velden": {
+        "status": "afbraak"
+      }
+    },
+    {
+      "op": "wijzigen",
+      "collectie": "openingen",
+      "id": "O10",
+      "velden": {
+        "status": "afbraak"
+      }
+    },
+    {
+      "op": "wijzigen",
+      "collectie": "openingen",
+      "id": "O11",
+      "velden": {
+        "status": "afbraak"
+      }
+    },
+    {
+      "op": "wijzigen",
+      "collectie": "muren",
+      "id": "M3",
+      "velden": {
+        "status": "afbraak"
+      }
+    },
+    {
+      "op": "wijzigen",
+      "collectie": "muren",
+      "id": "M4",
+      "velden": {
+        "eind": [140, 7860]
+      }
+    },
+    {
+      "op": "toevoegen",
+      "collectie": "muren",
+      "item": {
+        "id": "M31",
+        "niveau": "N0",
+        "start": [140, 7860],
+        "eind": [140, 12360],
+        "dikte": 280,
+        "status": "bestaand"
+      }
+    },
+    {
+      "op": "wijzigen",
+      "collectie": "openingen",
+      "id": "O8",
+      "velden": {
+        "muur": "M31",
+        "positie": 970
+      }
+    },
+    {
+      "op": "wijzigen",
+      "collectie": "openingen",
+      "id": "O8",
+      "velden": {
+        "status": "afbraak"
+      }
+    },
+    {
+      "op": "wijzigen",
+      "collectie": "muren",
+      "id": "M31",
+      "velden": {
+        "status": "afbraak"
+      }
+    },
+    {
+      "op": "wijzigen",
+      "collectie": "openingen",
+      "id": "O17",
+      "velden": {
+        "status": "afbraak"
+      }
+    },
+    {
+      "op": "wijzigen",
+      "collectie": "muren",
+      "id": "M12",
+      "velden": {
+        "status": "afbraak"
+      }
+    },
+    {
+      "op": "wijzigen",
+      "collectie": "openingen",
+      "id": "O18",
+      "velden": {
+        "status": "afbraak"
+      }
+    },
+    {
+      "op": "wijzigen",
+      "collectie": "muren",
+      "id": "M13",
+      "velden": {
+        "status": "afbraak"
+      }
+    },
+    {
+      "op": "wijzigen",
+      "collectie": "vloeren",
+      "id": "V1",
+      "velden": {
+        "contour": [
+          [0, 0],
+          [7000, 0],
+          [7000, 7860],
+          [0, 7860]
+        ]
+      }
+    },
+    {
+      "op": "toevoegen",
+      "collectie": "vloeren",
+      "item": {
+        "id": "V5",
+        "niveau": "N0",
+        "contour": [
+          [0, 7860],
+          [7000, 7860],
+          [7000, 12500],
+          [0, 12500]
+        ],
+        "dikte": 300,
+        "status": "afbraak"
+      }
+    },
+    {
+      "op": "wijzigen",
+      "collectie": "daken",
+      "id": "D2",
+      "velden": {
+        "status": "afbraak"
+      }
+    },
+    {
+      "op": "verwijderen",
+      "collectie": "ruimtes",
+      "id": "R5"
+    },
+    {
+      "op": "verwijderen",
+      "collectie": "ruimtes",
+      "id": "R6"
+    },
+    {
+      "op": "verwijderen",
+      "collectie": "ruimtes",
+      "id": "R7"
+    },
+    {
+      "op": "wijzigen",
+      "collectie": "openingen",
+      "id": "O30",
+      "velden": {
+        "status": "afbraak"
+      }
+    },
+    {
+      "op": "wijzigen",
+      "collectie": "muren",
+      "id": "M27",
+      "velden": {
+        "status": "afbraak"
+      }
+    },
+    {
+      "op": "wijzigen",
+      "collectie": "muren",
+      "id": "M28",
+      "velden": {
+        "status": "afbraak"
+      }
+    },
+    {
+      "op": "wijzigen",
+      "collectie": "muren",
+      "id": "M29",
+      "velden": {
+        "status": "afbraak"
+      }
+    },
+    {
+      "op": "wijzigen",
+      "collectie": "vloeren",
+      "id": "V4",
+      "velden": {
+        "status": "afbraak"
+      }
+    },
+    {
+      "op": "wijzigen",
+      "collectie": "daken",
+      "id": "D4",
+      "velden": {
+        "status": "afbraak"
+      }
+    },
+    {
+      "op": "verwijderen",
+      "collectie": "ruimtes",
+      "id": "R15"
+    },
+    {
+      "op": "toevoegen",
+      "collectie": "niveaus",
+      "item": {
+        "id": "N2",
+        "naam": "Zolder",
+        "peil": 5800,
+        "hoogte": 4000,
+        "vloerdikte": 300,
+        "soort": "zolder"
+      }
+    },
+    {
+      "op": "toevoegen",
+      "collectie": "vloeren",
+      "item": {
+        "id": "V6",
+        "niveau": "N2",
+        "contour": [
+          [0, 0],
+          [7000, 0],
+          [7000, 8000],
+          [0, 8000]
+        ],
+        "dikte": 300,
+        "status": "nieuw"
+      }
+    },
+    {
+      "op": "toevoegen",
+      "collectie": "muren",
+      "item": {
+        "id": "M32",
+        "niveau": "N2",
+        "start": [280, 1200],
+        "eind": [6720, 1200],
+        "dikte": 100,
+        "status": "nieuw",
+        "hoogte": 1150
+      }
+    },
+    {
+      "op": "toevoegen",
+      "collectie": "muren",
+      "item": {
+        "id": "M33",
+        "niveau": "N2",
+        "start": [280, 6800],
+        "eind": [6720, 6800],
+        "dikte": 100,
+        "status": "nieuw",
+        "hoogte": 1150
+      }
+    },
+    {
+      "op": "toevoegen",
+      "collectie": "muren",
+      "item": {
+        "id": "M34",
+        "niveau": "N2",
+        "start": [280, 3500],
+        "eind": [6720, 3500],
+        "dikte": 100,
+        "status": "nieuw"
+      }
+    },
+    {
+      "op": "toevoegen",
+      "collectie": "muren",
+      "item": {
+        "id": "M35",
+        "niveau": "N2",
+        "start": [2250, 1200],
+        "eind": [2250, 3500],
+        "dikte": 100,
+        "status": "nieuw"
+      }
+    },
+    {
+      "op": "toevoegen",
+      "collectie": "muren",
+      "item": {
+        "id": "M36",
+        "niveau": "N2",
+        "start": [2750, 4400],
+        "eind": [6720, 4400],
+        "dikte": 100,
+        "status": "nieuw"
+      }
+    },
+    {
+      "op": "toevoegen",
+      "collectie": "muren",
+      "item": {
+        "id": "M37",
+        "niveau": "N2",
+        "start": [2750, 4400],
+        "eind": [2750, 6800],
+        "dikte": 100,
+        "status": "nieuw"
+      }
+    },
+    {
+      "op": "toevoegen",
+      "collectie": "muren",
+      "item": {
+        "id": "M38",
+        "niveau": "N2",
+        "start": [3750, 4400],
+        "eind": [3750, 6800],
+        "dikte": 100,
+        "status": "nieuw"
+      }
+    },
+    {
+      "op": "toevoegen",
+      "collectie": "openingen",
+      "item": {
+        "id": "O31",
+        "muur": "M34",
+        "type": "deur",
+        "positie": 1070,
+        "breedte": 700,
+        "hoogte": 2100,
+        "borstwering": 0,
+        "status": "nieuw"
+      }
+    },
+    {
+      "op": "toevoegen",
+      "collectie": "openingen",
+      "item": {
+        "id": "O32",
+        "muur": "M34",
+        "type": "deur",
+        "positie": 2520,
+        "breedte": 800,
+        "hoogte": 2100,
+        "borstwering": 0,
+        "status": "nieuw"
+      }
+    },
+    {
+      "op": "toevoegen",
+      "collectie": "openingen",
+      "item": {
+        "id": "O33",
+        "muur": "M36",
+        "type": "deur",
+        "positie": 150,
+        "breedte": 700,
+        "hoogte": 2100,
+        "borstwering": 0,
+        "status": "nieuw"
+      }
+    },
+    {
+      "op": "toevoegen",
+      "collectie": "openingen",
+      "item": {
+        "id": "O34",
+        "muur": "M36",
+        "type": "deur",
+        "positie": 1450,
+        "breedte": 800,
+        "hoogte": 2100,
+        "borstwering": 0,
+        "status": "nieuw"
+      }
+    },
+    {
+      "op": "toevoegen",
+      "collectie": "ruimtes",
+      "item": {
+        "id": "R15",
+        "niveau": "N2",
+        "naam": "Badkamer",
+        "functie": "badkamer",
+        "contour": [
+          [280, 1250],
+          [2200, 1250],
+          [2200, 3450],
+          [280, 3450]
+        ],
+        "hoogtegrenzen": [1500, 2200]
+      }
+    },
+    {
+      "op": "toevoegen",
+      "collectie": "ruimtes",
+      "item": {
+        "id": "R16",
+        "niveau": "N2",
+        "naam": "Slaapkamer 1",
+        "functie": "slaapkamer",
+        "contour": [
+          [2300, 1250],
+          [6720, 1250],
+          [6720, 3450],
+          [2300, 3450]
+        ],
+        "hoogtegrenzen": [1500, 2200]
+      }
+    },
+    {
+      "op": "toevoegen",
+      "collectie": "ruimtes",
+      "item": {
+        "id": "R17",
+        "niveau": "N2",
+        "naam": "Berging",
+        "functie": "berging",
+        "contour": [
+          [2800, 4450],
+          [3700, 4450],
+          [3700, 6750],
+          [2800, 6750]
+        ],
+        "hoogtegrenzen": [1500, 2200]
+      }
+    },
+    {
+      "op": "toevoegen",
+      "collectie": "ruimtes",
+      "item": {
+        "id": "R18",
+        "niveau": "N2",
+        "naam": "Slaapkamer 2",
+        "functie": "slaapkamer",
+        "contour": [
+          [3800, 4450],
+          [6720, 4450],
+          [6720, 6750],
+          [3800, 6750]
+        ],
+        "hoogtegrenzen": [1500, 2200]
+      }
+    },
+    {
+      "op": "toevoegen",
+      "collectie": "ruimtes",
+      "item": {
+        "niveau": "N2",
+        "naam": "Overloop zolder",
+        "functie": "hal",
+        "hoogtegrenzen": [1500, 2200],
+        "contour": [
+          [280, 3550],
+          [6720, 3550],
+          [6720, 4350],
+          [2700, 4350],
+          [2700, 6750],
+          [280, 6750]
+        ]
+      }
+    },
+    {
+      "op": "toevoegen",
+      "collectie": "trappen",
+      "item": {
+        "id": "T1",
+        "vanNiveau": "N1",
+        "naarNiveau": "N2",
+        "type": "halfdraai",
+        "oorsprong": [1880, 4840],
+        "richting": 90,
+        "breedte": 800,
+        "aantrede": 220,
+        "draairichting": "links",
+        "status": "nieuw"
+      }
+    },
+    {
+      "op": "wijzigen",
+      "collectie": "ruimtes",
+      "id": "R10",
+      "velden": {
+        "naam": "Traphal (trap naar zolder)",
+        "functie": "trap"
+      }
+    },
+    {
+      "op": "toevoegen",
+      "collectie": "inrichting",
+      "item": {
+        "id": "I1",
+        "niveau": "N2",
+        "ruimte": "R15",
+        "soort": "douche",
+        "positie": [730, 2950],
+        "rotatie": 0,
+        "breedte": 900,
+        "diepte": 900,
+        "hoogte": 2100,
+        "status": "nieuw"
+      }
+    },
+    {
+      "op": "toevoegen",
+      "collectie": "inrichting",
+      "item": {
+        "id": "I2",
+        "niveau": "N2",
+        "ruimte": "R15",
+        "soort": "lavabo",
+        "positie": [1975, 2600],
+        "rotatie": 90,
+        "breedte": 600,
+        "diepte": 450,
+        "status": "nieuw"
+      }
+    },
+    {
+      "op": "ontwerp",
+      "velden": {
+        "beschrijving": "VOORBEELD (demonstratie fase 5, geen ontwerp): achterbouw en garage 2 afgebroken; zolder onder het zadeldak met halfdraaitrap vanuit de verdieping, 2 slaapkamers, berging en badkamer (lavabo + douche). Maten zijn een plausibel voorstel; hoogtegrenzen 1,50/2,20 m zijn voorbeeldwaarden, geen norm. Stabiliteit, EPB en vergunning niet beoordeeld.",
+        "programma": {
+          "beschrijving": "Voorbeeldopdracht fase 5",
+          "eisen": [
+            {
+              "functie": "slaapkamer",
+              "aantal": 2,
+              "niveau": "zolder",
+              "minOppervlakte": null
+            },
+            {
+              "functie": "berging",
+              "aantal": 1,
+              "niveau": "zolder"
+            },
+            {
+              "functie": "badkamer",
+              "aantal": 1,
+              "niveau": "zolder",
+              "inrichting": [
+                "lavabo",
+                "douche"
+              ]
+            },
+            {
+              "trap": {
+                "van": "N1",
+                "naar": "zolder",
+                "type": [
+                  "kwart",
+                  "halfdraai",
+                  "spiraal"
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
