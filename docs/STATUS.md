@@ -53,6 +53,6 @@ _Laatst bijgewerkt: 2026-11-14 — bestaande toestand opnieuw opgebouwd uit het 
 - Repo blijft anoniem (CLAUDE.md regel 8): geen adres, foto's of plannen in git; enkel afgeleide maten.
 
 ## Volgende stappen
-1. Gebruiker: tekengereedschap uitproberen op laptop + telefoon; DWG als DXF en SketchUp als DAE/OBJ (of PDF) aanleveren voor de bestaande toestand.
+1. Gebruiker: tekengereedschap en vergelijken uitproberen op laptop + telefoon; richtprijzen in `designs/prijzen.json` vervangen door offerteprijzen zodra beschikbaar.
 2. Fase 4: promptveld (Anthropic API, eigen key) + "genereer N varianten".
 3. Bestaande toestand verfijnen: hoogtes (doorsnede of opmeting), perceelligging en garages bevestigen — open vragen in `docs/BESTAAND.md`.
