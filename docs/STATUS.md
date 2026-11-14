@@ -4,7 +4,7 @@ _Laatst bijgewerkt: 2026-11-14 — einde sessie 1 (fase 1)._
 
 ## Live
 - App: https://jvanderborght.github.io/verbouwing-3d/ (GitHub Pages via Actions; deploy bij elke push naar `main`).
-  Werkt pas zodra in de repo-instellingen Pages → Source = "GitHub Actions" staat; deploy nog niet bevestigd.
+  Repo is publiek, Pages staat op "GitHub Actions"; eerste geslaagde deploy op 2026-11-14 (workflow-run + github-pages-deployment).
 
 ## Fase 1 — basis ✅ (QA goedgekeurd, gemerged naar `main`)
 - Repo-structuur, `CLAUDE.md`, agents in `.claude/agents/`, workflow `.github/workflows/pages.yml` (tests + deploy).
@@ -29,7 +29,7 @@ _Laatst bijgewerkt: 2026-11-14 — einde sessie 1 (fase 1)._
 - Repo blijft anoniem (CLAUDE.md regel 8): geen adres, foto's of plannen in git; enkel afgeleide maten.
 
 ## Volgende stappen
-1. Gebruiker: Pages aanzetten (Settings → Pages → Source: GitHub Actions) indien nog niet gebeurd; token aanmaken en opslaan testen.
+1. Gebruiker: live app openen op laptop + telefoon; fine-grained token aanmaken (enkel deze repo, Contents read/write) en "Opslaan naar GitHub" testen.
 2. Fase 2: tekengereedschap (muur tekenen/verplaatsen/verwijderen, opening, ruimte, niveau, dak), snapping 50 mm + op muren, exacte maten.
 3. Fase 3: kerncijfers, kostenraming (prijzen.json), vergelijkweergave.
 4. Fase 4: promptveld (Anthropic API, eigen key) + "genereer N varianten".
