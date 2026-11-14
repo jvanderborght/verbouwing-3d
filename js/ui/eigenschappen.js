@@ -110,6 +110,17 @@ export function tekenEigenschappen(el, { model, selectie, opWijzig, opSelecteer 
   el.append(lijst);
 }
 
+/**
+ * Leest een getal zoals een Vlaamse gebruiker het typt: "1.200" en "1 200" = 1200 (duizendtallen),
+ * "2,5" en "2.5" = 2,5. Geeft NaN bij ongeldige invoer.
+ */
+export function leesGetal(tekst) {
+  let t = String(tekst).trim().replace(/[\s\u00a0\u202f]/g, '');
+  if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
+  else if (/^-?\d{1,3}(\.\d{3})+$/.test(t)) t = t.replace(/\./g, '');
+  return t === '' || !/^-?(\d+\.?\d*|\.\d+)$/.test(t) ? NaN : Number(t);
+}
+
 /** Invoerveld voor één rij. Bij een geweigerde wijziging wordt de oude waarde teruggezet. */
 function veldInvoer(rij, wijzig) {
   const id = `veld-${rij.veld}`;
@@ -117,9 +128,9 @@ function veldInvoer(rij, wijzig) {
   if (rij.soort === 'getal') {
     const inp = h('input', { id, type: 'text', inputmode: 'decimal', value: rij.waarde ?? '', 'data-veld': rij.veld, autocomplete: 'off', placeholder: rij.verplicht ? '' : '—' });
     inp.addEventListener('change', () => {
-      const t = inp.value.trim().replace(',', '.');
+      const t = inp.value.trim();
       if (t === '' && !rij.verplicht) { if (!wijzig(null).ok) terug(inp, rij.waarde ?? ''); return; }
-      const v = Number(t);
+      const v = leesGetal(t);
       if (!Number.isFinite(v)) { terug(inp, rij.waarde ?? ''); return; }
       if (!wijzig(v).ok) terug(inp, rij.waarde ?? '');
     });

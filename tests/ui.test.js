@@ -46,7 +46,7 @@ function nepGithub({ bestanden = {}, pages = null, status = {} } = {}) {
   const fetch = async (url, opties = {}) => {
     const methode = opties.method || 'GET';
     log.push({ url, methode, headers: opties.headers || {}, body: opties.body });
-    if (status[`${methode} ${url}`]) return antwoord(status[`${methode} ${url}`], { message: 'fout' });
+    if (status[`${methode} ${url}`]) return antwoord(status[`${methode} ${url}`], { message: status[`${methode} ${url}`] === 422 ? 'sha does not match' : 'fout' });
     if (url.startsWith('designs/')) {
       const p = 'designs/' + url.slice('designs/'.length);
       return p in pagesBestanden ? antwoord(200, pagesBestanden[p]) : antwoord(404, 'Not Found');
@@ -476,4 +476,16 @@ test('modelHash is stabiel en onafhankelijk van witruimte in het bronbestand', (
   const b = JSON.parse(JSON.stringify(a));
   assert.equal(modelHash(a), modelHash(b));
   assert.notEqual(modelHash(a), modelHash({ ...a, naam: 'x' }));
+});
+
+// ---------------------------------------------------------------- getalinvoer (QA fase 1)
+import { leesGetal } from '../js/ui/eigenschappen.js';
+import { githubFoutmelding as gfm } from '../js/ui/opslag.js';
+test('leesGetal: Vlaamse notatie', () => {
+  for (const [in_, uit] of [['1.200', 1200], ['1 200', 1200], ['12.500.000', 12500000], ['2,5', 2.5], ['1.200,5', 1200.5], ['2.5', 2.5], ['300', 300], ['-150', -150], ['1.20', 1.2]]) assert.equal(leesGetal(in_), uit, in_);
+  for (const fout of ['', 'abc', '1,2,3', '12a']) assert.ok(Number.isNaN(leesGetal(fout)), fout);
+});
+test('githubFoutmelding: 422 zonder sha-melding is geen conflict', () => {
+  assert.equal(gfm(422, { apiMelding: 'Invalid request. "sha" wasn\'t supplied.' }).soort, 'conflict');
+  assert.equal(gfm(422, { apiMelding: 'Invalid request. content is not valid Base64' }).soort, 'onbekend');
 });

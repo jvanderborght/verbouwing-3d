@@ -3,9 +3,10 @@
 _Laatst bijgewerkt: 2026-11-14 — einde sessie 1 (fase 1)._
 
 ## Live
-- App: https://jvanderborght.github.io/verbouwing-3d/ (GitHub Pages via Actions; deploy bij elke push naar `main`)
+- App: https://jvanderborght.github.io/verbouwing-3d/ (GitHub Pages via Actions; deploy bij elke push naar `main`).
+  Werkt pas zodra in de repo-instellingen Pages → Source = "GitHub Actions" staat; deploy nog niet bevestigd.
 
-## Fase 1 — basis ✅ (na QA gemerged naar `main`)
+## Fase 1 — basis ✅ (QA goedgekeurd, gemerged naar `main`)
 - Repo-structuur, `CLAUDE.md`, agents in `.claude/agents/`, workflow `.github/workflows/pages.yml` (tests + deploy).
 - Datamodel v1 (`js/model/`, spec in `docs/DATAMODEL.md`): schema, validator, operaties (`toevoegen`, `wijzigen`, `verwijderen`, `verplaatsen`, `ontwerp`), atomair toepassen, undo/redo (`Geschiedenis`), diff, migratie-haak, optioneel `perceel`.
 - CLI voor Claude Code: `node tools/validate.mjs`, `node tools/apply-ops.mjs <id> ops.json [--als nieuw-id --naam "…"]`.
@@ -13,7 +14,8 @@ _Laatst bijgewerkt: 2026-11-14 — einde sessie 1 (fase 1)._
 - 2D-plattegrond (SVG) per niveau: kleurcode, deurzwaai, ruimtes met m², ketting- en totaalmaten, pan/zoom (ook knijpen), selectie.
 - App-schil: responsive (desktop naast elkaar, telefoon met tabs), eigenschappenpaneel (getallen/tekst/keuzes al bewerkbaar via operaties), undo/redo + sneltoetsen, validatiemeldingen.
 - Variantbeheer: werkkopie in localStorage, nieuw/dupliceren/hernoemen/verwijderen (lokaal)/export/import, **opslaan naar en ophalen van GitHub** met eigen token in de browser (nooit in git).
-- Tests: `npm test` (58 tests + validatie designs).
+- Tests: `npm test` (60 tests + validatie designs).
+- QA-opvolging: getalinvoer begrijpt "1.200" als 1200; 422 van GitHub enkel als conflict bij sha-fout; workflow least-privilege.
 - `designs/voorbeeld.json`: FICTIEF testhuis (7 m breed, perceel 14 m; rest aannames). `designs/prijzen.json`: leeg sjabloon.
 
 ## Bekende beperkingen

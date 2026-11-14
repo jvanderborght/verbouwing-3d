@@ -133,12 +133,14 @@ export class GitHubFout extends Error {
 }
 
 /** Nederlandstalige melding voor een HTTP-status van de GitHub API. */
-export function githubFoutmelding(status, { limietOp = false, actie = 'lezen', doel = '' } = {}) {
+export function githubFoutmelding(status, { limietOp = false, actie = 'lezen', doel = '', apiMelding = '' } = {}) {
   const wat = doel ? ` (${doel})` : '';
   if (status === 401) return { soort: 'auth', melding: 'GitHub weigert het token (401): het is ongeldig, verlopen of ingetrokken. Maak een nieuw token aan en plak het in Instellingen.' };
   if (status === 403 && limietOp) return { soort: 'limiet', melding: 'Te veel verzoeken naar GitHub (limiet bereikt). Wacht even en probeer opnieuw, of stel een token in (hogere limiet).' };
   if (status === 403) return { soort: 'rechten', melding: `GitHub weigert de toegang (403)${wat}. Controleer dat het token "Contents: Read and write" heeft voor deze repository.` };
   if (status === 404) return { soort: 'niet-gevonden', melding: `Niet gevonden op GitHub (404)${wat}. Controleer owner, repository en branch in Instellingen, en of het token toegang heeft tot deze repository.` };
+  // 422 = sha-conflict ("sha wasn't supplied / does not match") óf een andere validatiefout van de API
+  if (status === 422 && apiMelding && !/sha|match|conflict/i.test(apiMelding)) return { soort: 'onbekend', melding: `GitHub weigert de inhoud (422)${wat}. Probeer opnieuw of exporteer het ontwerp als JSON.` };
   if (status === 409 || status === 422) return { soort: 'conflict', melding: `Het bestand werd intussen op GitHub gewijzigd (${status})${wat}. Kies eerst "Ophalen van GitHub" en probeer dan opnieuw.` };
   if (status >= 500) return { soort: 'onbekend', melding: `GitHub heeft een storing (${status}). Probeer later opnieuw; je werk blijft lokaal bewaard.` };
   return { soort: 'onbekend', melding: `Onverwacht antwoord van GitHub bij ${actie} (${status})${wat}.` };
@@ -172,7 +174,9 @@ export class GitHubClient {
     if (res.ok) return res;
     if (res.status === 404 && actie === 'lezen-bestand') return null;
     const limietOp = res.headers?.get?.('x-ratelimit-remaining') === '0';
-    const { soort, melding } = githubFoutmelding(res.status, { limietOp, actie, doel });
+    let apiMelding = '';
+    if (res.status === 422) { try { apiMelding = String((await res.json())?.message || ''); } catch { /* geen body */ } }
+    const { soort, melding } = githubFoutmelding(res.status, { limietOp, actie, doel, apiMelding });
     throw new GitHubFout(melding, { status: res.status, soort });
   }
 
