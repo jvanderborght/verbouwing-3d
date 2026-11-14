@@ -4,7 +4,7 @@
 // Het GitHub-token leeft ENKEL in localStorage van deze browser. Het wordt nooit gelogd
 // en komt nooit in foutmeldingen terecht.
 
-import { naarJson } from '../model/index.js';
+import { naarJson, migreer } from '../model/index.js';
 
 const PREFIX = 'verbouwing3d.';
 export const SLEUTELS = {
@@ -52,7 +52,7 @@ export class LokaleOpslag {
     } catch { return []; }
   }
 
-  // ---- werkkopieën: { model, basisHash, basisSha, basisTijd } per ontwerp-id
+  // ---- werkkopieën: { model, basisHash, basisSha, basisTijd, hashVersie? } per ontwerp-id
   werkkopie(id) {
     const r = this.leesJson(SLEUTELS.ontwerp(id));
     return r && r.model && typeof r.model === 'object' ? r : null;
@@ -99,8 +99,44 @@ export function hashTekst(str) {
   return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(16).padStart(14, '0');
 }
 
-/** Hash van een model in zijn canonieke JSON-vorm (zoals in designs/*.json). */
-export const modelHash = (model) => (model ? hashTekst(naarJson(model)) : null);
+/**
+ * Stabiele serialisatie: sleutels van objecten alfabetisch (recursief), lijsten in hun volgorde.
+ * Twee modellen met dezelfde inhoud maar een andere sleutelvolgorde (bv. een generatorscript dat `trappen` vóór `niveaus`
+ * zet) geven zo dezelfde tekst.
+ */
+export function stabieleJson(x) {
+  const orden = (v) => {
+    if (Array.isArray(v)) return v.map(orden);
+    if (v && typeof v === 'object') {
+      const uit = {};
+      for (const k of Object.keys(v).sort()) if (v[k] !== undefined) uit[k] = orden(v[k]);
+      return uit;
+    }
+    return v;
+  };
+  return JSON.stringify(orden(x));
+}
+
+/**
+ * Versie van de hashfunctie. 1 = hash van naarJson (sleutelvolgorde telde mee, geen migratie);
+ * 2 = hash van de stabiele serialisatie van het naar de huidige schemaVersie gemigreerde model.
+ * Werkkopieën bewaren de versie (`hashVersie`); oudere basis-hashes worden bij het laden omgezet (varianten.js).
+ */
+export const HASH_VERSIE = 2;
+
+/**
+ * Hash van een model: eerst gemigreerd naar de huidige schemaVersie, dan stabiel geserialiseerd. Een v1-werkkopie en
+ * hetzelfde ontwerp als v2-bestand (met eventueel een andere sleutelvolgorde) krijgen dus dezelfde hash.
+ */
+export function modelHash(model) {
+  if (!model) return null;
+  let m = model;
+  try { m = migreer(model); } catch { /* nieuwere versie dan de app kent: ongewijzigd hashen */ }
+  return hashTekst(stabieleJson(m));
+}
+
+/** Hash zoals vóór HASH_VERSIE 2 (naarJson, zonder migratie). Enkel om oude basis-hashes te herkennen. */
+export const oudeModelHash = (model) => (model ? hashTekst(naarJson(model)) : null);
 
 // ---------------------------------------------------------------- base64 (UTF-8-correct)
 

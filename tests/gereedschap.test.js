@@ -19,9 +19,10 @@ class NepStorage {
 }
 
 test('gereedschappen: volgorde, modi en acties', () => {
-  assert.deepEqual(GEREEDSCHAPPEN.map((g) => g.id), ['selecteren', 'muur', 'deur', 'raam', 'ruimte', 'verwijderen', 'niveau', 'dak']);
+  assert.deepEqual(GEREEDSCHAPPEN.map((g) => g.id), ['selecteren', 'muur', 'deur', 'raam', 'ruimte', 'verwijderen', 'trap', 'inrichting', 'afbraak', 'niveau', 'zolder', 'dak']);
   assert.equal(gereedschapInfo('selecteren').modus, 'navigeren');
-  for (const id of ['muur', 'deur', 'raam', 'ruimte', 'verwijderen']) assert.ok(isTekengereedschap(id), id);
+  for (const id of ['muur', 'deur', 'raam', 'ruimte', 'verwijderen', 'trap', 'inrichting', 'afbraak']) assert.ok(isTekengereedschap(id), id);
+  assert.ok(gereedschapInfo('zolder').actie && !isTekengereedschap('zolder'));
   assert.ok(!isTekengereedschap('selecteren'));
   assert.ok(gereedschapInfo('niveau').actie && gereedschapInfo('dak').actie);
   assert.ok(!isTekengereedschap('niveau'));
@@ -33,7 +34,7 @@ test('gereedschappen: volgorde, modi en acties', () => {
 
 test('opties: normaliseren vult aan en weigert ongeldige waarden', () => {
   const std = normaliseerOpties(null);
-  assert.deepEqual(std, { muur: { ...STANDAARD_OPTIES.muur }, deur: { ...STANDAARD_OPTIES.deur }, raam: { ...STANDAARD_OPTIES.raam } });
+  assert.deepEqual(std, { muur: { ...STANDAARD_OPTIES.muur }, deur: { ...STANDAARD_OPTIES.deur }, raam: { ...STANDAARD_OPTIES.raam }, trap: { ...STANDAARD_OPTIES.trap }, inrichting: { ...STANDAARD_OPTIES.inrichting } });
   assert.deepEqual(STANDAARD_OPTIES.deur, { breedte: 900, hoogte: 2100, borstwering: 0, status: 'nieuw' });
   assert.deepEqual(STANDAARD_OPTIES.raam, { breedte: 1200, hoogte: 1400, borstwering: 900, status: 'nieuw' });
   const o = normaliseerOpties({ muur: { dikte: 175.4, status: 'afbraak' }, deur: { breedte: -5, status: 'raar' }, raam: { borstwering: 0 } });

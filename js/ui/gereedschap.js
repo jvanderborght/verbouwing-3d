@@ -5,8 +5,10 @@
 // - opbouw van de hulplaag (toonHulp) voor voorbeelden: muur, verplaatsing, opening
 // - kleine rekenhulpjes (px → mm tolerantie, hoek, lengte-tekst)
 
-import { STATUSSEN } from '../model/schema.js';
-import { muurDeelRechthoek } from '../model/geometry.js';
+import { STATUSSEN, TRAP_TYPES, DRAAIRICHTINGEN, INRICHTING_SOORTEN } from '../model/schema.js';
+import { muurDeelRechthoek, muurRechthoek, puntInPolygoon } from '../model/geometry.js';
+import { applyOps } from '../model/operations.js';
+import { trapGeometrie } from '../model/trappen.js';
 
 /** Gereedschappen in de taakbalk. `modus` = modus van de plattegrond; `actie` = opent enkel een dialoog. */
 export const GEREEDSCHAPPEN = Object.freeze([
@@ -16,7 +18,12 @@ export const GEREEDSCHAPPEN = Object.freeze([
   { id: 'raam', label: 'Raam plaatsen', kort: 'Raam', modus: 'gereedschap', toets: 'r' },
   { id: 'ruimte', label: 'Ruimte benoemen', kort: 'Ruimte', modus: 'gereedschap', toets: 'n' },
   { id: 'verwijderen', label: 'Verwijderen', kort: 'Wissen', modus: 'gereedschap', toets: 'x' },
+  // fase 5
+  { id: 'trap', label: 'Trap plaatsen', kort: 'Trap', modus: 'gereedschap', toets: 't' },
+  { id: 'inrichting', label: 'Inrichting plaatsen (sanitair, meubels)', kort: 'Inrichting', modus: 'gereedschap', toets: 'i' },
+  { id: 'afbraak', label: 'Afbraakzone (gebouwdeel afbreken)', kort: 'Afbraak', modus: 'gereedschap', toets: 'a' },
   { id: 'niveau', label: 'Niveau toevoegen', kort: 'Niveau +', actie: true },
+  { id: 'zolder', label: 'Zolder toevoegen (onder het dak)', kort: 'Zolder', actie: true },
   { id: 'dak', label: 'Dak instellen', kort: 'Dak', actie: true },
 ]);
 
@@ -32,7 +39,14 @@ export const STANDAARD_OPTIES = Object.freeze({
   muur: Object.freeze({ dikte: 140, status: 'nieuw' }),
   deur: Object.freeze({ breedte: 900, hoogte: 2100, borstwering: 0, status: 'nieuw' }),
   raam: Object.freeze({ breedte: 1200, hoogte: 1400, borstwering: 900, status: 'nieuw' }),
+  // fase 5 — vertrekwaarden van het gereedschap (geen normen; de gebruiker past ze aan)
+  trap: Object.freeze({ type: 'halfdraai', breedte: 800, draairichting: 'links', richting: 0, status: 'nieuw' }),
+  inrichting: Object.freeze({ soort: 'lavabo', plaatsing: 'wand', rotatie: 0, status: 'nieuw' }),
 });
+
+/** Plaatsing van inrichting: 'wand' = automatisch tegen een wand van de aangetikte ruimte, 'punt' = middelpunt op het tikpunt. */
+export const PLAATSINGEN = Object.freeze(['wand', 'punt']);
+export const HOEKEN = Object.freeze([0, 90, 180, 270]);
 
 export const OPTIE_SLEUTEL = 'verbouwing3d.gereedschapOpties';
 
@@ -58,7 +72,30 @@ export function normaliseerOpties(ruw) {
       status: STATUSSEN.includes(o.status) ? o.status : s.status,
     };
   }
+  const t = r.trap || {};
+  const st = STANDAARD_OPTIES.trap;
+  uit.trap = {
+    type: TRAP_TYPES.includes(t.type) ? t.type : st.type,
+    breedte: binnen(t.breedte, 300, 5000) ? Math.round(t.breedte) : st.breedte,
+    draairichting: DRAAIRICHTINGEN.includes(t.draairichting) ? t.draairichting : st.draairichting,
+    richting: isGetal(t.richting) ? normHoek(t.richting) : st.richting,
+    status: STATUSSEN.includes(t.status) ? t.status : st.status,
+  };
+  const i = r.inrichting || {};
+  const si = STANDAARD_OPTIES.inrichting;
+  uit.inrichting = {
+    soort: INRICHTING_SOORTEN.includes(i.soort) ? i.soort : si.soort,
+    plaatsing: PLAATSINGEN.includes(i.plaatsing) ? i.plaatsing : si.plaatsing,
+    rotatie: isGetal(i.rotatie) ? normHoek(i.rotatie) : si.rotatie,
+    status: STATUSSEN.includes(i.status) ? i.status : si.status,
+  };
   return uit;
+}
+
+/** Hoek in [0, 360), afgerond op 0,1°. */
+export function normHoek(a) {
+  const h = Math.round((((a % 360) + 360) % 360) * 10) / 10;
+  return h === 360 ? 0 : h;
 }
 
 /** Leest de opties uit een Storage-achtig object. Elke fout (geblokkeerd, kapotte JSON) ⇒ standaardwaarden. */
@@ -174,7 +211,7 @@ export class MuurTekenaar {
 }
 
 /** Tekstje voor de hint in de optiebalk. */
-export function hintVoor(gereedschap, { keten = false, rechthoek = 0 } = {}) {
+export function hintVoor(gereedschap, { keten = false, rechthoek = 0, zone = 0 } = {}) {
   switch (gereedschap) {
     case 'selecteren': return 'Tik op een element om het te selecteren. Sleep een geselecteerde muur of haar eindpunten.';
     case 'muur': return keten
@@ -186,6 +223,11 @@ export function hintVoor(gereedschap, { keten = false, rechthoek = 0 } = {}) {
       : rechthoek === 2 ? 'Rechthoek: tik de tegenoverliggende hoek.'
         : 'Tik in een gesloten ruimte om ze te benoemen.';
     case 'verwijderen': return 'Tik op een muur, opening of ruimte om ze te verwijderen.';
+    case 'trap': return 'Tik de oorsprong (midden voorrand onderste trede; spiraal: middelpunt) of sleep in de looprichting. De trap gaat naar het niveau erboven.';
+    case 'inrichting': return 'Tik in een ruimte om het element te plaatsen (tegen een wand of op het tikpunt).';
+    case 'afbraak': return zone
+      ? `${zone === 1 ? '1 ruimte' : `${zone} ruimtes`} in de zone. Tik nog ruimtes aan, of kies Afbreken.`
+      : 'Tik de ruimtes van het gebouwdeel dat afgebroken wordt.';
     default: return '';
   }
 }
@@ -270,4 +312,129 @@ export function openingContour(model, item) {
 export function deltaTekst(dx, dy) {
   const f = (v) => Math.round(v).toLocaleString('nl-BE');
   return `Δx ${f(dx)} · Δy ${f(dy)} mm`;
+}
+
+// ---------------------------------------------------------------- fase 5: trap, inrichting, afbraakzone
+
+/**
+ * Het niveau waar een trap vanaf `niveauId` naartoe gaat: het niveau met het laagste peil boven dat van `niveauId`
+ * (bij voorkeur precies op peil + hoogte). → id of null.
+ */
+export function niveauErboven(model, niveauId) {
+  const n = (model?.niveaus || []).find((x) => x.id === niveauId);
+  if (!n) return null;
+  const hoger = model.niveaus.filter((x) => x.id !== n.id && x.peil > n.peil).sort((a, b) => a.peil - b.peil);
+  return hoger.find((x) => Math.abs(x.peil - (n.peil + n.hoogte)) < 1)?.id ?? hoger[0]?.id ?? null;
+}
+
+/**
+ * Looprichting (graden) van `oorsprong` naar `punt`, gesnapt op `stap` graden (90 = enkel haaks).
+ * Te korte sleep (< `min` mm) ⇒ null (de gekozen richting blijft).
+ */
+export function richtingUitSleep(oorsprong, punt, { stap = 90, min = 100 } = {}) {
+  if (!oorsprong || !punt) return null;
+  const dx = punt[0] - oorsprong[0], dy = punt[1] - oorsprong[1];
+  if (Math.hypot(dx, dy) < min) return null;
+  const a = (Math.atan2(dy, dx) * 180) / Math.PI;
+  return normHoek(Math.round(a / stap) * stap);
+}
+
+/** Parameters voor opsTrapPlaatsen uit de gereedschapsopties. */
+export function trapParameters(opties, { van, naar, oorsprong, richting }) {
+  const o = opties?.trap || STANDAARD_OPTIES.trap;
+  const p = { van, naar, type: o.type, oorsprong, richting: richting ?? o.richting, breedte: o.breedte, status: o.status };
+  if (o.type !== 'recht') p.draairichting = o.draairichting;
+  return p;
+}
+
+/**
+ * Hulplaag voor een trap in opbouw: voetafdruk (blauw = kan, rood = kan niet), treden, looplijn en een label.
+ * @param {object} model
+ * @param {object} p parameters zoals voor opsTrapPlaatsen
+ * @param {{ fout?: string|null, schaal?: number }} o
+ */
+export function hulpTrap(model, p, { fout = null, schaal = 1 } = {}) {
+  const hulp = { lijnen: [], punten: [], labels: [], polygonen: [] };
+  if (!p?.oorsprong) return hulp;
+  hulp.punten.push({ p: p.oorsprong, soort: 'snap' });
+  const item = { vanNiveau: p.van, naarNiveau: p.naar, type: p.type, oorsprong: p.oorsprong, richting: p.richting ?? 0, breedte: p.breedte };
+  if (p.draairichting) item.draairichting = p.draairichting;
+  let g = null;
+  try { g = trapGeometrie(model, item); } catch { g = null; }
+  const tekst = (t) => ({ p: [p.oorsprong[0] + 18 / (schaal || 1), p.oorsprong[1] - 18 / (schaal || 1)], tekst: t });
+  if (!g || g.fout || !g.voetafdruk) { hulp.labels.push(tekst(fout || g?.fout || 'kan niet')); return hulp; }
+  hulp.polygonen.push({ contour: g.voetafdruk, stijl: fout ? 'afbraak' : 'nieuw' });
+  for (const t of g.treden) hulp.polygonen.push({ contour: t.contour, stijl: 'voorbeeld' });
+  for (let i = 0; i + 1 < g.looplijn.length; i++) hulp.lijnen.push({ van: g.looplijn[i], naar: g.looplijn[i + 1], stijl: 'hulplijn' });
+  const m = g.maten;
+  hulp.labels.push(tekst(fout ? `kan niet: ${fout}` : `${m.aantalTreden} × ${Math.round(m.optrede * 10) / 10} mm`));
+  return hulp;
+}
+
+/** Ruimte op `niveau` die `punt` bevat (of null). */
+export function ruimteOpPunt(model, niveau, punt) {
+  if (!punt) return null;
+  return (model?.ruimtes || []).find((r) => r.niveau === niveau && Array.isArray(r.contour) && puntInPolygoon(punt, r.contour)) || null;
+}
+
+/**
+ * Parameters voor opsInrichtingPlaatsen uit de opties en een tikpunt. Plaatsing 'wand' in een ruimte ⇒ geen positie
+ * (de bewerking zoekt een plek tegen een wand); anders positie = punt en rotatie uit de opties.
+ */
+export function inrichtingParameters(model, opties, { niveau, punt }) {
+  const o = opties?.inrichting || STANDAARD_OPTIES.inrichting;
+  const r = ruimteOpPunt(model, niveau, punt);
+  const p = { soort: o.soort, niveau, status: o.status };
+  if (r) p.ruimte = r.id;
+  if (o.plaatsing === 'wand' && r) return p;
+  return { ...p, positie: [punt[0], punt[1]], rotatie: o.rotatie };
+}
+
+/** Hulplaag voor een inrichtingselement (contour uit `info.contour` van opsInrichtingPlaatsen). */
+export function hulpInrichting(contour, { tekst = '', fout = false, punt = null } = {}) {
+  const hulp = { lijnen: [], punten: [], labels: [], polygonen: [] };
+  if (contour) hulp.polygonen.push({ contour, stijl: fout ? 'afbraak' : 'nieuw' });
+  const p = contour ? contour.reduce((a, q) => [a[0] + q[0] / contour.length, a[1] + q[1] / contour.length], [0, 0]) : punt;
+  if (tekst && p) hulp.labels.push({ p, tekst });
+  return hulp;
+}
+
+/**
+ * Wat een afbraakzone-resultaat ({ ops, info }) zou doen, voor het voorbeeld en de bevestiging.
+ * → { polygonen: [{ contour, stijl: 'afbraak'|'markering' }], muren: [ids afgebroken muren], randMuren, ruimtes, tellingen }
+ */
+export function afbraakVoorbeeld(model, r) {
+  const uit = { polygonen: [], muren: [], randMuren: r?.info?.randMuren || [], ruimtes: r?.info?.ruimtes || [], tellingen: {} };
+  if (!r || r.fout || !r.ops?.length) return uit;
+  for (const id of uit.ruimtes) {
+    const ru = model.ruimtes.find((x) => x.id === id);
+    if (ru) uit.polygonen.push({ contour: ru.contour, stijl: 'afbraak' });
+  }
+  const na = applyOps(model, r.ops, { valideer: false });
+  const m = na.ok ? na.model : model;
+  const weg = [...(r.info.afbraak || []), ...(r.info.verwijderd || []).filter((id) => !uit.ruimtes.includes(id))];
+  for (const id of weg) {
+    const vind = (c) => (m[c] || []).find((x) => x.id === id) || (model[c] || []).find((x) => x.id === id);
+    const mu = vind('muren');
+    if (mu) { uit.muren.push(id); uit.polygonen.push({ contour: muurRechthoek(mu), stijl: 'afbraak' }); continue; }
+    for (const c of ['openingen', 'vloeren', 'daken', 'trappen', 'inrichting']) {
+      if (vind(c)) { uit.tellingen[c] = (uit.tellingen[c] || 0) + 1; break; }
+    }
+  }
+  uit.tellingen.muren = uit.muren.length;
+  uit.tellingen.ruimtes = uit.ruimtes.length;
+  for (const id of uit.randMuren) {
+    const mu = model.muren.find((x) => x.id === id);
+    if (mu) uit.polygonen.push({ contour: muurRechthoek(mu), stijl: 'markering' });
+  }
+  return uit;
+}
+
+/** Ruimte-id toevoegen aan of weghalen uit de afbraakzone (alle ruimtes op één niveau). → nieuwe lijst */
+export function wisselZone(model, zone, ruimteId) {
+  const r = (model?.ruimtes || []).find((x) => x.id === ruimteId);
+  if (!r) return zone.slice();
+  if (zone.includes(ruimteId)) return zone.filter((x) => x !== ruimteId);
+  const nv = zone.length ? model.ruimtes.find((x) => x.id === zone[0])?.niveau : r.niveau;
+  return nv === r.niveau ? [...zone, ruimteId] : [ruimteId];
 }

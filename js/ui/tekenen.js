@@ -4,15 +4,16 @@
 
 import {
   opsMuurTekenen, opsMuurVerplaatsen, opsMuurEindpunt, opsOpeningPlaatsen, ruimteContourBijPunt,
-  opsRuimteBenoemen, opsRuimteRechthoek, puntInPolygoon,
+  opsRuimteBenoemen, opsRuimteRechthoek, puntInPolygoon, opsTrapPlaatsen, opsInrichtingPlaatsen, opsAfbraakZone,
 } from '../model/index.js';
 import { snap, snapDelta } from './snap.js';
 import {
   MuurTekenaar, tolerantieMm, hulpMuur, hulpSlepen, openingContour, deltaTekst, mmTekst, isTekengereedschap,
-  gereedschapInfo,
+  gereedschapInfo, niveauErboven, richtingUitSleep, trapParameters, hulpTrap, inrichtingParameters, hulpInrichting,
+  ruimteOpPunt, afbraakVoorbeeld, wisselZone,
 } from './gereedschap.js';
 import { zoekElement } from './eigenschappen.js';
-import { ruimteDialoog } from './tekendialogen.js';
+import { ruimteDialoog, afbraakDialoog } from './tekendialogen.js';
 import { bevestig, meld } from './dialogen.js';
 
 const SLEEP_PX = 6;
@@ -48,6 +49,9 @@ export class Tekenen {
     this.laatsteHover = null;
     this.bezig = false;      // dialoog open ⇒ aanwijzer negeren
     this._ruimteCache = { sleutel: '', contour: null, traag: false };
+    this.zone = [];          // afbraakzone: ruimte-id's
+    this.trapDruk = null;    // trap: { oorsprong, richting|null } tijdens slepen
+    this._voorbeeldCache = { sleutel: '', model: null, r: null };
   }
 
   get plan() { return this.o.plan(); }
@@ -58,18 +62,26 @@ export class Tekenen {
   kies(id) {
     if (!gereedschapInfo(id) || gereedschapInfo(id).actie) return;
     this.annuleer({ stil: true });
+    this.zone = [];
     this.gereedschap = id;
+    // afbraakzone: een geselecteerde ruimte meteen in de zone
+    if (id === 'afbraak') {
+      const z = zoekElement(this.model, this.o.selectie());
+      if (z?.collectie === 'ruimtes') this.zone = [z.item.id];
+    }
     this.plan?.zetModus(isTekengereedschap(id) ? 'gereedschap' : 'navigeren');
     this.vernieuw();
   }
 
   /** Lopende actie afbreken (Esc, undo, ander niveau, ander ontwerp). */
   annuleer({ stil = false } = {}) {
-    const wasIets = this.tekenaar.actief || this.sleep || this.rechthoek || this.druk;
+    const wasIets = this.tekenaar.actief || this.sleep || this.rechthoek || this.druk || this.trapDruk || this.zone.length;
     this.tekenaar.stop();
     this.druk = null;
     this.sleep = null;
     this.rechthoek = null;
+    this.trapDruk = null;
+    this.zone = [];
     this.laatsteHover = null;
     this.vernieuw();
     if (!stil) this.o.opToestand?.();
@@ -78,7 +90,9 @@ export class Tekenen {
 
   /** Toestand voor de optiebalk. */
   toestand() {
-    return { gereedschap: this.gereedschap, keten: this.tekenaar.actief, rechthoek: this.rechthoek?.fase ?? 0 };
+    const naar = this.model && this.gereedschap === 'trap' ? niveauErboven(this.model, this.niveau) : null;
+    const trapNaar = naar ? (this.model.niveaus.find((n) => n.id === naar)?.naam ?? naar) : null;
+    return { gereedschap: this.gereedschap, keten: this.tekenaar.actief, rechthoek: this.rechthoek?.fase ?? 0, zone: this.zone.length, trapNaar };
   }
 
   /** Hulplaag opnieuw opbouwen na een wijziging van model, selectie of niveau. */
@@ -99,6 +113,12 @@ export class Tekenen {
       return;
     }
     if (this.rechthoek?.fase === 2) { plan.toonHulp({ punten: [{ p: this.rechthoek.p1, soort: 'snap' }] }); return; }
+    if (this.gereedschap === 'afbraak' && model) {
+      // zone opschonen (undo, ander niveau) en het voorbeeld opnieuw opbouwen
+      this.zone = this.zone.filter((id) => model.ruimtes.some((r) => r.id === id && r.niveau === this.niveau));
+      plan.toonHulp(this.zone.length ? { polygonen: this._afbraak().voorbeeld.polygonen } : null);
+      return;
+    }
     plan.toonHulp(null);
   }
 
@@ -117,7 +137,7 @@ export class Tekenen {
   verlaat() {
     this.plan?.markeer(null);
     this.laatsteHover = null;
-    if (!this.druk && !this.sleep && (this.gereedschap === 'deur' || this.gereedschap === 'raam' || this.gereedschap === 'ruimte')) this.plan?.toonHulp(null);
+    if (!this.druk && !this.sleep && !this.trapDruk && ['deur', 'raam', 'ruimte', 'trap', 'inrichting'].includes(this.gereedschap)) this.plan?.toonHulp(null);
   }
 
   /** Ingang voor plan2d.opPointer. */
@@ -129,6 +149,9 @@ export class Tekenen {
       case 'deur': case 'raam': return this._opening(e);
       case 'ruimte': return this._ruimte(e);
       case 'verwijderen': return this._verwijderen(e);
+      case 'trap': return this._trap(e);
+      case 'inrichting': return this._inrichting(e);
+      case 'afbraak': return this._afbraakPointer(e);
     }
   }
 
@@ -411,5 +434,171 @@ export class Tekenen {
     if (!z) { meld('Tik op een muur, opening of ruimte om ze te verwijderen.', 'info', { duur: 2500 }); return; }
     plan.markeer(null);
     this.o.verwijder(z.item.id);
+  }
+
+  // ---------------------------------------------------------------- trap (fase 5)
+
+  /** Resultaat van een bewerking, gecachet per sleutel en model (hover-voorbeelden mogen niet bij elke beweging alles herrekenen). */
+  _gecachet(sleutel, fn) {
+    const c = this._voorbeeldCache;
+    if (c.model === this.model && c.sleutel === sleutel) return c.r;
+    let r;
+    try { r = fn(); } catch (err) { console.error(err); r = { ops: [], fout: err.message }; }
+    Object.assign(c, { model: this.model, sleutel, r });
+    return r;
+  }
+
+  _trapParams(oorsprong, richting = null) {
+    const naar = niveauErboven(this.model, this.niveau);
+    if (!naar) return null;
+    return trapParameters(this.o.opties(), { van: this.niveau, naar, oorsprong, richting: richting ?? undefined });
+  }
+
+  _trapResultaat(p) {
+    return this._gecachet(`trap|${JSON.stringify(p)}`, () => opsTrapPlaatsen(this.model, p));
+  }
+
+  _toonTrap(p, schaal) {
+    const r = this._trapResultaat(p);
+    this.plan.toonHulp(hulpTrap(this.model, p, { fout: r.fout || null, schaal }));
+  }
+
+  _trap(e) {
+    const plan = this.plan;
+    if (e.soort === 'annuleer') { this.trapDruk = null; plan.toonHulp(null); return; }
+    const sn = this.trapDruk ? null : this._snap(e.punt, e.schaal, { ortho: false });
+    if (e.soort === 'neer') {
+      this.trapDruk = { oorsprong: sn.punt, richting: null, scherm: e.punt };
+      const p = this._trapParams(sn.punt);
+      if (p) this._toonTrap(p, e.schaal);
+      return;
+    }
+    if (e.soort === 'beweeg') {
+      if (this.trapDruk) {
+        const d = this.trapDruk;
+        d.richting = richtingUitSleep(d.oorsprong, e.punt, { stap: e.shift ? 15 : 90, min: Math.max(100, 12 / (e.schaal || 1)) }) ?? d.richting;
+        const p = this._trapParams(d.oorsprong, d.richting);
+        if (p) this._toonTrap(p, e.schaal);
+        return;
+      }
+      if (e.pointerType !== 'mouse') return;
+      const p = this._trapParams(sn.punt);
+      if (!p) { plan.toonHulp({ labels: [{ p: sn.punt, tekst: 'geen niveau erboven' }] }); return; }
+      this._toonTrap(p, e.schaal);
+      return;
+    }
+    if (e.soort === 'op') {
+      const d = this.trapDruk;
+      this.trapDruk = null;
+      if (!d) return;
+      const gesleept = Math.hypot(e.punt[0] - d.scherm[0], e.punt[1] - d.scherm[1]) * (e.schaal || 1) > 6;
+      if (!gesleept) return; // een tik volgt als 'tik'
+      this._trapPlaatsen(d.oorsprong, d.richting);
+      return;
+    }
+    if (e.soort === 'tik' || e.soort === 'dubbeltik') {
+      this.trapDruk = null;
+      this._trapPlaatsen(this._snap(e.punt, e.schaal, { ortho: false }).punt, null);
+    }
+  }
+
+  _trapPlaatsen(oorsprong, richting) {
+    const p = this._trapParams(oorsprong, richting);
+    if (!p) { meld('Er is geen niveau boven dit niveau. Voeg eerst een niveau of een zolder toe.', 'fout'); this.plan.toonHulp(null); return; }
+    if (richting != null && richting !== this.o.opties().trap.richting) this.o.opOpties?.((o) => { o.trap.richting = richting; });
+    const r = opsTrapPlaatsen(this.model, p);
+    const naam = this.model.niveaus.find((n) => n.id === p.naar)?.naam ?? p.naar;
+    if (this.o.voerUit(r, `Trap plaatsen naar ${naam}`)) {
+      this.plan.toonHulp(null);
+      meld(`Trap ${r.info.id} geplaatst: ${r.info.maten.aantalTreden} optreden van ${Math.round(r.info.maten.optrede * 10) / 10} mm naar ${naam}.`, 'ok', { duur: 3500 });
+    }
+  }
+
+  /** Richtingknoppen in de optiebalk: richting wijzigen (het voorbeeld volgt bij de volgende beweging). */
+  zetTrapRichting(richting) {
+    this.o.opOpties?.((o) => { o.trap.richting = richting; });
+  }
+
+  // ---------------------------------------------------------------- inrichting (fase 5)
+
+  _inrichtingResultaat(punt) {
+    const p = inrichtingParameters(this.model, this.o.opties(), { niveau: this.niveau, punt });
+    const sleutel = p.positie ? `inr|${JSON.stringify(p)}` : `inr|${p.soort}|${p.ruimte}|${p.status}`;
+    return { p, r: this._gecachet(sleutel, () => opsInrichtingPlaatsen(this.model, p)) };
+  }
+
+  _rasterPunt(p, stap = 50) { return [Math.round(p[0] / stap) * stap, Math.round(p[1] / stap) * stap]; }
+
+  _inrichting(e) {
+    const plan = this.plan;
+    if (e.soort === 'annuleer') { plan.toonHulp(null); return; }
+    const punt = this._rasterPunt(e.punt);
+    if (e.soort === 'beweeg') {
+      if (e.pointerType !== 'mouse') return;
+      const { p, r } = this._inrichtingResultaat(punt);
+      plan.markeer(p.ruimte ?? null);
+      plan.toonHulp(r.fout ? hulpInrichting(null, { tekst: 'past hier niet', punt }) : hulpInrichting(r.info.contour, { tekst: p.soort }));
+      return;
+    }
+    if (e.soort !== 'tik' && e.soort !== 'dubbeltik') return;
+    const { p, r } = this._inrichtingResultaat(punt);
+    const waar = p.ruimte ? ` in ${this.model.ruimtes.find((x) => x.id === p.ruimte)?.naam ?? p.ruimte}` : '';
+    if (this.o.voerUit(r, `${p.soort} plaatsen${waar}`)) {
+      plan.toonHulp(hulpInrichting(r.info.contour, {}));
+      meld(`${p.soort[0].toUpperCase()}${p.soort.slice(1)} geplaatst${waar} (${r.info.id}).`, 'ok', { duur: 2200 });
+    }
+  }
+
+  // ---------------------------------------------------------------- afbraakzone (fase 5)
+
+  /** Bewerking + voorbeeld voor de huidige zone. */
+  _afbraak() {
+    const r = this.zone.length ? this._gecachet(`afbraak|${this.zone.join(',')}`, () => opsAfbraakZone(this.model, { ruimte: this.zone })) : null;
+    return { r, voorbeeld: afbraakVoorbeeld(this.model, r) };
+  }
+
+  _afbraakPointer(e) {
+    const plan = this.plan;
+    if (e.soort === 'beweeg') { plan.markeer(ruimteOpPunt(this.model, this.niveau, e.punt)?.id ?? null); return; }
+    if (e.soort !== 'tik' && e.soort !== 'dubbeltik') return;
+    const ru = ruimteOpPunt(this.model, this.niveau, e.punt);
+    if (!ru) { meld('Tik in een benoemde ruimte (gebruik eerst het gereedschap Ruimte als het gebied nog geen ruimte is).', 'info', { duur: 3500 }); return; }
+    this.zone = wisselZone(this.model, this.zone, ru.id);
+    const { r } = this._afbraak();
+    if (r?.fout) meld(r.fout, 'fout');
+    this.vernieuw();
+    this.o.opToestand?.();
+  }
+
+  /** Knop "Afbreken": bevestigen (met de randmuren als waarschuwing) en toepassen als één undo-stap. */
+  async afbreken() {
+    if (!this.zone.length) { meld('Tik eerst de ruimtes van het gebouwdeel aan.', 'info', { duur: 2500 }); return false; }
+    const { r, voorbeeld } = this._afbraak();
+    if (!r || r.fout) { meld(r?.fout || 'Afbraakzone kon niet berekend worden.', 'fout'); return false; }
+    const namen = this.zone.map((id) => this.model.ruimtes.find((x) => x.id === id)?.naam ?? id);
+    this.bezig = true;
+    let ok = false;
+    try {
+      await slikVolgendeKlik(50);
+      const ja = await afbraakDialoog({ namen, tellingen: voorbeeld.tellingen, randMuren: r.info.randMuren, meldingen: r.info.meldingen });
+      if (!ja) return false;
+      ok = this.o.voerUit(r, `Afbraakzone: ${namen.join(', ')}`);
+      if (ok) {
+        this.zone = [];
+        meld(`Afgebroken: ${namen.join(', ')}.${r.info.randMuren.length ? ` Mogelijk dragend: ${r.info.randMuren.join(', ')}.` : ''}`, 'ok', { duur: 5000 });
+      }
+    } finally {
+      this.bezig = false;
+      this.vernieuw();
+      this.o.opToestand?.();
+    }
+    return ok;
+  }
+
+  /** Knop "Wissen": zone leegmaken. */
+  wisZone() {
+    this.zone = [];
+    this.vernieuw();
+    this.o.opToestand?.();
   }
 }

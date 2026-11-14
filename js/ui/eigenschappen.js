@@ -3,21 +3,42 @@
 // elke wijziging wordt een `wijzigen`- of `ontwerp`-operatie (via de callback `opWijzig`).
 // Muren (fase 2): start/eind als x/y-velden (opsMuurEindpunt), bewerkbare lengte (opsMuurLengte) en hoek (info).
 // Contouren blijven alleen-lezen. Onderaan: element verwijderen (cascade; niveau met bevestiging, via opVerwijder).
+// Fase 5: trappen (oorsprong als x/y, berekende maten als info) en inrichting (positie als x/y), lijst-van-getallen
+// (`hoogtegrenzen`), en zonder selectie het programma van eisen (via ontwerpExtra van de app).
 
-import { VELDEN, ENUMS, COLLECTIE_NAMEN, polygoonOppervlakte, muurLengte, opsMuurEindpunt, opsMuurLengte } from '../model/index.js';
+import { VELDEN, ENUMS, COLLECTIE_NAMEN, polygoonOppervlakte, muurLengte, opsMuurEindpunt, opsMuurLengte, trapMaten } from '../model/index.js';
 import { h, leeg } from './dom.js';
 import { muurHoek } from './gereedschap.js';
 
-export const ENKELVOUD = { niveaus: 'Niveau', muren: 'Muur', openingen: 'Opening', ruimtes: 'Ruimte', vloeren: 'Vloer', daken: 'Dak' };
-export const MEERVOUD = { niveaus: 'Niveaus', muren: 'Muren', openingen: 'Openingen', ruimtes: 'Ruimtes', vloeren: 'Vloeren', daken: 'Daken' };
+export const ENKELVOUD = {
+  niveaus: 'Niveau', muren: 'Muur', openingen: 'Opening', ruimtes: 'Ruimte', vloeren: 'Vloer', daken: 'Dak',
+  trappen: 'Trap', inrichting: 'Inrichtingselement',
+};
+export const MEERVOUD = {
+  niveaus: 'Niveaus', muren: 'Muren', openingen: 'Openingen', ruimtes: 'Ruimtes', vloeren: 'Vloeren', daken: 'Daken',
+  trappen: 'Trappen', inrichting: 'Inrichting',
+};
 
 const LABELS = {
   id: 'Id', naam: 'Naam', peil: 'Peil', hoogte: 'Hoogte', vloerdikte: 'Vloerdikte', niveau: 'Niveau',
   start: 'Start (as)', eind: 'Eind (as)', dikte: 'Dikte', status: 'Status', muur: 'Muur', type: 'Type',
   positie: 'Positie', breedte: 'Breedte', borstwering: 'Borstwering', functie: 'Functie', contour: 'Contour',
   helling: 'Helling', nokrichting: 'Nokrichting', overstek: 'Overstek',
+  // v2
+  soort: 'Soort', hoogtegrenzen: 'Hoogtegrenzen', vanNiveau: 'Van niveau', naarNiveau: 'Naar niveau',
+  oorsprong: 'Oorsprong', richting: 'Richting', aantalTreden: 'Aantal optreden', optrede: 'Optrede', aantrede: 'Aantrede',
+  draairichting: 'Draairichting', diameter: 'Diameter', ruimte: 'Ruimte', rotatie: 'Rotatie', diepte: 'Diepte',
 };
-const EENHEID = { helling: '°' };
+/** Eenheid per veld (standaard mm). */
+export const EENHEID = { helling: '°', richting: '°', rotatie: '°', aantalTreden: 'st.' };
+/** Labels per (collectie, veld) als het algemene label misleidt. */
+const LABELS_PER = {
+  'trappen.oorsprong': 'Oorsprong (voorrand / middelpunt)',
+  'inrichting.positie': 'Positie (middelpunt)',
+  'inrichting.hoogte': 'Hoogte (vrije-hoogtecontrole)',
+  'niveaus.soort': 'Soort niveau',
+};
+export const veldLabel = (collectie, veld) => LABELS_PER[`${collectie}.${veld}`] || LABELS[veld] || veld;
 
 /** Zoekt een element op id over alle collecties. → { collectie, item } of null */
 export function zoekElement(model, id) {
@@ -29,13 +50,33 @@ export function zoekElement(model, id) {
   return null;
 }
 
-/** Niveau-id waarop een element ligt (opening → niveau van haar muur; niveau → zichzelf). */
+/** Niveau-id waarop een element ligt (opening → niveau van haar muur; niveau → zichzelf; trap → vanNiveau). */
 export function niveauVanElement(model, id) {
   const z = zoekElement(model, id);
   if (!z) return null;
   if (z.collectie === 'niveaus') return z.item.id;
   if (z.collectie === 'openingen') return (model.muren || []).find((m) => m.id === z.item.muur)?.niveau ?? null;
+  if (z.collectie === 'trappen') return z.item.vanNiveau ?? null;
   return z.item.niveau ?? null;
+}
+
+/**
+ * Alle niveaus waarop een element zichtbaar is in de plattegrond: een trap op vanNiveau én naarNiveau (trapgat),
+ * andere elementen op hun eigen niveau. De eerste is het voorkeursniveau.
+ */
+export function niveausVanElement(model, id) {
+  const z = zoekElement(model, id);
+  if (!z) return [];
+  if (z.collectie === 'trappen') return [z.item.vanNiveau, z.item.naarNiveau].filter(Boolean);
+  const n = niveauVanElement(model, id);
+  return n ? [n] : [];
+}
+
+/** Plattegrondniveau na het selecteren van `id`: blijft staan als het element ook daar zichtbaar is. */
+export function planNiveauVoorSelectie(model, id, huidig) {
+  const lijst = niveausVanElement(model, id);
+  if (!lijst.length || lijst.includes(huidig)) return huidig;
+  return lijst[0];
 }
 
 /** Element-id uit een validatiepad zoals "muren[2].dikte". */
@@ -47,6 +88,28 @@ export function elementUitPad(model, pad) {
 
 const fmtGetal = (v) => (typeof v === 'number' ? v.toLocaleString('nl-BE', { maximumFractionDigits: 1 }) : String(v));
 
+/** Lijst getallen als tekst om te bewerken: "1500, 2200" (geen duizendtallen, komma als scheiding). */
+export const getallenTekst = (lijst) => (Array.isArray(lijst) ? lijst.map((v) => String(Math.round(v * 10) / 10)).join(', ') : '');
+
+/**
+ * Leest een lijst getallen ("1500, 2200", "1500 2200", "1500; 2200"). Komma, puntkomma en spatie scheiden;
+ * elk deel via leesGetal (dus "1.500" = 1500). Leeg ⇒ { waarden: null }. Ongeldig ⇒ { fout }.
+ * Met `positief` moeten alle waarden > 0 zijn; dubbels worden weggelaten en de lijst wordt oplopend gesorteerd.
+ */
+export function leesGetallen(tekst, { positief = true, sorteer = true } = {}) {
+  const delen = String(tekst ?? '').split(/[;,\s\u00a0]+/).filter(Boolean);
+  if (!delen.length) return { waarden: null };
+  const waarden = [];
+  for (const d of delen) {
+    const v = leesGetal(d);
+    if (!Number.isFinite(v)) return { fout: `"${d}" is geen getal.` };
+    if (positief && v <= 0) return { fout: `${d}: elke waarde moet groter dan 0 zijn.` };
+    if (!waarden.includes(v)) waarden.push(v);
+  }
+  if (sorteer) waarden.sort((a, b) => a - b);
+  return { waarden };
+}
+
 /**
  * Beschrijving van de velden van een element (DOM-vrij).
  * soort: 'getal' | 'tekst' | 'keuze' | 'ref' | 'punt' | 'contour' | 'id'
@@ -55,9 +118,10 @@ const fmtGetal = (v) => (typeof v === 'number' ? v.toLocaleString('nl-BE', { max
 export function veldRijen(model, collectie, item) {
   return VELDEN[collectie].map(([veld, type, verplicht]) => {
     const waarde = item[veld];
-    const rij = { veld, label: LABELS[veld] || veld, verplicht, waarde };
+    const rij = { veld, label: veldLabel(collectie, veld), verplicht, waarde };
     if (veld === 'id') return { ...rij, soort: 'id', tekst: String(waarde) };
     if (type === 'number') return { ...rij, soort: 'getal', eenheid: EENHEID[veld] || 'mm', tekst: waarde == null ? '' : fmtGetal(waarde) };
+    if (type === 'getallen') return { ...rij, soort: 'getallen', eenheid: 'mm', tekst: getallenTekst(waarde) };
     if (type === 'string') return { ...rij, soort: 'tekst', tekst: waarde ?? '' };
     if (type.startsWith('enum:')) return { ...rij, soort: 'keuze', opties: ENUMS[type.slice(5)], tekst: waarde ?? '' };
     if (type.startsWith('ref:')) {
@@ -82,6 +146,8 @@ export function elementLabel(model, collectie, item) {
   if (collectie === 'openingen') return `${item.id} · ${item.type} ${item.breedte}×${item.hoogte} · ${item.status}`;
   if (collectie === 'daken') return `${item.id} · ${item.type} · ${item.status}`;
   if (collectie === 'vloeren') return `${item.id} · ${item.dikte} mm · ${item.status}`;
+  if (collectie === 'trappen') return `${item.id} · ${item.type} ${item.vanNiveau} → ${item.naarNiveau} · ${item.status}`;
+  if (collectie === 'inrichting') return `${item.id} · ${item.soort}${item.ruimte ? ` in ${item.ruimte}` : ''} · ${item.status}`;
   return item.id;
 }
 
@@ -108,8 +174,9 @@ export function tekenEigenschappen(el, { model, selectie, opWijzig, opSelecteer,
 
   const bewerk = opBewerking || ((r, label) => (r.fout ? { ok: false } : opWijzig(r.ops, label)));
   const lijst = h('dl', { class: 'velden' });
+  const wijzigVeld = (rij) => (waarde) => opWijzig([{ op: 'wijzigen', collectie, id: item.id, velden: { [rij.veld]: waarde } }], `${rij.label} wijzigen`);
   for (const rij of veldRijen(model, collectie, item)) {
-    const forId = rij.soort === 'punt' && collectie === 'muren' ? `veld-${rij.veld}-x` : `veld-${rij.veld}`;
+    const forId = rij.soort === 'punt' && collectie !== 'ruimtes' ? `veld-${rij.veld}-x` : `veld-${rij.veld}`;
     lijst.append(h('dt', {}, h('label', { for: forId }, rij.label, rij.verplicht ? '' : h('span', { class: 'optioneel' }, ' (optioneel)'))));
     if (rij.soort === 'punt' && collectie === 'muren') {
       lijst.append(h('dd', {}, puntInvoer(rij, (p) => bewerk(opsMuurEindpunt(model, item.id, rij.veld, p), `${rij.veld === 'start' ? 'Startpunt' : 'Eindpunt'} wijzigen`))));
@@ -123,14 +190,37 @@ export function tekenEigenschappen(el, { model, selectie, opWijzig, opSelecteer,
       }
       continue;
     }
-    lijst.append(h('dd', {}, veldInvoer(rij, (waarde) => opWijzig([{ op: 'wijzigen', collectie, id: item.id, velden: { [rij.veld]: waarde } }], `${LABELS[rij.veld] || rij.veld} wijzigen`))));
+    if (rij.soort === 'punt') {
+      lijst.append(h('dd', {}, puntInvoer(rij, wijzigVeld(rij))));
+      continue;
+    }
+    lijst.append(h('dd', {}, veldInvoer(rij, wijzigVeld(rij))));
   }
   el.append(lijst);
+  if (collectie === 'trappen') el.append(trapInfo(model, item));
   if (opVerwijder) {
     el.append(h('div', { class: 'eig-acties' },
       h('button', { type: 'button', class: 'knop gevaar', id: 'eig-verwijder', onclick: () => opVerwijder(item.id) },
         `${ENKELVOUD[collectie]} verwijderen`)));
   }
+}
+
+/** Berekende maten van een trap (alleen-lezen). */
+export function trapInfoTekst(model, trap) {
+  let m;
+  try { m = trapMaten(model, trap); } catch { return 'Maten konden niet berekend worden.'; }
+  if (m.fout) return m.fout;
+  const f = (v) => fmtGetal(Math.round(v * 10) / 10);
+  const b = (k) => (m.berekend[k] ? ' (berekend)' : '');
+  const delen = [`${m.aantalTreden} optreden${b('aantalTreden')} van ${f(m.optrede)} mm${b('optrede')}`, `aantrede ${f(m.aantrede)} mm${b('aantrede')}`];
+  if (m.hoogteverschil != null) delen.push(`hoogteverschil ${f(m.hoogteverschil)} mm`);
+  if (m.diameter) delen.push(`diameter ${f(m.diameter)} mm`);
+  return delen.join(' · ');
+}
+
+function trapInfo(model, trap) {
+  return h('p', { class: 'eig-info', id: 'trap-info' }, trapInfoTekst(model, trap),
+    h('br'), h('span', { class: 'veld-uitleg' }, 'Werkwaarden, geen norm. Trapgrenzen worden enkel getoetst als ze in de instellingen ingevuld zijn.'));
 }
 
 /** Twee getalvelden (x, y) voor een punt; wijzigen ⇒ wijzig([x, y]). Geweigerd ⇒ oude waarden terug. */
@@ -171,6 +261,16 @@ function veldInvoer(rij, wijzig) {
       const v = leesGetal(t);
       if (!Number.isFinite(v)) { terug(inp, rij.waarde ?? ''); return; }
       if (!wijzig(v).ok) terug(inp, rij.waarde ?? '');
+    });
+    return h('div', { class: 'invoer-met-eenheid' }, inp, h('span', { class: 'eenheid' }, rij.eenheid));
+  }
+  if (rij.soort === 'getallen') {
+    const vorige = getallenTekst(rij.waarde);
+    const inp = h('input', { id, type: 'text', inputmode: 'decimal', value: vorige, 'data-veld': rij.veld, autocomplete: 'off', placeholder: rij.verplicht ? '' : 'bv. 1500, 2200', title: 'Getallen gescheiden door komma of spatie' });
+    inp.addEventListener('change', () => {
+      const r = leesGetallen(inp.value);
+      if (r.fout || (r.waarden == null && rij.verplicht)) { terug(inp, vorige); return; }
+      if (!wijzig(r.waarden).ok) terug(inp, vorige);
     });
     return h('div', { class: 'invoer-met-eenheid' }, inp, h('span', { class: 'eenheid' }, rij.eenheid));
   }

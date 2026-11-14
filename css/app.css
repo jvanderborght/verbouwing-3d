@@ -730,3 +730,54 @@ input[type="range"] { accent-color: var(--accent); width: 160px; height: var(--k
   .ai-acties .knop, .ai-rij .knop { min-height: 44px; }
   body.ai-open .meldingen { bottom: calc(62dvh + 8px); }
 }
+
+/* ---------------------------------------------------------------- fase 5: trap, inrichting, afbraak, programma */
+.hoogtelijnen .hl-grenzen { width: 9em; }
+.hoogtelijnen .hl-grenzen:disabled { opacity: .5; }
+.opt-info { font-size: 13px; font-weight: 600; color: var(--tekst); white-space: nowrap; }
+.opt-keuze { max-width: 11em; }
+.eig-info { font-size: 13px; color: var(--tekst); background: var(--vlak-2); border: 1px solid var(--rand); border-radius: var(--radius); padding: 6px 10px; margin: -6px 0 14px; }
+
+.dlg-waarschuwing { font-size: 13.5px; color: var(--let-op); background: var(--let-op-zacht); border: 1px solid color-mix(in srgb, var(--let-op) 40%, transparent); border-radius: var(--radius); padding: 8px 10px; margin: 8px 0; }
+.afbraak-lijst { margin: 4px 0 8px; padding-left: 20px; }
+
+.programma-blok { margin: 4px 0 14px; padding: 10px 12px 8px; border: 1px solid var(--rand); border-radius: var(--radius); background: var(--vlak-2); }
+.blok-kop { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.blok-kop h3 { margin: 0; font-size: 14px; text-transform: uppercase; letter-spacing: .05em; color: var(--tekst-zacht); }
+.programma-beschrijving { margin: 4px 0; font-size: 13px; }
+.programma-samenvatting { margin: 4px 0 6px; font-size: 13px; font-weight: 600; }
+.toets-lijst { list-style: none; margin: 0 0 6px; padding: 0; display: grid; gap: 4px; }
+.toets details { border: 1px solid var(--rand); border-radius: var(--radius); background: var(--vlak); }
+.toets summary { padding: 6px 8px; cursor: pointer; font-size: 13px; display: flex; align-items: baseline; gap: 6px; list-style: none; }
+.toets summary::-webkit-details-marker { display: none; }
+.toets-label { min-width: 0; word-break: break-word; }
+.toets-uitleg { margin: 0; padding: 0 8px 8px; font-size: 12.5px; color: var(--tekst-zacht); word-break: break-word; }
+.toets-chip { flex: none; font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
+.toets-chip-voldoet { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
+.toets-chip-voldoet-niet { background: var(--gevaar-zacht); color: var(--gevaar); }
+.toets-chip-onbekend { background: var(--let-op-zacht); color: var(--let-op); }
+.toets-voldoet-niet details { border-left: 3px solid var(--gevaar); }
+.toets-voldoet details { border-left: 3px solid var(--ok); }
+.toets-onbekend details { border-left: 3px solid var(--let-op); }
+
+.programma-dialoog textarea { width: 100%; margin-bottom: 8px; }
+.eis-lijst { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 8px; }
+.eis { border: 1px solid var(--rand); border-radius: var(--radius); padding: 8px 10px; background: var(--vlak-2); }
+.eis-kop { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.eis-kop strong { flex: 1; }
+.eis-velden { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px 10px; }
+.eis-veld { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.eis-veld.breed { grid-column: 1 / -1; }
+.eis-veld select, .eis-veld input[type="text"] { width: 100%; margin: 0; }
+.eis-veld .veld-label { font-size: 12px; margin: 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; padding: 2px 8px; border: 1px solid var(--rand); border-radius: 999px; background: var(--vlak); cursor: pointer; min-height: 30px; }
+.chip:has(input:checked) { border-color: color-mix(in srgb, var(--accent) 45%, var(--rand)); background: var(--accent-zacht); }
+.eis-toevoegen { display: flex; gap: 8px; flex-wrap: wrap; }
+
+@media (max-width: 799.98px) {
+  .eis-velden { grid-template-columns: 1fr 1fr; }
+  .chip { min-height: 36px; font-size: 14px; }
+  .toets summary { min-height: 40px; align-items: center; }
+  .hoogtelijnen .hl-grenzen { font-size: 16px; }
+}

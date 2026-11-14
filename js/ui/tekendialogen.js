@@ -169,3 +169,91 @@ export async function dakDialoog(model, niveauId) {
     nokrichting: selNok.value, overstek: waarden.overstek, status: selStatus.value,
   };
 }
+
+/** Niveaus met een hellend dak (status ≠ afbraak), van laag naar hoog: kandidaten om een zolder onder te maken. */
+export function zolderKandidaten(model) {
+  return [...model.niveaus].sort((a, b) => a.peil - b.peil)
+    .filter((n) => model.daken.some((d) => d.niveau === n.id && d.status !== 'afbraak' && d.type !== 'plat' && d.helling > 0));
+}
+
+/**
+ * Zolder toevoegen onder het hellende dak van een niveau (fase 5).
+ * @returns {Promise<{ onderNiveau, naam, vloerdikte?, status }|null>}
+ */
+export async function zolderDialoog(model, niveauId) {
+  const kandidaten = zolderKandidaten(model);
+  if (!kandidaten.length) {
+    await dialoog({
+      titel: 'Zolder toevoegen',
+      inhoud: h('p', {}, 'Geen enkel niveau heeft een hellend dak. Een zolder komt onder een hellend dak; stel eerst een dak in (knop Dak).'),
+      knoppen: [{ label: 'Sluiten', waarde: null }],
+    });
+    return null;
+  }
+  const standaard = kandidaten.find((n) => n.id === niveauId) || kandidaten[kandidaten.length - 1];
+  const selOnder = h('select', { id: 'dlg-zolder-onder' }, ...kandidaten.map((n) => h('option', { value: n.id, selected: n.id === standaard.id }, `${n.naam} (${n.id})`)));
+  const inpNaam = h('input', { id: 'dlg-zolder-naam', type: 'text', value: 'Zolder', autocomplete: 'off' });
+  const inpDikte = getalInvoer('dlg-zolder-dikte', '');
+  inpDikte.placeholder = 'zoals het niveau eronder';
+  const selStatus = keuze('dlg-zolder-status', STATUSSEN, 'nieuw');
+  const fout = foutRegel();
+  let dikte = null;
+  const r = await dialoog({
+    titel: 'Zolder toevoegen',
+    inhoud: [
+      h('p', {}, 'Nieuw niveau (soort zolder) op de bovenkant van het gekozen niveau. De vloer volgt de contour van het hellende dak; het dak blijft op het niveau eronder rusten. De verdiepingshoogte wordt de nokhoogte.'),
+      veld('dlg-zolder-onder', 'Onder het dak van', selOnder),
+      veld('dlg-zolder-naam', 'Naam', inpNaam),
+      veld('dlg-zolder-dikte', 'Vloerdikte (mm, optioneel)', inpDikte),
+      veld('dlg-zolder-status', 'Status van de vloer', selStatus),
+      fout,
+    ],
+    knoppen: [{ label: 'Annuleren', waarde: null }, {
+      label: 'Toevoegen', waarde: 'ok', soort: 'primair',
+      controle: () => {
+        if (!inpNaam.value.trim()) { fout.textContent = 'Geef een naam.'; fout.hidden = false; return false; }
+        if (!inpDikte.value.trim()) { dikte = null; return true; }
+        const w = leesGetallen([{ inp: inpDikte, sleutel: 'd', naam: 'Vloerdikte', min: 20, max: 2000 }], fout);
+        dikte = w?.d ?? null;
+        return !!w;
+      },
+    }],
+    bijOpenen: () => { selOnder.focus(); },
+  });
+  if (r !== 'ok') return null;
+  const uit = { onderNiveau: selOnder.value, naam: inpNaam.value.trim(), status: selStatus.value };
+  if (dikte != null) uit.vloerdikte = dikte;
+  return uit;
+}
+
+/**
+ * Bevestiging van een afbraakzone met wat er gebeurt en de randmuren als waarschuwing.
+ * @param {{ ruimtes: string[], tellingen: object, randMuren: string[], meldingen: string[], namen: string[] }} o
+ * @returns {Promise<boolean>}
+ */
+export async function afbraakDialoog({ namen = [], tellingen = {}, randMuren = [], meldingen = [] }) {
+  const t = (n, een, meer) => `${n} ${n === 1 ? een : meer}`;
+  const regels = [];
+  if (tellingen.muren) regels.push(`${t(tellingen.muren, 'muur(stuk)', 'muurstukken')} op afbraak`);
+  if (tellingen.openingen) regels.push(`${t(tellingen.openingen, 'opening', 'openingen')} op afbraak`);
+  if (tellingen.vloeren) regels.push(`${t(tellingen.vloeren, 'vloer', 'vloeren')} op afbraak`);
+  if (tellingen.daken) regels.push(`${t(tellingen.daken, 'dak', 'daken')} op afbraak`);
+  if (tellingen.trappen) regels.push(`${t(tellingen.trappen, 'trap', 'trappen')} op afbraak`);
+  if (tellingen.inrichting) regels.push(`${t(tellingen.inrichting, 'inrichtingselement', 'inrichtingselementen')} op afbraak`);
+  regels.push(`${t(namen.length, 'ruimte', 'ruimtes')} verwijderd (${namen.join(', ')})`);
+  const andere = meldingen.filter((m) => !/^Blijvende muren/.test(m));
+  const r = await dialoog({
+    titel: 'Gebouwdeel afbreken?',
+    klasse: 'breed',
+    inhoud: [
+      h('ul', { class: 'afbraak-lijst' }, ...regels.map((x) => h('li', {}, x))),
+      randMuren.length ? h('div', { class: 'dlg-waarschuwing', id: 'afbraak-randmuren' },
+        h('strong', {}, 'Mogelijk dragend: '),
+        `deze muren blijven staan maar liggen op de rand van de zone (worden mogelijk buitengevel): ${randMuren.join(', ')}. Laat dit nagaan door een architect of ingenieur.`) : null,
+      andere.length ? h('ul', { class: 'dlg-info' }, ...andere.map((x) => h('li', {}, x))) : null,
+      h('p', { class: 'veld-uitleg' }, 'Eén stap: ongedaan maken kan.'),
+    ],
+    knoppen: [{ label: 'Annuleren', waarde: null }, { label: 'Afbreken', waarde: true, soort: 'gevaar' }],
+  });
+  return r === true;
+}
