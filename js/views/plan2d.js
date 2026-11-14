@@ -164,8 +164,9 @@ export class Plattegrond {
   /** @param {'navigeren'|'gereedschap'} modus */
   zetModus(modus) {
     const m = modus === 'gereedschap' ? 'gereedschap' : 'navigeren';
-    if (m === this._modus) return;
+    // ook bij dezelfde modus een lopend gebaar afbreken (bv. wissel Muur → Deur tijdens indrukken)
     this._annuleerActie();
+    if (m === this._modus) return;
     this._modus = m;
     this._vorigeTik = null;
     this._zetCursor();

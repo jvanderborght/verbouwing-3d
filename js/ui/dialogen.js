@@ -55,7 +55,7 @@ export async function vraagTekst(titel, label, standaard = '', { ok = 'OK', uitl
 // ---------------------------------------------------------------- meldingen (toasts)
 
 let houder;
-/** Korte melding onderaan. soort: 'info' | 'ok' | 'fout'. Fouten blijven staan tot ze gesloten worden. */
+/** Korte melding onderaan. soort: 'info' | 'ok' | 'fout'. Fouten blijven langer staan (9 s) maar verdwijnen vanzelf, zodat ze de plattegrond niet blijven bedekken. */
 export function meld(tekst, soort = 'info', { duur } = {}) {
   houder ||= document.getElementById('meldingen');
   if (!houder) return;
@@ -65,7 +65,7 @@ export function meld(tekst, soort = 'info', { duur } = {}) {
     h('button', { type: 'button', class: 'melding-sluit', 'aria-label': 'Melding sluiten', onclick: sluit }, '×'));
   houder.append(el);
   while (houder.children.length > 4) houder.firstChild.remove();
-  const d = duur ?? (soort === 'fout' ? 0 : 4500);
+  const d = duur ?? (soort === 'fout' ? 9000 : 4500);
   if (d) setTimeout(sluit, d);
   return el;
 }

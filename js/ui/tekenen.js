@@ -169,7 +169,12 @@ export class Tekenen {
         plan.toonHulp(hulpSlepen(this.model, s.r.ops, { id: s.muur.id, schaal: e.schaal, label }));
       } else {
         const ander = s.welk === 'start' ? s.muur.eind : s.muur.start;
-        const sn = this._snap(e.punt, e.schaal, { vanaf: ander, negeer: [s.muur.id] });
+        // negeer ook muren die aan dit eindpunt aansluiten: die schuiven mee, hun oude ligging is geen geldig snapdoel
+        s.negeer ||= [s.muur.id, ...this.model.muren
+          .filter((B) => B.id !== s.muur.id && B.niveau === s.muur.niveau
+            && [B.start, B.eind].some((p) => Math.hypot(p[0] - s.muur[s.welk][0], p[1] - s.muur[s.welk][1]) <= 1))
+          .map((B) => B.id)];
+        const sn = this._snap(e.punt, e.schaal, { vanaf: ander, negeer: s.negeer });
         s.r = opsMuurEindpunt(this.model, s.muur.id, s.welk, sn.punt);
         const label = s.r.fout ? { p: sn.punt, tekst: 'kan niet' } : null;
         plan.toonHulp(hulpSlepen(this.model, s.r.ops, { id: s.muur.id, snap: sn, schaal: e.schaal, label }));

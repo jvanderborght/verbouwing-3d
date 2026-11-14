@@ -1,6 +1,6 @@
 # Status
 
-_Laatst bijgewerkt: 2026-11-14 — fase 2 loopt; bestaande toestand (schatting) toegevoegd._
+_Laatst bijgewerkt: 2026-11-14 — fase 2 afgerond (QA), bestaande toestand (schatting) toegevoegd._
 
 ## Live
 - App: https://jvanderborght.github.io/verbouwing-3d/ (GitHub Pages via Actions; deploy bij elke push naar `main`).
@@ -19,7 +19,23 @@ _Laatst bijgewerkt: 2026-11-14 — fase 2 loopt; bestaande toestand (schatting) 
 - `designs/bestaand.json`: **Bestaande toestand (schatting)** — enkel breedte 7 m en perceel 14 m zijn gegeven; rest geschat uit één straatfoto (±10–20 %) of aangenomen (diepte 9 m, binnenindeling onbekend). Details, bronnen en open vragen: `docs/BESTAAND.md`.
 - `designs/voorbeeld.json`: FICTIEF testhuis (7 m breed, perceel 14 m; rest aannames). `designs/prijzen.json`: leeg sjabloon.
 
+## Fase 2 — tekengereedschap ✅ (QA goedgekeurd)
+- Taakbalk: Selecteren · Muur · Deur · Raam · Ruimte · Verwijderen · Niveau + · Dak (telefoon: onderaan, scrollbaar; sneltoetsen V M D R N X).
+- Muur tekenen als keten (tik/klik of slepen), getypte lengte + Enter, richtingknoppen op touch; stoppen met Esc/dubbeltik/Klaar.
+- Snapping (`js/ui/snap.js`): raster 50 mm, eindpunten, midden, langs muren, uitlijning, ortho; live voorbeeld met maat.
+- Selecteren: muur verslepen (aansluitende muren volgen), eindpunt-grepen, Delete.
+- Deur/raam op een muur tikken; ruimte benoemen met automatische contourdetectie (`ruimteContourBijPunt`) of rechthoek.
+- Niveau toevoegen (muren kopiëren buiten/alle/geen), dak instellen per niveau.
+- Eigenschappenpaneel: x/y van muureindpunten en muurlengte bewerkbaar.
+- Hoog-niveau bewerkingen in `js/model/bewerkingen.js` (getest). Elke actie = één undo-stap.
+- App-commits naar GitHub krijgen het anonieme noreply-adres als auteur (niet meer het account-e-mailadres).
+- Tests: 124+.
+
 ## Bekende beperkingen
+- Ruimtes volgen niet mee als muren verschuiven; openingen niet versleepbaar (wel via positie in eigenschappen).
+- Muur verslepen trekt aansluitende muren scheef (geen optie om dat uit te zetten).
+- Eén app-commit (`f2205d2`) van vóór deze fix bevat nog het account-e-mailadres.
+- DWG/SketchUp-bestanden kunnen hier niet ingelezen worden (geen parser; bouwen van LibreDWG niet toegestaan). Graag DXF/DAE/OBJ of PDF aanleveren — buiten de repo.
 - GitHub-opslag enkel getest tegen een nagebootste API; eerste echte test door gebruiker nodig (token aanmaken: zie Instellingen in de app).
 - Na opslaan loopt Pages enkele minuten achter; "Ophalen van GitHub" haalt altijd de actuele versie.
 - Verwijderen van een variant gebeurt enkel lokaal (niet op GitHub).
@@ -30,8 +46,7 @@ _Laatst bijgewerkt: 2026-11-14 — fase 2 loopt; bestaande toestand (schatting) 
 - Repo blijft anoniem (CLAUDE.md regel 8): geen adres, foto's of plannen in git; enkel afgeleide maten.
 
 ## Volgende stappen
-1. Gebruiker: live app openen op laptop + telefoon; fine-grained token aanmaken (enkel deze repo, Contents read/write) en "Opslaan naar GitHub" testen.
-2. Fase 2: tekengereedschap (muur tekenen/verplaatsen/verwijderen, opening, ruimte, niveau, dak), snapping 50 mm + op muren, exacte maten.
-3. Fase 3: kerncijfers, kostenraming (prijzen.json), vergelijkweergave.
-4. Fase 4: promptveld (Anthropic API, eigen key) + "genereer N varianten".
-5. Bestaande toestand verfijnen: open vragen in `docs/BESTAAND.md` beantwoorden, diepte/contour uit Geopunt (GRB), hoogtes en openingen nameten.
+1. Gebruiker: tekengereedschap uitproberen op laptop + telefoon; DWG als DXF en SketchUp als DAE/OBJ (of PDF) aanleveren voor de bestaande toestand.
+2. Fase 3: kerncijfers, kostenraming (prijzen.json), vergelijkweergave.
+3. Fase 4: promptveld (Anthropic API, eigen key) + "genereer N varianten".
+4. Bestaande toestand verfijnen: open vragen in `docs/BESTAAND.md` beantwoorden, diepte/contour uit Geopunt (GRB), hoogtes en openingen nameten.
