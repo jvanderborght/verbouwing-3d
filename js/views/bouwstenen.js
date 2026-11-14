@@ -1,7 +1,7 @@
 // Pure hulpfuncties voor de views (geen DOM, geen Three.js) — getest in tests/views.test.js.
 // Eenheden: mm in het model. "svg"-coördinaten = [x, -y] (y-as omgekeerd zodat de straat onderaan ligt).
 
-import { lengte, muurRichting, puntOpMuur, begrenzing } from '../model/geometry.js';
+import { lengte, muurLengte, muurRichting, puntOpMuur, begrenzing, puntInPolygoon, polygoonOppervlakte } from '../model/geometry.js';
 
 /** 26432000 mm² → "26,4 m²" (Vlaamse notatie, komma als decimaalteken). */
 export function formatteerOppervlakte(mm2) {
@@ -165,4 +165,115 @@ export function verborgenIds(model, verborgenNiveaus = []) {
   for (const k of ['muren', 'ruimtes', 'vloeren', 'daken']) for (const e of model[k] || []) if (v.has(e.niveau)) ids.add(e.id);
   for (const o of model.openingen || []) if (ids.has(o.muur)) ids.add(o.id);
   return ids;
+}
+
+// ── Interactie (plattegrond): gebaren en hittests ──────────────────────────
+// Afstanden in schermpixels worden met `schaal` (px per mm) omgerekend naar mm.
+
+/** Drempels voor aanwijzergebaren (px en ms). */
+export const GEBAAR = Object.freeze({
+  sleepDrempel: 6,     // px: verder bewogen ⇒ slepen i.p.v. tik
+  tikDuur: 350,        // ms: korter ingedrukt ⇒ tik (gereedschapsmodus)
+  dubbelDuur: 350,     // ms: tussen loslaten van de eerste tik en indrukken van de tweede
+  dubbelAfstand: 20,   // px: max. afstand tussen beide tikken
+  tolMuur: 10,         // px: hittest-tolerantie voor muren en openingen
+  tolGreepMuis: 10,    // px: hitzone grepen met muis
+  tolGreepTouch: 22,   // px: hitzone grepen met vinger/pen
+});
+
+/** Is de aanwijzer (dx, dy px t.o.v. het neerzetpunt) ver genoeg bewogen om te slepen? */
+export function isSleep(dx, dy, drempel = GEBAAR.sleepDrempel) {
+  return Math.hypot(dx, dy) > drempel;
+}
+
+/** Tik = niet gesleept en kort genoeg ingedrukt. @param {{ dx, dy, duur }} g (px, ms) */
+export function isTik({ dx, dy, duur }, { drempel = GEBAAR.sleepDrempel, tikDuur = GEBAAR.tikDuur } = {}) {
+  return !isSleep(dx, dy, drempel) && duur < tikDuur;
+}
+
+/**
+ * Vormt tik `nu` samen met de vorige tik een dubbeltik?
+ * @param {{ t, x, y }|null} vorige loslaatmoment (ms) en schermpositie (px) van de vorige tik
+ * @param {{ t, x, y }} nu neerzetmoment en schermpositie van de huidige tik
+ */
+export function isDubbeltik(vorige, nu, { dubbelDuur = GEBAAR.dubbelDuur, dubbelAfstand = GEBAAR.dubbelAfstand } = {}) {
+  if (!vorige) return false;
+  const dt = nu.t - vorige.t;
+  return dt >= 0 && dt < dubbelDuur && Math.hypot(nu.x - vorige.x, nu.y - vorige.y) < dubbelAfstand;
+}
+
+/**
+ * Afstand (mm) van punt p tot het vak van een muur tussen t0 en t1 langs de as (breedte = dikte).
+ * 0 als het punt erin ligt.
+ */
+export function afstandTotMuurvak(muur, p, t0, t1) {
+  const { ux, uy, nx, ny } = muurRichting(muur);
+  const rx = p[0] - muur.start[0], ry = p[1] - muur.start[1];
+  const t = rx * ux + ry * uy;
+  const d = Math.abs(rx * nx + ry * ny);
+  const buitenT = t < t0 ? t0 - t : t > t1 ? t - t1 : 0;
+  const buitenD = Math.max(0, d - muur.dikte / 2);
+  return Math.hypot(buitenT, buitenD);
+}
+
+/**
+ * Element onder punt p (mm) op `niveau`, met voorkeur opening > muur > ruimte.
+ * Muren en openingen krijgen een tolerantie van `tolPx` schermpixels; ruimtes moeten het punt bevatten.
+ * Openingen en muren binnen de tolerantie: de dichtste wint, bij gelijke afstand de opening
+ * (een punt in een opening ligt ook in haar muur). Ruimtes enkel als er geen muur/opening raak is (kleinste wint).
+ * @returns {string|null}
+ */
+export function raakDoel(model, niveau, p, schaal, { tolPx = GEBAAR.tolMuur } = {}) {
+  if (!model || !p) return null;
+  const tol = tolPx / (schaal > 0 ? schaal : 1);
+  const muren = (model.muren || []).filter((m) => m.niveau === niveau && muurLengte(m) >= 1);
+  const opMuur = new Map(muren.map((m) => [m.id, m]));
+  let beste = null, besteAfst = Infinity;
+  for (const o of model.openingen || []) {
+    const mu = opMuur.get(o.muur);
+    if (!mu) continue;
+    const a = afstandTotMuurvak(mu, p, o.positie, o.positie + o.breedte);
+    if (a <= tol && a < besteAfst) { beste = o.id; besteAfst = a; }
+  }
+  // een muur wint enkel als ze strikt dichter ligt (een opening ligt in haar muur ⇒ in de opening wint de opening)
+  for (const mu of muren) {
+    // de getekende muur loopt in hoeken tot een halve dikte voorbij het eindpunt
+    const a = afstandTotMuurvak(mu, p, -mu.dikte / 2, muurLengte(mu) + mu.dikte / 2);
+    if (a <= tol && a < besteAfst) { beste = mu.id; besteAfst = a; }
+  }
+  if (beste) return beste;
+  let besteOpp = Infinity;
+  for (const r of model.ruimtes || []) {
+    if (r.niveau !== niveau || !(r.contour?.length >= 3) || !puntInPolygoon(p, r.contour)) continue;
+    const opp = polygoonOppervlakte(r.contour);
+    if (opp < besteOpp) { beste = r.id; besteOpp = opp; }
+  }
+  return beste;
+}
+
+/**
+ * Index (in `punten`) van de dichtste greep (soort 'greep') binnen `tolPx` schermpixels van p, of −1.
+ * @param {{ p: number[], soort: string }[]} punten
+ */
+export function raakGreep(punten, p, schaal, tolPx = GEBAAR.tolGreepTouch) {
+  if (!punten || !p) return -1;
+  const tol = tolPx / (schaal > 0 ? schaal : 1);
+  let beste = -1, besteAfst = Infinity;
+  punten.forEach((q, i) => {
+    if (q?.soort !== 'greep' || !q.p) return;
+    const a = Math.hypot(q.p[0] - p[0], q.p[1] - p[1]);
+    if (a <= tol && a < besteAfst) { beste = i; besteAfst = a; }
+  });
+  return beste;
+}
+
+/** Hoekpunten van een voorbeeldmuur (as van → naar, totale dikte) als polygoon in mm. */
+export function strookPolygoon(van, naar, dikte) {
+  const L = lengte(van, naar);
+  if (L < 1e-9) return [];
+  const nx = -(naar[1] - van[1]) / L, ny = (naar[0] - van[0]) / L, h = dikte / 2;
+  return [
+    [van[0] + nx * h, van[1] + ny * h], [naar[0] + nx * h, naar[1] + ny * h],
+    [naar[0] - nx * h, naar[1] - ny * h], [van[0] - nx * h, van[1] - ny * h],
+  ];
 }
