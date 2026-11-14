@@ -13,11 +13,15 @@ import { Taakbalk } from './taakbalk.js';
 import { niveauDialoog, dakDialoog } from './tekendialogen.js';
 import { laadPrijzen, kerncijfersBlok } from './kerncijferspaneel.js';
 import { Vergelijken } from './vergelijken.js';
+import { OpdrachtPaneel } from './opdracht.js';
+import { AiOpslag } from '../ai/client.js';
+import { MODELLEN, EFFORTS, EFFORT_LABELS, normaliseerInstellingen } from '../ai/prompt.js';
 
 const opslag = new LokaleOpslag();
 const beheer = new VariantBeheer({ opslag });
 let gereedschapOpties = laadOpties(standaardStorage());
 const vergelijk = new Vergelijken({ beheer });
+const aiOpslag = new AiOpslag(opslag);
 
 const toestand = {
   selectie: null,
@@ -27,7 +31,11 @@ const toestand = {
   doorsnedeZ: 1200,
   toonWaarschuwingen: false,
   niveauSleutel: '',
+  voorbeeld: null,          // promptveld: { model, hulp(niveau), niveaus } — voorbeeld i.p.v. het actieve ontwerp
 };
+
+/** Het model dat de views tonen: het voorbeeld van het promptveld, anders het actieve ontwerp. */
+const getoond = () => toestand.voorbeeld?.model ?? beheer.model;
 
 const el = {
   kiezer: $('#variant-kiezer'), sync: $('#sync-status'), menuKnop: $('#knop-menu'), menu: $('#variant-menu'),
@@ -42,7 +50,7 @@ const el = {
 // ---------------------------------------------------------------- tekengereedschap
 
 const tekenen = new Tekenen({
-  plan: () => views.v2d,
+  plan: () => (toestand.voorbeeld ? null : views.v2d), // tijdens een voorbeeld tekent/selecteert het gereedschap niets
   model: () => beheer.model,
   niveau: () => toestand.planNiveau,
   selectie: () => toestand.selectie,
@@ -81,12 +89,68 @@ async function maakViews() {
 }
 
 function renderViews() {
-  const model = beheer.model;
+  const model = getoond();
   if (!model) return;
   try { views.v3d?.render(model, { verborgenNiveaus: [...toestand.verborgen], doorsnede: toestand.doorsnede, selectie: toestand.selectie }); }
   catch (e) { console.error('Fout bij 3D-weergave:', e); }
   try { if (toestand.planNiveau) views.v2d?.render(model, { niveau: toestand.planNiveau, selectie: toestand.selectie, toonMaten: true }); }
   catch (e) { console.error('Fout bij plattegrond:', e); }
+  if (toestand.voorbeeld) { try { views.v2d?.toonHulp(toestand.voorbeeld.hulp(toestand.planNiveau)); } catch (e) { console.error('Fout bij voorbeeld:', e); } }
+}
+
+// ---------------------------------------------------------------- promptveld (fase 4)
+
+/** Voorbeeld van een AI-variant tonen (of wissen) in 3D en plattegrond. Wijzigt het actieve ontwerp niet. */
+function zetVoorbeeld(v, { render = true } = {}) {
+  if (!v && !toestand.voorbeeld) return;
+  if (v) {
+    tekenen.annuleer({ stil: true });
+    if (tekenen.gereedschap !== 'selecteren') { tekenen.kies('selecteren'); taakbalk?.zet(tekenen.toestand()); }
+  }
+  toestand.voorbeeld = v || null;
+  views.v2d?.toonHulp(null);
+  if (v?.niveaus?.length && !v.niveaus.includes(toestand.planNiveau)) toestand.planNiveau = v.niveaus[0];
+  if (!render || !beheer.model) return;
+  bouwNiveauBediening(getoond());
+  renderViews();
+  tekenen.vernieuw();
+}
+
+const opdracht = new OpdrachtPaneel({
+  el: $('#ai-paneel'), knop: $('#knop-opdracht'), beheer, aiOpslag,
+  context: () => ({ niveau: toestand.planNiveau, selectie: toestand.selectie }),
+  opVoorbeeld: (v) => zetVoorbeeld(v),
+  opToepassen: (ops, label) => wijzig(ops, label).ok,
+  opBewaarNieuw: (lijst, basisId) => bewaarAiVarianten(lijst, basisId),
+  opInstellingen: () => toonInstellingen({ focus: 'ai' }),
+  opNiveau: (id) => { toestand.planNiveau = id; bouwNiveauBediening(getoond()); renderViews(); },
+  opOpen: (open) => {
+    document.body.classList.toggle('ai-open', open);
+    if (open && isTelefoon() && el.werkvlak.dataset.actief !== '2d') zetTab('2d');
+    requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+  },
+});
+
+/** N varianten van het promptveld als nieuwe lokale varianten bewaren; daarna vergelijken aanbieden. */
+async function bewaarAiVarianten(lijst, basisId) {
+  const ids = [];
+  for (const v of lijst) {
+    const r = beheer.bewaarNieuw({ ...v.model, beschrijving: v.beschrijving || '' }, v.naam, { basisId });
+    if (!r.ok) { meld(`"${v.naam}" kon niet bewaard worden:\n${r.melding}`, 'fout'); continue; }
+    ids.push(r.id);
+  }
+  renderKiezer();
+  if (!ids.length) return;
+  const n = ids.length;
+  meld(n === 1 ? 'Nieuwe variant bewaard (enkel lokaal; nog niet op GitHub).' : `${n} nieuwe varianten bewaard (enkel lokaal; nog niet op GitHub).`, 'ok');
+  const keuze = n >= 3 ? ids.slice(0, 3) : [basisId, ...ids].filter(Boolean).slice(0, 3);
+  const ok = await bevestig(n === 1 ? 'Variant bewaard' : `${n} varianten bewaard`,
+    `${n === 1 ? 'De variant staat' : 'De varianten staan'} nu in de variantenlijst (lokaal). Wil je ze meteen vergelijken${n > 3 ? ' (de eerste 3)' : ''}?`,
+    { ja: 'Vergelijken', nee: 'Later' });
+  if (ok) {
+    opdracht.sluit();
+    vergelijk.open({ keuze }).catch((e) => { console.error(e); meld(`Vergelijken mislukt: ${e.message}`, 'fout'); });
+  }
 }
 
 // ---------------------------------------------------------------- weergave
@@ -95,7 +159,7 @@ function renderAlles() {
   const model = beheer.model;
   if (!model) return;
   if (toestand.selectie && !zoekElement(model, toestand.selectie)) toestand.selectie = null;
-  bouwNiveauBediening(model);
+  bouwNiveauBediening(getoond());
   renderViews();
   tekenen.vernieuw();
   renderEigenschappen();
@@ -444,38 +508,78 @@ async function ophalenVanGithub() {
   renderAlles();
 }
 
-async function toonInstellingen() {
+async function toonInstellingen({ focus = null } = {}) {
   const inst = opslag.instellingen();
   const heeftToken = !!opslag.token();
   const veld = (id, label, waarde, extra = {}) => [h('label', { class: 'veld-label', for: id }, label), h('input', { id, type: 'text', value: waarde, autocomplete: 'off', spellcheck: 'false', autocapitalize: 'off', ...extra })];
   const tokenStatus = h('p', { class: 'token-status' }, heeftToken ? 'Er is een token ingesteld op dit toestel.' : 'Nog geen token ingesteld op dit toestel.');
   const wisKnop = h('button', { type: 'button', class: 'knop gevaar klein', disabled: !heeftToken, onclick: () => { opslag.wisToken(); tokenStatus.textContent = 'Token gewist van dit toestel.'; wisKnop.disabled = true; meld('GitHub-token gewist.', 'ok'); } }, 'Token wissen');
-  const inhoud = [
-    h('div', { class: 'raster-2' }, h('div', {}, ...veld('inst-owner', 'Eigenaar (owner)', inst.owner)), h('div', {}, ...veld('inst-repo', 'Repository', inst.repo))),
-    ...veld('inst-branch', 'Branch', inst.branch),
-    h('label', { class: 'veld-label', for: 'inst-token' }, 'GitHub-token'),
-    h('input', { id: 'inst-token', type: 'password', autocomplete: 'off', spellcheck: 'false', placeholder: heeftToken ? 'ingesteld – laat leeg om te behouden' : 'github_pat_…' }),
-    h('div', { class: 'token-rij' }, tokenStatus, wisKnop),
-    h('details', { class: 'uitleg' }, h('summary', {}, 'Hoe maak ik een token?'),
+  const ownerVeld = veld('inst-owner', 'Eigenaar (owner)', inst.owner);
+  const repoVeld = veld('inst-repo', 'Repository', inst.repo);
+  const branchVeld = veld('inst-branch', 'Branch', inst.branch);
+  const tokenInvoer = h('input', { id: 'inst-token', type: 'password', autocomplete: 'off', spellcheck: 'false', placeholder: heeftToken ? 'ingesteld – laat leeg om te behouden' : 'github_pat_…' });
+
+  // ---- Claude (promptveld)
+  const ai = normaliseerInstellingen(aiOpslag.instellingen());
+  const heeftKey = !!aiOpslag.key();
+  const keyInvoer = h('input', { id: 'inst-ai-key', type: 'password', autocomplete: 'off', spellcheck: 'false', autocapitalize: 'off', placeholder: heeftKey ? 'ingesteld – laat leeg om te behouden' : 'sk-ant-…' });
+  const keyStatus = h('p', { class: 'token-status', id: 'inst-ai-key-status' }, heeftKey ? 'Er is een API-key ingesteld op dit toestel.' : 'Nog geen API-key ingesteld op dit toestel.');
+  const keyWis = h('button', { type: 'button', class: 'knop gevaar klein', id: 'inst-ai-key-wis', disabled: !heeftKey, onclick: () => { aiOpslag.wisKey(); keyStatus.textContent = 'API-key gewist van dit toestel.'; keyWis.disabled = true; meld('Anthropic API-key gewist.', 'ok'); } }, 'Key wissen');
+  const modelKeuze = h('select', { id: 'inst-ai-model' }, ...MODELLEN.map((m) => h('option', { value: m.id, selected: m.id === ai.model }, m.naam)));
+  const effortKeuze = h('select', { id: 'inst-ai-effort' }, ...EFFORTS.map((x) => h('option', { value: x, selected: x === ai.effort }, `${x} – ${EFFORT_LABELS[x]}`)));
+  const fallbackVink = h('input', { type: 'checkbox', id: 'inst-ai-fallbacks', checked: ai.fallbacks });
+  const aiSectie = h('section', { class: 'inst-sectie', id: 'inst-ai' },
+    h('h3', {}, 'Claude (promptveld)'),
+    h('p', { class: 'inst-waarschuwing' }, 'De API-key wordt bewaard in deze browser (localStorage) en enkel naar api.anthropic.com gestuurd. Iedereen met toegang tot dit browserprofiel kan ze gebruiken: wis ze op een gedeeld toestel. Gebruik bij voorkeur een aparte key met een uitgavelimiet.'),
+    h('label', { class: 'veld-label', for: 'inst-ai-key' }, 'Anthropic API-key'),
+    keyInvoer,
+    h('div', { class: 'token-rij' }, keyStatus, keyWis),
+    h('details', { class: 'uitleg' }, h('summary', {}, 'Hoe maak ik een API-key?'),
       h('ol', {},
-        h('li', {}, 'Ga op github.com naar Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token.'),
-        h('li', {}, `Repository access: "Only select repositories" → kies enkel ${inst.owner}/${inst.repo}.`),
-        h('li', {}, 'Permissions → Repository permissions → Contents: "Read and write". Niets anders.'),
-        h('li', {}, 'Kies een vervaldatum, maak het token aan en plak het hierboven.')),
-      h('p', {}, 'Het token wordt enkel in deze browser bewaard (localStorage), nooit in git en nooit naar een andere server dan api.github.com gestuurd. Op een gedeeld toestel: wis het token na gebruik.')),
+        h('li', {}, 'Ga naar console.anthropic.com en meld je aan (of maak een account).'),
+        h('li', {}, 'Kies Settings → API Keys → Create Key; geef ze een herkenbare naam.'),
+        h('li', {}, 'Stel onder Billing/Limits een maandlimiet in; het verbruik wordt op dat account aangerekend.'),
+        h('li', {}, 'Kopieer de key (begint met sk-ant-) en plak ze hierboven.'))),
+    h('div', { class: 'raster-2' },
+      h('div', {}, h('label', { class: 'veld-label', for: 'inst-ai-model' }, 'Model'), modelKeuze),
+      h('div', {}, h('label', { class: 'veld-label', for: 'inst-ai-effort' }, 'Effort (denkwerk)'), effortKeuze)),
+    h('label', { class: 'vinkje inst-vinkje' }, fallbackVink, h('span', {}, 'Server-side fallbacks: bij een weigering automatisch een ander model laten afwerken (niet voor Haiku)')),
+    h('p', { class: 'veld-uitleg' }, 'Hogere effort = grondiger maar trager en duurder. Het ontwerp-JSON gaat bij elke opdracht mee naar de API.'));
+
+  const inhoud = [
+    h('section', { class: 'inst-sectie' },
+      h('h3', {}, 'GitHub'),
+      h('div', { class: 'raster-2' }, h('div', {}, ...ownerVeld), h('div', {}, ...repoVeld)),
+      ...branchVeld,
+      h('label', { class: 'veld-label', for: 'inst-token' }, 'GitHub-token'),
+      tokenInvoer,
+      h('div', { class: 'token-rij' }, tokenStatus, wisKnop),
+      h('details', { class: 'uitleg' }, h('summary', {}, 'Hoe maak ik een token?'),
+        h('ol', {},
+          h('li', {}, 'Ga op github.com naar Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token.'),
+          h('li', {}, `Repository access: "Only select repositories" → kies enkel ${inst.owner}/${inst.repo}.`),
+          h('li', {}, 'Permissions → Repository permissions → Contents: "Read and write". Niets anders.'),
+          h('li', {}, 'Kies een vervaldatum, maak het token aan en plak het hierboven.')),
+        h('p', {}, 'Het token wordt enkel in deze browser bewaard (localStorage), nooit in git en nooit naar een andere server dan api.github.com gestuurd. Op een gedeeld toestel: wis het token na gebruik.'))),
+    aiSectie,
   ];
-  const r = await dialoog({ titel: 'Instellingen', inhoud, klasse: 'breed', knoppen: [{ label: 'Annuleren', waarde: null }, { label: 'Bewaren', waarde: 'ok', soort: 'primair' }] });
+  const r = await dialoog({
+    titel: 'Instellingen', inhoud, klasse: 'breed',
+    knoppen: [{ label: 'Annuleren', waarde: null }, { label: 'Bewaren', waarde: 'ok', soort: 'primair' }],
+    bijOpenen: () => { if (focus === 'ai') { aiSectie.scrollIntoView({ block: 'start' }); keyInvoer.focus({ preventScroll: true }); } },
+  });
   if (r !== 'ok') return;
-  // De dialoog is na het sluiten uit het document verwijderd: lees de velden via de bewaarde nodes.
-  const waarden = {};
-  for (const n of inhoud.flat(Infinity)) {
-    if (!(n instanceof HTMLElement)) continue;
-    for (const i of [n, ...n.querySelectorAll('input')]) if (i.tagName === 'INPUT' && i.id) waarden[i.id] = i.value;
-  }
-  const ok1 = opslag.bewaarInstellingen({ owner: waarden['inst-owner'], repo: waarden['inst-repo'], branch: waarden['inst-branch'] });
-  const token = (waarden['inst-token'] || '').trim();
+  // De dialoog is na het sluiten uit het document verwijderd; de nodes zelf blijven bruikbaar.
+  const ok1 = opslag.bewaarInstellingen({ owner: ownerVeld[1].value, repo: repoVeld[1].value, branch: branchVeld[1].value });
+  const token = (tokenInvoer.value || '').trim();
   const ok2 = token ? opslag.bewaarToken(token) : true;
-  meld(ok1 && ok2 ? 'Instellingen bewaard.' : 'Kon niet bewaren: lokale opslag is niet beschikbaar in deze browser (privévenster?).', ok1 && ok2 ? 'ok' : 'fout');
+  const key = (keyInvoer.value || '').trim();
+  const ok3 = key ? aiOpslag.bewaarKey(key) : true;
+  const ok4 = aiOpslag.bewaarInstellingen(normaliseerInstellingen({ model: modelKeuze.value, effort: effortKeuze.value, fallbacks: fallbackVink.checked }));
+  keyInvoer.value = ''; tokenInvoer.value = '';
+  const ok = ok1 && ok2 && ok3 && ok4;
+  meld(ok ? 'Instellingen bewaard.' : 'Kon niet bewaren: lokale opslag is niet beschikbaar in deze browser (privévenster?).', ok ? 'ok' : 'fout');
+  opdracht.vernieuwKey();
 }
 
 // ---------------------------------------------------------------- menu, tabs, splitter, sneltoetsen
@@ -531,7 +635,8 @@ function koppelBediening() {
   el.undo.addEventListener('click', undo);
   el.redo.addEventListener('click', redo);
   el.zoom.addEventListener('click', () => { try { views.v3d?.zoomAlles(); } catch (e) { console.error(e); } try { views.v2d?.zoomAlles(); } catch (e) { console.error(e); } });
-  el.planNiveau.addEventListener('change', () => { tekenen.annuleer(); toestand.planNiveau = el.planNiveau.value; zetPlanTitel(beheer.model); renderViews(); tekenen.vernieuw(); });
+  el.planNiveau.addEventListener('change', () => { tekenen.annuleer(); toestand.planNiveau = el.planNiveau.value; zetPlanTitel(getoond()); renderViews(); tekenen.vernieuw(); });
+  $('#knop-opdracht').addEventListener('click', () => { sluitMenu(); opdracht.wissel(); });
   el.dsAan.addEventListener('change', () => { toestand.doorsnede = el.dsAan.checked ? toestand.doorsnedeZ : null; zetDoorsnedeTekst(); renderViews(); });
   el.dsZ.addEventListener('input', () => { toestand.doorsnedeZ = Number(el.dsZ.value); if (toestand.doorsnede != null) toestand.doorsnede = toestand.doorsnedeZ; zetDoorsnedeTekst(); renderViews(); });
   el.weergave.addEventListener('click', () => {
@@ -621,7 +726,7 @@ async function start() {
   let opslagFoutGemeld = false;
   beheer.opWijziging((soort) => {
     if (soort === 'model' || soort === 'actief') {
-      if (soort === 'actief') { tekenen.annuleer({ stil: true }); toestand.selectie = null; toestand.niveauSleutel = ''; toestand.verborgen.clear(); }
+      if (soort === 'actief') { tekenen.annuleer({ stil: true }); toestand.selectie = null; toestand.niveauSleutel = ''; toestand.verborgen.clear(); zetVoorbeeld(null, { render: false }); }
       renderAlles();
     } else if (soort === 'toestand' || soort === 'lijst') renderKiezer();
     else if (soort === 'opslag-fout' && !opslagFoutGemeld) {
@@ -649,7 +754,7 @@ async function start() {
 }
 
 // Debug-haak (rooktests, console). Bevat geen eigen toestand.
-window.__app = { beheer, toestand, views, tekenen, get taakbalk() { return taakbalk; }, kiesGereedschap, undo, redo, selecteer, vergelijk };
+window.__app = { beheer, toestand, views, tekenen, get taakbalk() { return taakbalk; }, kiesGereedschap, undo, redo, selecteer, vergelijk, opdracht };
 
 window.addEventListener('beforeunload', (e) => {
   if (!opslag.beschikbaar && beheer.geschiedenis?.kanUndo) { e.preventDefault(); e.returnValue = ''; }

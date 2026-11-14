@@ -1,6 +1,6 @@
 # Status
 
-_Laatst bijgewerkt: 2026-11-14 — fase 3 (kerncijfers, raming, vergelijken) na QA op `main`; bestaande toestand uit DXF-plan._
+_Laatst bijgewerkt: 2026-11-14 — fase 4 (promptveld) na QA op `main`; fase 5 (schema v2) in aanbouw._
 
 ## Live
 - App: https://jvanderborght.github.io/verbouwing-3d/ (GitHub Pages via Actions; deploy bij elke push naar `main`).
@@ -38,6 +38,16 @@ _Laatst bijgewerkt: 2026-11-14 — fase 3 (kerncijfers, raming, vergelijken) na 
 - `designs/prijzen.json` bevat **richtprijzen van internet** (op vraag van de gebruiker, 2026-11-14) met bron en bereik per post — vervangen door offerteprijzen zodra beschikbaar.
 - Vergelijkweergave (2–3 varianten, Δ t.o.v. referentie, CSV-export voor Excel-BE).
 
+## Fase 4 — promptveld ✅
+- Knop **Opdracht**: opdracht in gewone taal → Claude (eigen API-key, enkel in de browser) geeft modeloperaties terug →
+  validatie (+ max. 1 herstelpoging) → diff-preview in plattegrond en 3D, kerncijfers/raming-Δ → toepassen (1 undo-stap) of
+  als nieuwe variant(en) bewaren en vergelijken. 1–4 varianten per opdracht; Claude kan eerst vragen stellen.
+- Officiële SDK `@anthropic-ai/sdk` 1.3.0 gevendored (`js/vendor/anthropic-sdk/`, zie VENDOR.md), standaardmodel `claude-opus-5-5`,
+  effort instelbaar, server-side fallbacks (uit te zetten), structured output, prompt caching, tokenverbruik + geschatte kost.
+- **Nog niet getest tegen de echte API** (geen key in de ontwikkelomgeving): eerste echt gebruik door de gebruiker.
+  Terugval zonder schema/fallbacks is ingebouwd als de API die combinatie weigert.
+- Spec en details: `docs/FASE4.md`.
+
 ## Bekende beperkingen
 - Ruimtes volgen niet mee als muren verschuiven; openingen niet versleepbaar (wel via positie in eigenschappen).
 - Muur verslepen trekt aansluitende muren scheef (geen optie om dat uit te zetten).
@@ -54,6 +64,6 @@ _Laatst bijgewerkt: 2026-11-14 — fase 3 (kerncijfers, raming, vergelijken) na 
 
 ## Volgende stappen
 1. Gebruiker: tekengereedschap en vergelijken uitproberen op laptop + telefoon; richtprijzen in `designs/prijzen.json` vervangen door offerteprijzen zodra beschikbaar (en dan `_herkomst` weghalen, anders blijft "richtprijzen van internet" staan).
-2. Fase 4: promptveld (Anthropic API, eigen key) + "genereer N varianten".
+2. Gebruiker: API-key aanmaken (met uitgavelimiet), in Instellingen plakken, een kleine opdracht proberen.
 3. Bestaande toestand verfijnen: hoogtes (doorsnede of opmeting), perceelligging en garages bevestigen — open vragen in `docs/BESTAAND.md`.
 4. Lange termijn (houtskelet/prefab, aanvraag, uitvoering, werf) en roadmap fase 5+: zie `docs/CONCEPT.md` (nog te bespreken met de gebruiker).
