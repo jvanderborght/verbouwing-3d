@@ -89,13 +89,14 @@ export function elementLabel(model, collectie, item) {
  * Tekent het paneel.
  * @param {HTMLElement} el
  * @param {{ model, selectie, opWijzig: (ops, label) => {ok}, opSelecteer: (id|null) => void,
- *           opBewerking?: (r: {ops, fout?}, label) => {ok}, opVerwijder?: (id) => void }} o
+ *           opBewerking?: (r: {ops, fout?}, label) => {ok}, opVerwijder?: (id) => void,
+ *           ontwerpExtra?: (model) => Node|null }} o   ontwerpExtra: extra blok onder het ontwerp (kerncijfers)
  */
-export function tekenEigenschappen(el, { model, selectie, opWijzig, opSelecteer, opBewerking, opVerwijder }) {
+export function tekenEigenschappen(el, { model, selectie, opWijzig, opSelecteer, opBewerking, opVerwijder, ontwerpExtra }) {
   leeg(el);
   if (!model) { el.append(h('p', { class: 'leeg' }, 'Geen ontwerp geopend.')); return; }
   const z = zoekElement(model, selectie);
-  if (!z) { tekenOntwerp(el, model, opWijzig, opSelecteer); return; }
+  if (!z) { tekenOntwerp(el, model, opWijzig, opSelecteer, ontwerpExtra); return; }
   const { collectie, item } = z;
 
   el.append(h('div', { class: 'eig-kop' },
@@ -192,7 +193,7 @@ function veldInvoer(rij, wijzig) {
 /** Welke groepen in de elementenlijst open staan (blijft behouden tussen hertekeningen). */
 const OPEN_GROEPEN = new Map();
 
-function tekenOntwerp(el, model, opWijzig, opSelecteer) {
+function tekenOntwerp(el, model, opWijzig, opSelecteer, ontwerpExtra) {
   el.append(h('div', { class: 'eig-kop' }, h('div', {}, h('div', { class: 'eig-soort' }, 'Ontwerp'), h('h2', { class: 'eig-titel' }, model.naam))));
   const naam = h('input', { id: 'ontwerp-naam', type: 'text', value: model.naam, autocomplete: 'off' });
   naam.addEventListener('change', () => { if (!opWijzig([{ op: 'ontwerp', velden: { naam: naam.value.trim() } }], 'Hernoemen').ok) naam.value = model.naam; });
@@ -204,6 +205,11 @@ function tekenOntwerp(el, model, opWijzig, opSelecteer) {
     h('dt', {}, 'Afgeleid van'), h('dd', {}, h('output', { class: 'alleen-lezen' }, model.basis || '—')),
     h('dt', { class: 'volle-breedte' }, h('label', { for: 'ontwerp-beschrijving' }, 'Beschrijving')), h('dd', { class: 'volle-breedte' }, besch)));
 
+  // fase 3: kerncijfers onder het ontwerp (fout in de berekening mag het paneel niet breken)
+  if (ontwerpExtra) {
+    try { const x = ontwerpExtra(model); if (x) el.append(x); }
+    catch (e) { console.error('Kerncijfers niet beschikbaar:', e); el.append(h('p', { class: 'leeg' }, 'Kerncijfers konden niet berekend worden.')); }
+  }
   el.append(h('p', { class: 'hint' }, 'Tik of klik op een element in 3D, 2D of in de lijst hieronder om het te selecteren.'));
   for (const c of COLLECTIE_NAMEN) {
     const items = model[c] || [];

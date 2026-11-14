@@ -261,6 +261,34 @@ export class VariantBeheer {
     return { ok: true, melding: meldingen.join('\n') || undefined, waarschuwingen: validate(model).waarschuwingen };
   }
 
+  /**
+   * Leest een ontwerp ZONDER het te openen of te activeren (bv. om te vergelijken). Wijzigt niets.
+   * Volgorde: geopend ontwerp (huidige toestand) > werkkopie op dit toestel > gekende GitHub-versie > Pages.
+   * @returns {Promise<{ ok: boolean, model?: object, melding?: string }>}
+   */
+  async leesModel(id) {
+    const g = this.geschiedenissen.get(id);
+    if (g) return { ok: true, model: g.huidig };
+    const wk = this.opslag.werkkopie(id);
+    if (wk) {
+      const r = leesOntwerpTekst(JSON.stringify(wk.model));
+      if (r.ok) return { ok: true, model: r.model };
+    }
+    const gh = this.github.get(id);
+    if (gh) return { ok: true, model: gh.model };
+    if (this.index.some((o) => o.id === id)) {
+      try {
+        const t = await this.#haalPages(`${id}.json`);
+        if (t != null) {
+          const r = leesOntwerpTekst(t);
+          if (r.ok) return { ok: true, model: r.model };
+          return { ok: false, melding: `"${id}" is geen geldig ontwerp:\n${r.fouten.join('\n')}` };
+        }
+      } catch (e) { return { ok: false, melding: e.message }; }
+    }
+    return { ok: false, melding: `Ontwerp "${id}" kon niet geladen worden.` };
+  }
+
   #maakGeschiedenis(id, model) {
     const g = new Geschiedenis(model);
     g.opWijziging(() => { this.#bewaar(id); this.#melden('model', { id }); });

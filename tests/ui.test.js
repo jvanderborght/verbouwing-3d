@@ -508,3 +508,21 @@ test('GitHubClient: commits krijgen het anonieme noreply-adres als auteur', asyn
   await c2.schrijf('designs/a.json', '{}', { bericht: 'b' });
   assert.equal(bodies.at(-1).author.email, 'o@users.noreply.github.com');
 });
+
+// ---------------------------------------------------------------- lezen zonder openen (vergelijken, fase 3)
+
+test('leesModel: leest een ontwerp zonder het actieve te wijzigen; geopende kopie geeft de huidige toestand', async () => {
+  const { b } = maakBeheer();
+  await b.laadIndex();
+  const r = await b.leesModel('voorbeeld');
+  assert.equal(r.ok, true);
+  assert.equal(r.model.id, 'voorbeeld');
+  assert.equal(b.actiefId, null, 'lezen activeert niets');
+  assert.equal((await b.leesModel('bestaat-niet')).ok, false);
+  await b.open('voorbeeld');
+  b.dupliceer('Kopie');
+  b.geschiedenis.toepassen([{ op: 'ontwerp', velden: { beschrijving: 'gewijzigd' } }], 'test');
+  const k = await b.leesModel('kopie');
+  assert.equal(k.model.beschrijving, 'gewijzigd');
+  assert.equal(b.actiefId, 'kopie');
+});

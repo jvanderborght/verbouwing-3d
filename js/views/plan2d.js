@@ -39,6 +39,7 @@ import {
 
 const NS = 'http://www.w3.org/2000/svg';
 const KLEUR = { bestaand: '#6f6b66', nieuw: '#3b7fd9', afbraak: 'url(#p2d-afbraak)' };
+let volgnummer = 0; // uniek patroon-id per plattegrond (meerdere plattegronden in één document, bv. vergelijken)
 const RAND = { bestaand: '#3f3c39', nieuw: '#1f5aa8', afbraak: '#d83a33' };
 const MAAT_MARGE = 2600; // ruimte rond het niveau voor maatlijnen bij zoomAlles (mm)
 const MAAT_STAP = 550; // afstand tussen maatlijnrijen (mm), zoals standaard in muurMaten()
@@ -105,13 +106,14 @@ export class Plattegrond {
     this._beweegWacht = null;
     this._raf = 0;
 
+    this._patroonId = `p2d-afbraak-${++volgnummer}`;
     const svg = (this.svg = el('svg', { class: 'p2d', width: '100%', height: '100%' }));
     svg.style.display = 'block';
     svg.style.touchAction = 'none';
     svg.style.userSelect = 'none';
     svg.style.background = '#ffffff';
     svg.innerHTML = `<style>${STIJL}</style><defs>
-      <pattern id="p2d-afbraak" patternUnits="userSpaceOnUse" width="160" height="160" patternTransform="rotate(45)">
+      <pattern id="${this._patroonId}" patternUnits="userSpaceOnUse" width="160" height="160" patternTransform="rotate(45)">
         <rect width="160" height="160" fill="rgba(224,64,58,0.12)"/>
         <rect x="0" y="0" width="45" height="160" fill="#e0403a"/>
       </pattern></defs>`;
@@ -368,7 +370,7 @@ export class Plattegrond {
       const mg = el('g', { class: `muur ${mu.status}${mu.id === sel ? ' gesel' : ''}`, 'data-id': mu.id });
       for (const s of muurSegmenten(-a.start, L + a.eind, 1, gaten)) {
         const r = muurDeelRechthoek(mu, s.t0, s.t1);
-        mg.appendChild(el('polygon', { points: pts(r), fill: KLEUR[mu.status] || KLEUR.bestaand, stroke: RAND[mu.status] || RAND.bestaand }));
+        mg.appendChild(el('polygon', { points: pts(r), fill: mu.status === 'afbraak' ? `url(#${this._patroonId})` : (KLEUR[mu.status] || KLEUR.bestaand), stroke: RAND[mu.status] || RAND.bestaand }));
       }
       alleRechth.push(muurDeelRechthoek(mu, -a.start, L + a.eind));
       gM.appendChild(mg);

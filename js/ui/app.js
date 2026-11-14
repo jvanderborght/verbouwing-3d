@@ -11,10 +11,13 @@ import { laadOpties, bewaarOpties, isTekengereedschap, gereedschapInfo, GEREEDSC
 import { Tekenen } from './tekenen.js';
 import { Taakbalk } from './taakbalk.js';
 import { niveauDialoog, dakDialoog } from './tekendialogen.js';
+import { laadPrijzen, kerncijfersBlok } from './kerncijferspaneel.js';
+import { Vergelijken } from './vergelijken.js';
 
 const opslag = new LokaleOpslag();
 const beheer = new VariantBeheer({ opslag });
 let gereedschapOpties = laadOpties(standaardStorage());
+const vergelijk = new Vergelijken({ beheer });
 
 const toestand = {
   selectie: null,
@@ -105,7 +108,14 @@ function renderEigenschappen() {
   tekenEigenschappen(el.eig, {
     model: beheer.model, selectie: toestand.selectie, opWijzig: wijzig, opSelecteer: selecteer,
     opBewerking: (r, label) => ({ ok: voerUit(r, label) }), opVerwijder: verwijder,
+    ontwerpExtra: (m) => kerncijfersBlok(m, { opVergelijk: openVergelijken }),
   });
+}
+
+function openVergelijken() {
+  sluitMenu();
+  tekenen.annuleer({ stil: true });
+  vergelijk.open().catch((e) => { console.error(e); meld(`Vergelijken mislukt: ${e.message}`, 'fout'); });
 }
 
 function renderUndo() {
@@ -347,6 +357,7 @@ async function actie(naam) {
     case 'opslaan-gh': return opslaanNaarGithub();
     case 'ophalen-gh': return ophalenVanGithub();
     case 'instellingen': return toonInstellingen();
+    case 'vergelijken': return openVergelijken();
   }
 }
 
@@ -538,6 +549,7 @@ function koppelBediening() {
     if (id && id !== beheer.actiefId) await openOntwerp(id);
   });
   el.opslaanKop.addEventListener('click', opslaanNaarGithub);
+  $('#knop-vergelijk').addEventListener('click', openVergelijken);
   el.menuKnop.addEventListener('click', (e) => { e.stopPropagation(); if (el.menu.hidden) openMenu(); else sluitMenu(); });
   el.menu.addEventListener('click', (e) => { const b = e.target.closest('[data-actie]'); if (b) actie(b.dataset.actie); });
   document.addEventListener('pointerdown', (e) => { if (!el.menu.hidden && !e.target.closest('.menu-houder')) sluitMenu(); });
@@ -618,6 +630,8 @@ async function start() {
     }
   });
 
+  // prijzen parallel laden; daarna de kerncijfers (raming) opnieuw tekenen
+  laadPrijzen().then(() => { if (beheer.model && !toestand.selectie) renderEigenschappen(); });
   await maakViews();
   const idx = await beheer.laadIndex();
   if (!idx.ok) meld(idx.melding, 'fout');
@@ -635,7 +649,7 @@ async function start() {
 }
 
 // Debug-haak (rooktests, console). Bevat geen eigen toestand.
-window.__app = { beheer, toestand, views, tekenen, get taakbalk() { return taakbalk; }, kiesGereedschap, undo, redo, selecteer };
+window.__app = { beheer, toestand, views, tekenen, get taakbalk() { return taakbalk; }, kiesGereedschap, undo, redo, selecteer, vergelijk };
 
 window.addEventListener('beforeunload', (e) => {
   if (!opslag.beschikbaar && beheer.geschiedenis?.kanUndo) { e.preventDefault(); e.returnValue = ''; }
