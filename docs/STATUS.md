@@ -1,6 +1,6 @@
 # Status
 
-_Laatst bijgewerkt: 2026-11-14 — fase 4 (promptveld) na QA op `main`; fase 5 (schema v2) in aanbouw._
+_Laatst bijgewerkt: 2026-11-14 — fase 5 (schema v2: trap, zolder, inrichting, programma van eisen) na QA op `main`._
 
 ## Live
 - App: https://jvanderborght.github.io/verbouwing-3d/ (GitHub Pages via Actions; deploy bij elke push naar `main`).
@@ -48,7 +48,20 @@ _Laatst bijgewerkt: 2026-11-14 — fase 4 (promptveld) na QA op `main`; fase 5 (
   Terugval zonder schema/fallbacks is ingebouwd als de API die combinatie weigert.
 - Spec en details: `docs/FASE4.md`.
 
+## Fase 5 — programma van eisen (schema v2) ✅
+- Datamodel v2 (`docs/FASE5.md`, `docs/DATAMODEL.md`): `trappen` (recht/kwart/halfdraai/spiraal), `inrichting` (sanitair, meubels),
+  `niveaus.soort` (zolder), `ruimtes.hoogtegrenzen`, ontwerpveld `programma`; v1-ontwerpen migreren automatisch.
+- Afgeleid: trapgeometrie en trapgat, vrije hoogte onder daken, hoogtelijnen en m² per hoogteband, `toetsProgramma`.
+- Bewerkingen: afbraakzone (gedeelde muren blijven bestaand, gemeld als mogelijk dragend), zolderniveau, trap en inrichting plaatsen, muur splitsen.
+- Weergave: trap 2D/3D, trapgat, sanitairsymbolen, hoogtelijnen (schakelaar), zoldermuren volgen het dak in 3D.
+- Gereedschap: Trap, Inrichting, Afbraakzone, Zolder toevoegen, programma-editor met toetsresultaat.
+- Promptveld: schema v2 + macro's (afbraakZone, zolderNiveau, trapPlaatsen, inrichtingPlaatsen, muurSplitsen); antwoordschema
+  binnen de gepubliceerde limieten van structured outputs (item/velden als JSON-tekst).
+- Werkwaarden (doel-optrede, hoogtelijnen 1,50/2,20 m, standaardmaten sanitair) zijn **geen normen**; normgrenzen staan op `null` tot ze met bron ingevuld worden.
+- Voorbeeld van de opdracht "achterbouw + garage 2 afbreken, zolder met trap, 2 slaapkamers, berging, badkamer": `tools/voorbeelden/zolder-programma.ops.json`.
+
 ## Bekende beperkingen
+- Trap en inrichting niet versleepbaar (wel via eigenschappen); trap/inrichting snappen enkel op het raster. Vrijgekomen id's worden hergebruikt (diff toont dan 'gewijzigd').
 - Ruimtes volgen niet mee als muren verschuiven; openingen niet versleepbaar (wel via positie in eigenschappen).
 - Muur verslepen trekt aansluitende muren scheef (geen optie om dat uit te zetten).
 - Eén app-commit (`f2205d2`) van vóór deze fix bevat nog het account-e-mailadres.
