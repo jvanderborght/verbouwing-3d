@@ -45,6 +45,18 @@ Alleen `js/model/`, `js/metrics/`, `tools/`, `designs/`, `tests/`, `docs/DATAMOD
 - **ai-prompt**: systeemprompt naar schema v2 (trap, zolder, inrichting, programma, afbraakzone), voorbeeldopdracht end-to-end
   (nagebootst antwoord) in tests en rooktest.
 
+### Uitwerking ai-prompt (fase5/ai)
+Details in `docs/FASE4.md` → "Aanvulling fase 5". Kort:
+- Systeemprompt naar schema v2 (trappen, inrichting, `niveaus.soort`, `ruimtes.hoogtegrenzen`, programma via de operatie `ontwerp`,
+  trap-/zolder-/inrichtingsconventies, werkwaarden ≠ normen); de afbraakregels blijven.
+- **Macro's** in het antwoordschema: `afbraakZone`, `zolderNiveau`, `trapPlaatsen`, `inrichtingPlaatsen`, `muurSplitsen` (+ `ontwerp`).
+  `js/ai/macros.js` vouwt ze vóór de validatie uit met de bewerkingen van deel A, in volgorde op het tussenresultaat; Claude kiest zelf
+  de id's van nieuwe elementen (`id`/`nieuwId`), automatisch uitgedeelde id's botsen er nooit mee. Macrofouten gaan mee in de herstelpoging.
+- Schema binnen de gedocumenteerde limieten van structured outputs (14 optionele parameters van max. 24, 1 unie van max. 16) dankzij
+  `item`/`velden` als JSON-tekst.
+- Variant met een programma ⇒ `programmaToets` (toetsProgramma) in het resultaat en in het promptpaneel.
+- Tests: `tests/ai-macros.test.js` (voorbeeldopdracht end-to-end met macro's, herstelpoging, schemagrootte); rooktest met nagebootste API.
+
 ## Geen normen verzinnen
 Trapcomfortregels, hoogtegrenzen voor "bewoonbare" oppervlakte en standaardmaten van sanitair zijn **instelbaar** en
 staan niet als norm in de code. Als ze ingevuld worden, dan met `bron` (zoals de prijsregel).

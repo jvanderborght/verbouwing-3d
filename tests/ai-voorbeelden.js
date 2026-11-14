@@ -102,3 +102,76 @@ export function antwoordPve() {
     }],
   };
 }
+
+// ---------------------------------------------------------------- dezelfde opdracht met macro's (fase 5, schema v2)
+
+/** Zoals structured outputs het teruggeeft: item/velden als JSON-tekst. */
+const tekst = (o) => JSON.stringify(o);
+
+/**
+ * Nagebootst antwoord op OPDRACHT_PVE met MACRO'S (zoals tools/voorbeelden/maak-zolder-programma.mjs, maar zoals Claude het
+ * zou schrijven): afbraakZone achterbouw + garage 2, zolderNiveau, wanden met knieschoten, deuren, ruimtes met hoogtegrenzen,
+ * trapPlaatsen (halfdraai N1 → zolder), inrichtingPlaatsen douche (vaste plek) + lavabo (plek gezocht door de app), programma.
+ * De zolderwanden krijgen bewust de id's M30…M36: afbraakZone deelt zelf ook id's uit bij het splitsen van muren
+ * (anders M30/M31) — die worden hernummerd zodat ze niet botsen.
+ * Maten = plausibel voorstel om de werking te tonen; geen ontwerp en geen normen.
+ */
+export function antwoordPveMacro({ lavaboAutomatisch = true } = {}) {
+  const Z = 'N2';
+  const muur = (id, start, eind, hoogte) => ({ op: 'toevoegen', collectie: 'muren', item: tekst({ id, niveau: Z, start, eind, dikte: 100, status: 'nieuw', ...(hoogte ? { hoogte } : {}) }) });
+  const deur = (id, m, positie, breedte) => ({ op: 'toevoegen', collectie: 'openingen', item: tekst({ id, muur: m, type: 'deur', positie, breedte, hoogte: 2100, borstwering: 0, status: 'nieuw' }) });
+  const GR = [1500, 2200];
+  const ruimte = (id, naam, functie, contour) => ({ op: 'toevoegen', collectie: 'ruimtes', item: tekst({ id, niveau: Z, naam, functie, contour, hoogtegrenzen: GR }) });
+  const rh = (x0, y0, x1, y1) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+  return {
+    samenvatting: 'Achterbouw en garage 2 afgebroken; zolder onder het zadeldak met een halfdraaitrap vanuit de verdieping, 2 slaapkamers, berging en badkamer met lavabo en douche. Aanname: wanden 100 mm, knieschoten 1,15 m, aantrede 220 mm, deuren 700/800 × 2100 mm.',
+    vragen: [],
+    varianten: [{
+      naam: 'Compacte zolder (macro\'s)',
+      beschrijving: 'Afbraak via afbraakZone (ruimtes R5, R6, R7 en R15). Zolder N2 onder het dak van N1; traphal in de slaapkamer links-achter (R10).',
+      ops: [
+        { op: 'afbraakZone', ruimtes: ['R5', 'R6', 'R7'] },
+        { op: 'afbraakZone', ruimtes: ['R15'] },
+        { op: 'zolderNiveau', onderNiveau: 'N1', naam: 'Zolder', id: Z },
+        muur('M30', [280, 1200], [6720, 1200], 1150),
+        muur('M31', [280, 6800], [6720, 6800], 1150),
+        muur('M32', [280, 3500], [6720, 3500]),
+        muur('M33', [2250, 1200], [2250, 3500]),
+        muur('M34', [2750, 4400], [6720, 4400]),
+        muur('M35', [2750, 4400], [2750, 6800]),
+        muur('M36', [3750, 4400], [3750, 6800]),
+        deur('O40', 'M32', 1070, 700),
+        deur('O41', 'M32', 2520, 800),
+        deur('O42', 'M34', 150, 700),
+        deur('O43', 'M34', 1450, 800),
+        ruimte('R16', 'Badkamer', 'badkamer', rh(280, 1250, 2200, 3450)),
+        ruimte('R17', 'Slaapkamer 1', 'slaapkamer', rh(2300, 1250, 6720, 3450)),
+        ruimte('R18', 'Berging', 'berging', rh(2800, 4450, 3700, 6750)),
+        ruimte('R19', 'Slaapkamer 2', 'slaapkamer', rh(3800, 4450, 6720, 6750)),
+        ruimte('R20', 'Overloop zolder', 'hal', [[280, 3550], [6720, 3550], [6720, 4350], [2700, 4350], [2700, 6750], [280, 6750]]),
+        { op: 'trapPlaatsen', id: 'T1', van: 'N1', naar: Z, type: 'halfdraai', oorsprong: [1880, 4840], richting: 90, breedte: 800, aantrede: 220, draairichting: 'links' },
+        { op: 'wijzigen', collectie: 'ruimtes', id: 'R10', velden: tekst({ naam: 'Traphal (trap naar zolder)', functie: 'trap' }) },
+        { op: 'inrichtingPlaatsen', id: 'I1', soort: 'douche', ruimte: 'R16', rotatie: 0, positie: [730, 2950], breedte: 900, diepte: 900, hoogte: 2100 },
+        lavaboAutomatisch
+          ? { op: 'inrichtingPlaatsen', id: 'I2', soort: 'lavabo', ruimte: 'R16', rotatie: 0, hoogte: 850 }
+          : { op: 'inrichtingPlaatsen', id: 'I2', soort: 'lavabo', ruimte: 'R16', rotatie: 90, positie: [1975, 2600] },
+        { op: 'ontwerp', velden: tekst({ programma: {
+          beschrijving: 'Programma van eisen (voorbeeldopdracht)',
+          eisen: [
+            { functie: 'slaapkamer', aantal: 2, niveau: 'zolder' },
+            { functie: 'berging', aantal: 1, niveau: 'zolder' },
+            { functie: 'badkamer', aantal: 1, niveau: 'zolder', inrichting: ['lavabo', 'douche'] },
+            { trap: { van: 'N1', naar: 'zolder', type: ['kwart', 'halfdraai', 'spiraal'] } },
+          ],
+        } }) },
+      ],
+    }],
+  };
+}
+
+/** Variant met een ongeldige macro: trap naar een niveau dat niet bestaat. */
+export function antwoordOngeldigeMacro() {
+  const a = antwoordPveMacro();
+  const ops = a.varianten[0].ops.map((o) => (o.op === 'trapPlaatsen' ? { ...o, naar: 'N9' } : o));
+  return { ...a, varianten: [{ ...a.varianten[0], ops }] };
+}
