@@ -8,6 +8,7 @@ import {
 import {
   formatteerOppervlakte, formatteerMaat, buitenNormaal, isBuitenmuur, maatlijn, muurMaten, totaleMaten,
   leesbareHoek, passendeView, schermNaarModelV, modelNaarSchermV, zoomRond, verschuif, niveauEronder, verborgenIds,
+  GEBAAR, isSleep, isTik, isDubbeltik, afstandTotMuurvak, raakDoel, raakGreep, strookPolygoon,
 } from '../js/views/bouwstenen.js';
 
 const voorbeeld = () => JSON.parse(readFileSync(new URL('../designs/voorbeeld.json', import.meta.url), 'utf8'));
@@ -194,4 +195,95 @@ test('niveauEronder en verborgenIds', () => {
   const v = verborgenIds(m, ['N1']);
   for (const id of ['M10', 'M15', 'O6', 'O10', 'R3', 'V3', 'D1']) assert.ok(v.has(id), id);
   for (const id of ['M1', 'O1', 'D2', 'V1']) assert.ok(!v.has(id), id);
+});
+
+// ── interactie: gebaren en hittests ──────────────────────────────────────────
+
+test('isSleep / isTik: drempel 6 px en 350 ms', () => {
+  assert.equal(GEBAAR.sleepDrempel, 6);
+  assert.equal(isSleep(3, 4), false); // 5 px
+  assert.equal(isSleep(6, 0), false); // precies op de drempel = nog geen sleep
+  assert.equal(isSleep(5, 5), true);
+  assert.equal(isTik({ dx: 2, dy: 1, duur: 120 }), true);
+  assert.equal(isTik({ dx: 2, dy: 1, duur: 350 }), false); // te lang ingedrukt
+  assert.equal(isTik({ dx: 10, dy: 0, duur: 80 }), false); // gesleept
+});
+
+test('isDubbeltik: binnen 350 ms en 20 px', () => {
+  const v = { t: 1000, x: 100, y: 100 };
+  assert.equal(isDubbeltik(null, { t: 1100, x: 100, y: 100 }), false);
+  assert.equal(isDubbeltik(v, { t: 1200, x: 110, y: 105 }), true);
+  assert.equal(isDubbeltik(v, { t: 1400, x: 100, y: 100 }), false); // te traag
+  assert.equal(isDubbeltik(v, { t: 1100, x: 125, y: 100 }), false); // te ver
+  assert.equal(isDubbeltik(v, { t: 900, x: 100, y: 100 }), false); // tijd terug = geen dubbeltik
+});
+
+test('afstandTotMuurvak: binnen = 0, buiten = euclidisch', () => {
+  const mu = { start: [0, 0], eind: [4000, 0], dikte: 200 };
+  assert.equal(afstandTotMuurvak(mu, [2000, 50], 0, 4000), 0);
+  dichtbij(afstandTotMuurvak(mu, [2000, 300], 0, 4000), 200);
+  dichtbij(afstandTotMuurvak(mu, [4300, 500], 0, 4000), Math.hypot(300, 400));
+  dichtbij(afstandTotMuurvak(mu, [500, 0], 1000, 2000), 500);
+});
+
+test('raakDoel: opening > muur > ruimte, tolerantie in px', () => {
+  const m = voorbeeld();
+  const s = 0.1; // 0,1 px/mm ⇒ 10 px = 100 mm
+  // midden van deur O1 in muur M1 (positie 900, breedte 1000, as y=150)
+  assert.equal(raakDoel(m, 'N0', [1400, 150], s), 'O1');
+  // net buiten de muurdikte maar binnen 10 px tolerantie → nog altijd de opening
+  assert.equal(raakDoel(m, 'N0', [1400, 150 + 150 + 80], s), 'O1');
+  // op de muur naast de opening
+  assert.equal(raakDoel(m, 'N0', [2500, 150], s), 'M1');
+  // binnen in de woonkamer, ver van muren
+  assert.equal(raakDoel(m, 'N0', [2000, 2500], s), 'R1');
+  // bij grotere schaal (ingezoomd) is de tolerantie in mm kleiner: 380 mm naast de as valt erbuiten
+  assert.equal(raakDoel(m, 'N0', [1400, 150 + 150 + 80], 1), 'R1');
+  // buiten alles
+  assert.equal(raakDoel(m, 'N0', [-5000, -5000], s), null);
+  // ander niveau: muren van N0 tellen niet
+  assert.equal(raakDoel(m, 'N1', [1400, 150], s) === 'O1', false);
+  assert.equal(raakDoel(null, 'N0', [0, 0], s), null);
+  // ver uitgezoomd (telefoon): 10 px = 650 mm; precies op de muur wint de muur, niet de opening 600 mm verder
+  assert.equal(raakDoel(m, 'N0', [2500, 150], 0.0154), 'M1');
+  // naast de muur, dichter bij de opening dan bij de rest van de muur → opening
+  assert.equal(raakDoel(m, 'N0', [1400, 600], 0.0154), 'O1');
+});
+
+test('raakDoel: dichtste muur wint, ruimte = kleinste', () => {
+  const m = {
+    muren: [
+      { id: 'A', niveau: 'N', start: [0, 0], eind: [1000, 0], dikte: 100 },
+      { id: 'B', niveau: 'N', start: [0, 300], eind: [1000, 300], dikte: 100 },
+    ],
+    openingen: [],
+    ruimtes: [
+      { id: 'groot', niveau: 'N', contour: [[-5000, -5000], [5000, -5000], [5000, 5000], [-5000, 5000]] },
+      { id: 'klein', niveau: 'N', contour: [[2000, 2000], [3000, 2000], [3000, 3000], [2000, 3000]] },
+    ],
+  };
+  assert.equal(raakDoel(m, 'N', [500, 120], 0.05), 'A'); // 70 mm van A, 130 mm van B (tol 200 mm)
+  assert.equal(raakDoel(m, 'N', [500, 190], 0.05), 'B');
+  assert.equal(raakDoel(m, 'N', [2500, 2500], 0.05), 'klein');
+  assert.equal(raakDoel(m, 'N', [4000, 4000], 0.05), 'groot');
+});
+
+test('raakGreep: enkel grepen, dichtste binnen de hitzone', () => {
+  const punten = [
+    { p: [0, 0], soort: 'snap' },
+    { p: [1000, 0], soort: 'greep' },
+    { p: [1100, 0], soort: 'greep' },
+  ];
+  assert.equal(raakGreep(punten, [1080, 0], 0.1, 22), 2);
+  assert.equal(raakGreep(punten, [1000, 150], 0.1, 22), 1); // 150 mm = 15 px < 22 px
+  assert.equal(raakGreep(punten, [1000, 150], 0.1, 10), -1); // muis: 10 px
+  assert.equal(raakGreep(punten, [0, 0], 0.1, 22), -1); // snap-punt is geen greep
+  assert.equal(raakGreep(null, [0, 0], 0.1), -1);
+});
+
+test('strookPolygoon: rechthoek rond de as', () => {
+  const r = strookPolygoon([0, 0], [1000, 0], 200);
+  assert.deepEqual(r.map(([x, y]) => [Math.round(x), Math.round(y)]), [[0, 100], [1000, 100], [1000, -100], [0, -100]]);
+  dichtbij(polygoonOppervlakte(r), 200000);
+  assert.deepEqual(strookPolygoon([5, 5], [5, 5], 100), []);
 });

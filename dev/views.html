@@ -25,6 +25,7 @@
   .paneel { position: relative; min-height: 0; border: 1px solid var(--rand); border-radius: 8px; overflow: hidden; background: #fff; }
   .paneel > .titel { position: absolute; top: 6px; left: 8px; z-index: 1; font-size: 12px; color: var(--zacht); background: rgba(255,255,255,.85); padding: 1px 6px; border-radius: 4px; pointer-events: none; }
   .vlak { position: absolute; inset: 0; }
+  #pinfo { font: 12px ui-monospace, monospace; color: var(--zacht); min-width: 24ch; }
   @media (max-width: 760px) {
     main { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
     header { padding: 8px 16px; }
@@ -39,7 +40,9 @@
   <label>2D-niveau <select id="niveau2d"></select></label>
   <label><input type="checkbox" id="maten" checked> maten</label>
   <button id="kader">Alles tonen</button>
+  <label>2D-modus <select id="modus"><option value="navigeren">navigeren</option><option value="gereedschap">gereedschap (muur-demo)</option></select></label>
   <span id="info">selectie: –</span>
+  <span id="pinfo">–</span>
 </header>
 <main>
   <div class="paneel"><span class="titel">3D</span><div class="vlak" id="v3d"></div></div>
@@ -93,8 +96,79 @@
   document.getElementById('maten').addEventListener('change', (e) => { staat.maten = e.target.checked; teken(); });
   document.getElementById('kader').addEventListener('click', () => { v3.zoomAlles(); v2.zoomAlles(); });
 
+  // ── interactie-testbank (enkel lokale demo; wijzigt het model niet) ─────
+  // navigeren: geselecteerde muur is sleepbaar, grepen op de eindpunten; slepen toont een voorbeeld.
+  // gereedschap: muur-demo (tik start, tik eind, dubbeltik stopt) met voorbeeld, maat, label en snap-punt.
+  const log = [];
+  const r50 = (v) => Math.round(v / 50) * 50;
+  const muurVan = (id) => model.muren.find((m) => m.id === id);
+  let sleep = null; // { van, doel }
+  let keten = null; // startpunt muur-demo
+  function hulpSelectie(extra = {}) {
+    const mu = muurVan(staat.selectie);
+    const punten = mu && mu.niveau === staat.niveau ? [{ p: mu.start, soort: 'greep' }, { p: mu.eind, soort: 'greep' }] : [];
+    return { punten, ...extra, punten: [...punten, ...(extra.punten || [])] };
+  }
+  function synchroniseer() {
+    const mu = muurVan(staat.selectie);
+    v2.zetSleepbaar(mu ? [mu.id] : []);
+    if (staat.modus === 'navigeren') v2.toonHulp(hulpSelectie());
+  }
+  v2.opPointer((e) => {
+    log.push({ soort: e.soort, doel: e.doel, pointerType: e.pointerType, punt: e.punt.map(Math.round) });
+    if (log.length > 500) log.shift();
+    document.getElementById('pinfo').textContent = `${e.soort} ${e.pointerType} [${e.punt.map(Math.round)}] ${e.doel ?? '–'}`;
+    if (e.soort === 'beweeg' && !sleep && keten == null) v2.markeer(e.doel && !e.doel.startsWith('greep:') ? e.doel : null);
+    const p = e.punt.map(r50);
+    if (staat.modus === 'navigeren') {
+      const mu = muurVan(staat.selectie);
+      if (!mu) return;
+      if (e.soort === 'neer') sleep = { van: p, doel: e.doel };
+      else if (e.soort === 'beweeg' && sleep) {
+        const d = [p[0] - sleep.van[0], p[1] - sleep.van[1]];
+        const greep = sleep.doel?.startsWith('greep:') ? Number(sleep.doel.slice(6)) : -1;
+        const a = greep === 0 ? p : [mu.start[0] + (greep === 1 ? 0 : d[0]), mu.start[1] + (greep === 1 ? 0 : d[1])];
+        const b = greep === 1 ? p : [mu.eind[0] + (greep === 0 ? 0 : d[0]), mu.eind[1] + (greep === 0 ? 0 : d[1])];
+        v2.toonHulp(hulpSelectie({ lijnen: [{ van: a, naar: b, stijl: 'voorbeeld', dikte: mu.dikte }, { van: a, naar: b, stijl: 'maat' }] }));
+      } else if (e.soort === 'op' || e.soort === 'annuleer') { sleep = null; synchroniseer(); }
+      return;
+    }
+    // gereedschap: muur-demo
+    if (e.soort === 'tik') {
+      if (keten == null) keten = p;
+      else { tekenKeten(p, true); keten = p; }
+    } else if (e.soort === 'dubbeltik' || e.soort === 'annuleer') { keten = null; v2.toonHulp(null); }
+    else if (e.soort === 'beweeg') tekenKeten(p, false);
+  });
+  const vast = [];
+  function tekenKeten(p, vastleggen) {
+    if (vastleggen) vast.push([keten, p]);
+    const lijnen = vast.map(([a, b]) => ({ van: a, naar: b, stijl: 'voorbeeld', dikte: 140 }));
+    const labels = [];
+    const punten = [{ p, soort: 'snap' }];
+    if (keten) {
+      lijnen.push({ van: keten, naar: p, stijl: 'voorbeeld', dikte: 140 });
+      lijnen.push({ van: [keten[0], keten[1] - 600], naar: [p[0], p[1] - 600], stijl: 'maat' });
+      lijnen.push({ van: [keten[0], -100000], naar: [keten[0], 100000], stijl: 'hulplijn' });
+      labels.push({ p: [(keten[0] + p[0]) / 2, (keten[1] + p[1]) / 2 + 400], tekst: `${Math.round(Math.hypot(p[0] - keten[0], p[1] - keten[1]))} mm` });
+    }
+    v2.toonHulp({ lijnen, punten, labels, polygonen: [{ contour: [[300, 300], [6700, 300], [6700, 4430], [300, 4430]], stijl: 'markering' }] });
+  }
+  const modusSel = document.getElementById('modus');
+  modusSel.addEventListener('change', () => {
+    staat.modus = modusSel.value;
+    v2.zetModus(staat.modus);
+    keten = null; sleep = null; vast.length = 0;
+    v2.toonHulp(null);
+    synchroniseer();
+  });
+  staat.modus = 'navigeren';
+  const kiesOud = kies;
+  v2.opSelectie((id) => { kiesOud(id); synchroniseer(); });
+  v3.opSelectie((id) => { kiesOud(id); synchroniseer(); });
+
   teken();
-  window.__views = { v3, v2, staat, teken, model };
+  window.__views = { v3, v2, staat, teken, model, log };
 </script>
 </body>
 </html>
