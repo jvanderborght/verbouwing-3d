@@ -489,3 +489,21 @@ test('githubFoutmelding: 422 zonder sha-melding is geen conflict', () => {
   assert.equal(gfm(422, { apiMelding: 'Invalid request. "sha" wasn\'t supplied.' }).soort, 'conflict');
   assert.equal(gfm(422, { apiMelding: 'Invalid request. content is not valid Base64' }).soort, 'onbekend');
 });
+
+test('GitHubClient: commits krijgen het anonieme noreply-adres als auteur', async () => {
+  const bodies = [];
+  const nep = async (url, o = {}) => {
+    if (url.endsWith('/user')) return { ok: true, status: 200, json: async () => ({ id: 42, login: 'iemand', email: 'prive@voorbeeld.be' }) };
+    bodies.push(JSON.parse(o.body || '{}'));
+    return { ok: true, status: 200, json: async () => ({ content: { sha: 's' }, commit: { sha: 'c' } }) };
+  };
+  const c = new GitHubClient({ owner: 'o', repo: 'r', token: 'T', fetch: nep });
+  await c.schrijf('designs/a.json', '{}', { bericht: 'b' });
+  assert.deepEqual(bodies[0].author, { name: 'iemand', email: '42+iemand@users.noreply.github.com' });
+  assert.deepEqual(bodies[0].committer, bodies[0].author);
+  assert.ok(!JSON.stringify(bodies).includes('prive@'));
+  // terugval als /user faalt
+  const c2 = new GitHubClient({ owner: 'o', repo: 'r', token: 'T', fetch: async (url, o = {}) => (url.endsWith('/user') ? { ok: false, status: 403 } : (bodies.push(JSON.parse(o.body || '{}')), { ok: true, status: 200, json: async () => ({}) })) });
+  await c2.schrijf('designs/a.json', '{}', { bericht: 'b' });
+  assert.equal(bodies.at(-1).author.email, 'o@users.noreply.github.com');
+});

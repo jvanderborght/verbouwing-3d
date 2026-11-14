@@ -154,7 +154,27 @@ export class GitHubClient {
     this.#token = token || null;
     this.#fetch = f || (typeof globalThis.fetch === 'function' ? globalThis.fetch.bind(globalThis) : null);
   }
-  #token; #fetch;
+  #token; #fetch; #auteur = null;
+
+  /**
+   * Anonieme auteur voor commits: het GitHub-noreply-adres van de token-eigenaar
+   * (`<id>+<login>@users.noreply.github.com`). Zonder expliciete auteur gebruikt GitHub het
+   * primaire e-mailadres van het account — dat mag niet publiek (CLAUDE.md regel 8).
+   * Lukt GET /user niet, dan valt het terug op `<owner>@users.noreply.github.com`.
+   */
+  async auteur() {
+    if (this.#auteur) return this.#auteur;
+    let a = null;
+    try {
+      const res = await this.#fetch(`${this.api}/user`, { cache: 'no-store', headers: this.#headers() });
+      if (res?.ok) {
+        const u = await res.json();
+        if (u && Number.isInteger(u.id) && typeof u.login === 'string') a = { name: u.login, email: `${u.id}+${u.login}@users.noreply.github.com` };
+      }
+    } catch { /* terugvallen */ }
+    this.#auteur = a || { name: this.owner, email: `${this.owner}@users.noreply.github.com` };
+    return this.#auteur;
+  }
 
   get heeftToken() { return !!this.#token; }
 
@@ -199,7 +219,8 @@ export class GitHubClient {
   /** Schrijft één bestand (contents API, PUT). sha = huidige blob-sha (verplicht bij bestaand bestand). → { sha } */
   async schrijf(pad, tekst, { sha = null, bericht }) {
     if (!this.#token) throw new GitHubFout('Geen GitHub-token ingesteld. Stel er een in via Instellingen, of gebruik "Exporteer JSON".', { soort: 'geen-token' });
-    const body = { message: bericht, content: naarBase64Utf8(tekst), branch: this.branch };
+    const wie = await this.auteur();
+    const body = { message: bericht, content: naarBase64Utf8(tekst), branch: this.branch, author: wie, committer: wie };
     if (sha) body.sha = sha;
     const url = this.#repoUrl(`/contents/${coderPad(pad)}`);
     const res = await this.#verzoek(url, { method: 'PUT', headers: this.#headers({ 'Content-Type': 'application/json' }), body: JSON.stringify(body) }, { actie: 'opslaan', doel: pad });
@@ -224,7 +245,7 @@ export class GitHubClient {
       base_tree: commit.tree.sha,
       tree: bestanden.map((b) => ({ path: b.pad, mode: '100644', type: 'blob', content: b.tekst })),
     }), ctx));
-    const nieuw = await this.#json(await this.#verzoek(this.#repoUrl('/git/commits'), opts('POST', { message: bericht, tree: tree.sha, parents: [basisCommit] }), ctx));
+    const nieuw = await this.#json(await this.#verzoek(this.#repoUrl('/git/commits'), opts('POST', { message: bericht, tree: tree.sha, parents: [basisCommit], author: await this.auteur(), committer: await this.auteur() }), ctx));
     // force: false → GitHub weigert (422) als de branch intussen verschoven is.
     await this.#verzoek(this.#repoUrl(`/git/refs/heads/${coderPad(this.branch)}`), opts('PATCH', { sha: nieuw.sha, force: false }), ctx);
     const shas = {};
