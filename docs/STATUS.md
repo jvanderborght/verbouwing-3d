@@ -66,3 +66,4 @@ _Laatst bijgewerkt: 2026-11-14 — fase 4 (promptveld) na QA op `main`; fase 5 (
 1. Gebruiker: tekengereedschap en vergelijken uitproberen op laptop + telefoon; richtprijzen in `designs/prijzen.json` vervangen door offerteprijzen zodra beschikbaar (en dan `_herkomst` weghalen, anders blijft "richtprijzen van internet" staan).
 2. Gebruiker: API-key aanmaken (met uitgavelimiet), in Instellingen plakken, een kleine opdracht proberen.
 3. Bestaande toestand verfijnen: hoogtes (doorsnede of opmeting), perceelligging en garages bevestigen — open vragen in `docs/BESTAAND.md`.
+4. Lange termijn (houtskelet/prefab, aanvraag, uitvoering, werf) en roadmap fase 5+: zie `docs/CONCEPT.md` (nog te bespreken met de gebruiker).
