@@ -407,7 +407,7 @@
       "op": "toevoegen",
       "collectie": "ruimtes",
       "item": {
-        "id": "R16",
+        "id": "R17",
         "niveau": "N2",
         "naam": "Badkamer",
         "functie": "badkamer",
@@ -424,7 +424,7 @@
       "op": "toevoegen",
       "collectie": "ruimtes",
       "item": {
-        "id": "R17",
+        "id": "R18",
         "niveau": "N2",
         "naam": "Slaapkamer 1",
         "functie": "slaapkamer",
@@ -441,7 +441,7 @@
       "op": "toevoegen",
       "collectie": "ruimtes",
       "item": {
-        "id": "R18",
+        "id": "R19",
         "niveau": "N2",
         "naam": "Berging",
         "functie": "berging",
@@ -458,7 +458,7 @@
       "op": "toevoegen",
       "collectie": "ruimtes",
       "item": {
-        "id": "R19",
+        "id": "R20",
         "niveau": "N2",
         "naam": "Slaapkamer 2",
         "functie": "slaapkamer",
@@ -522,7 +522,7 @@
       "item": {
         "id": "I1",
         "niveau": "N2",
-        "ruimte": "R16",
+        "ruimte": "R17",
         "soort": "douche",
         "positie": [730, 3500],
         "rotatie": 180,
@@ -538,7 +538,7 @@
       "item": {
         "id": "I2",
         "niveau": "N2",
-        "ruimte": "R16",
+        "ruimte": "R17",
         "soort": "lavabo",
         "positie": [1975, 2600],
         "rotatie": 90,

@@ -117,8 +117,10 @@ const r = validate(model);
 if (!r.geldig) { console.error(formatteerFouten(r)); process.exit(1); }
 writeFileSync(pad(`${ID}.json`), naarJson(model));
 const index = JSON.parse(readFileSync(pad('index.json'), 'utf8'));
-if (!index.ontwerpen.some((o) => o.id === ID)) index.ontwerpen.push({ id: ID, naam: NAAM });
-writeFileSync(pad('index.json'), JSON.stringify(index, null, 2) + '\n');
+if (!index.ontwerpen.some((o) => o.id === ID)) {
+  index.ontwerpen.push({ id: ID, naam: NAAM });
+  writeFileSync(pad('index.json'), JSON.stringify(index, null, 2).replace(/\{\n\s+"id": ("[^"]+"),\n\s+"naam": ("[^"]+")\n\s+\}/g, '{ "id": $1, "naam": $2 }') + '\n');
+}
 console.log(`designs/${ID}.json geschreven (trap ${trap.id}, trapgat ${JSON.stringify(trap.trapgat.contour)})`
   + (r.waarschuwingen.length ? '\n' + formatteerFouten(r) : ''));
 for (const x of toetsProgramma(model).resultaten) console.log(`  ${x.status.padEnd(12)} ${x.label} — ${x.uitleg}`);

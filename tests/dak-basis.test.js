@@ -166,3 +166,39 @@ test('concept asymmetrisch dak: geldig, programma voldoet, dakvlakken sluiten aa
     assert.ok(opRand, `${d.id}: gevelvulling niet op de buitenrand`);
   }
 });
+
+test('concept asymmetrisch dak: nieuwe nok sluit aan op het BESTAANDE voordak (38,5°, contour vanaf y 482) — maten uit de STEP', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { migreer, begrenzing, niveauBovenkant } = await import('../js/model/index.js');
+  const lees = (f) => migreer(JSON.parse(readFileSync(new URL(`../designs/${f}.json`, import.meta.url), 'utf8')));
+  const best = lees('bestaand'), m = lees('concept-asymmetrisch-dak');
+  const D1b = best.daken.find((d) => d.id === 'D1');
+  const actief = m.daken.filter((d) => d.niveau === D1b.niveau && d.status !== 'afbraak' && d.type !== 'plat');
+  const achter = actief.find((d) => d.hogeZijde === 'min');
+  const voor = actief.filter((d) => d !== achter);
+  // het voordak = het bestaande dakvlak: zelfde helling, zelfde lage rand (y 482) en status bestaand voor het oude stuk
+  assert.ok(voor.every((d) => d.helling === D1b.helling));
+  assert.equal(begrenzing(m.daken.find((d) => d.id === 'D1').contour).minY, begrenzing(D1b.contour).minY);
+  assert.equal(m.daken.find((d) => d.id === 'D1').status, 'bestaand');
+  const rust = niveauBovenkant(m, D1b.niveau);
+  const tan = (g) => Math.tan((g * Math.PI) / 180), cos = (g) => Math.cos((g * Math.PI) / 180);
+  // dakvlakken als onbegrensde vlakken (absolute z, mm): onderkant en bovenkant
+  const y0 = begrenzing(D1b.contour).minY, yA = begrenzing(achter.contour).maxY;
+  const onderV = (y) => rust + (y - y0) * tan(D1b.helling);
+  const onderA = (y) => rust + achter.basisHoogte + (yA - y) * tan(achter.helling);
+  const bovenV = (y) => onderV(y) + (D1b.dikte ?? 300) / cos(D1b.helling);
+  const bovenA = (y) => onderA(y) + (achter.dikte ?? 300) / cos(achter.helling);
+  const snij = (f, g) => { let a = 3000, b = 7000; for (let i = 0; i < 60; i++) { const c = (a + b) / 2; if (f(c) - g(c) < 0) a = c; else b = c; } return a; };
+  // waarden afgelezen uit de STEP van de gebruiker (app-assenstelsel; bron niet in de repo)
+  const yOnder = snij(onderV, onderA), yBoven = snij(bovenV, bovenA);
+  dichtbij(yBoven, 4655, 10); dichtbij(bovenV(yBoven), 9250, 10); // nok bovenkant
+  dichtbij(onderV(yOnder), 8892, 10); // nok onderkant
+  dichtbij(onderA(7675) - rust, 1721, 3); // knieschot achter (binnenzijde achtergevel in de STEP)
+  dichtbij(bovenA(7975), 7450, 10); // bovenkant achtergevel (buitenzijde in de STEP)
+  // het model splitst de dakvlakken op de snijlijn van de onderkanten
+  dichtbij(begrenzing(achter.contour).minY, yOnder, 1);
+  // het achterdak loopt tot de buitenzijde van de achtergevel (geen achtergevel boven het dak uit)
+  const gevel = m.muren.find((w) => w.niveau === m.niveaus.find((n) => n.soort === 'zolder').id && Math.abs(w.start[1] - w.eind[1]) < 1 && w.start[1] > 7500);
+  assert.ok(gevel, 'verhoogde achtergevel op de zolder');
+  dichtbij(yA, gevel.start[1] + gevel.dikte / 2, 1);
+});

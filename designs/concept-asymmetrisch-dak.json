@@ -2,7 +2,7 @@
   "schemaVersie": 2,
   "id": "concept-asymmetrisch-dak",
   "naam": "Concept: asymmetrisch dak achteraan",
-  "beschrijving": "CONCEPT (schets, geen ontwerp): achterbouw en garage 2 afgebroken; zolder met 2 slaapkamers, berging en badkamer (lavabo + douche). Bestaand voordakvlak (45°) blijft; achterste dakvlak vervangen door een lessenaardak van 28.5° op een verhoogde achtergevel (knieschot ±1721 mm aan de binnenzijde). Halfdraaitrap vanuit de traphal van de verdieping. Dak- en zoldermaten afgeleid uit een aangeleverd 3D-model; badkamerindeling is een voorstel. Hoogtegrenzen 1,50/2,20 m zijn voorbeeldwaarden, geen norm. Stabiliteit, EPB en vergunning niet beoordeeld.",
+  "beschrijving": "CONCEPT (schets, geen ontwerp): achterbouw en garage 2 afgebroken; zolder met 2 slaapkamers, berging en badkamer (lavabo + douche). Bestaand voordakvlak (38.5°) blijft en wordt tot de nieuwe nok verlengd; achterste dakvlak vervangen door een lessenaardak van 28.5° op een verhoogde achtergevel (knieschot ±1721 mm aan de binnenzijde). Halfdraaitrap vanuit de traphal van de verdieping. Dak- en zoldermaten afgeleid uit een aangeleverd 3D-model; badkamerindeling is een voorstel. Hoogtegrenzen 1,50/2,20 m zijn voorbeeldwaarden, geen norm. Stabiliteit, EPB en vergunning niet beoordeeld.",
   "basis": "bestaand",
   "perceel": {
     "contour": [
@@ -17,22 +17,22 @@
       "id": "N0",
       "naam": "Gelijkvloers",
       "peil": 0,
-      "hoogte": 3000
+      "hoogte": 2775
     },
     {
       "id": "N1",
       "naam": "Verdieping",
-      "peil": 3000,
-      "hoogte": 2800,
-      "vloerdikte": 300,
+      "peil": 2775,
+      "hoogte": 2775,
+      "vloerdikte": 160,
       "soort": "verdieping"
     },
     {
       "id": "N2",
       "naam": "Zolder",
-      "peil": 5800,
-      "hoogte": 3832,
-      "vloerdikte": 300,
+      "peil": 5550,
+      "hoogte": 3344,
+      "vloerdikte": 185,
       "soort": "zolder"
     }
   ],
@@ -296,7 +296,7 @@
     {
       "id": "M33",
       "niveau": "N2",
-      "start": [140, 3832],
+      "start": [140, 3990],
       "eind": [140, 7860],
       "dikte": 280,
       "status": "nieuw"
@@ -304,7 +304,7 @@
     {
       "id": "M34",
       "niveau": "N2",
-      "start": [6930, 3832],
+      "start": [6930, 3990],
       "eind": [6930, 7860],
       "dikte": 140,
       "status": "nieuw"
@@ -836,7 +836,7 @@
         [3890, 7720]
       ],
       "hoogtegrenzen": [1500, 2200],
-      "id": "R16"
+      "id": "R17"
     },
     {
       "niveau": "N2",
@@ -851,7 +851,7 @@
         [280, 7720]
       ],
       "hoogtegrenzen": [1500, 2200],
-      "id": "R17"
+      "id": "R18"
     },
     {
       "niveau": "N2",
@@ -864,7 +864,7 @@
         [2680, 6625]
       ],
       "hoogtegrenzen": [1500, 2200],
-      "id": "R18"
+      "id": "R19"
     },
     {
       "niveau": "N2",
@@ -879,22 +879,22 @@
         [1830, 4295]
       ],
       "hoogtegrenzen": [1500, 2200],
-      "id": "R19"
+      "id": "R20"
     },
     {
       "niveau": "N2",
       "naam": "Berging onder het voordak",
       "functie": "berging",
       "contour": [
-        [280, 280],
-        [6860, 280],
+        [280, 482],
+        [6860, 482],
         [6860, 3565],
         [1830, 3565],
         [1830, 2815],
         [280, 2815]
       ],
       "hoogtegrenzen": [1500, 2200],
-      "id": "R20"
+      "id": "R21"
     }
   ],
   "vloeren": [
@@ -919,7 +919,7 @@
         [7000, 8000],
         [0, 8000]
       ],
-      "dikte": 300,
+      "dikte": 160,
       "status": "bestaand"
     },
     {
@@ -948,6 +948,18 @@
     },
     {
       "id": "V5",
+      "niveau": "N2",
+      "contour": [
+        [0, 482],
+        [7000, 482],
+        [7000, 7498],
+        [0, 7498]
+      ],
+      "dikte": 185,
+      "status": "bestaand"
+    },
+    {
+      "id": "V6",
       "niveau": "N0",
       "contour": [
         [0, 7860],
@@ -957,18 +969,6 @@
       ],
       "dikte": 300,
       "status": "afbraak"
-    },
-    {
-      "id": "V6",
-      "niveau": "N2",
-      "contour": [
-        [0, 0],
-        [7000, 0],
-        [7000, 8000],
-        [0, 8000]
-      ],
-      "dikte": 300,
-      "status": "nieuw"
     }
   ],
   "daken": [
@@ -977,12 +977,12 @@
       "niveau": "N1",
       "type": "lessenaar",
       "contour": [
-        [0, 0],
-        [7000, 0],
-        [7000, 3832],
-        [0, 3832]
+        [0, 482],
+        [7000, 482],
+        [7000, 3990],
+        [0, 3990]
       ],
-      "helling": 45,
+      "helling": 38.5,
       "nokrichting": "x",
       "overstek": 0,
       "dikte": 300,
@@ -1036,15 +1036,15 @@
     {
       "niveau": "N1",
       "type": "lessenaar",
-      "helling": 45,
+      "helling": 38.5,
       "nokrichting": "x",
       "overstek": 0,
       "dikte": 300,
       "contour": [
-        [0, 4000],
-        [7000, 4000],
-        [7000, 8000],
-        [0, 8000]
+        [0, 3990],
+        [7000, 3990],
+        [7000, 7498],
+        [0, 7498]
       ],
       "hogeZijde": "min",
       "status": "afbraak",
@@ -1053,18 +1053,18 @@
     {
       "niveau": "N1",
       "type": "lessenaar",
-      "helling": 45,
+      "helling": 38.5,
       "nokrichting": "x",
       "overstek": 0,
       "dikte": 300,
       "contour": [
-        [0, 3832],
-        [7000, 3832],
-        [7000, 4000],
-        [0, 4000]
+        [0, 3990],
+        [7000, 3990],
+        [7000, 4686],
+        [0, 4686]
       ],
-      "basisHoogte": 3832,
-      "status": "afbraak",
+      "basisHoogte": 2790,
+      "status": "nieuw",
       "id": "D6"
     },
     {
@@ -1075,13 +1075,13 @@
       "overstek": 0,
       "dikte": 300,
       "contour": [
-        [0, 3832],
-        [7000, 3832],
+        [0, 4686],
+        [7000, 4686],
         [7000, 8000],
         [0, 8000]
       ],
       "hogeZijde": "min",
-      "basisHoogte": 1569,
+      "basisHoogte": 1545,
       "status": "nieuw",
       "id": "D7"
     }
@@ -1089,6 +1089,20 @@
   "trappen": [
     {
       "id": "T1",
+      "vanNiveau": "N0",
+      "naarNiveau": "N1",
+      "type": "kwart",
+      "oorsprong": [690, 2775],
+      "richting": 90,
+      "breedte": 780,
+      "aantalTreden": 15,
+      "optrede": 185,
+      "aantrede": 185,
+      "draairichting": "rechts",
+      "status": "bestaand"
+    },
+    {
+      "id": "T2",
       "vanNiveau": "N1",
       "naarNiveau": "N2",
       "type": "halfdraai",
@@ -1105,7 +1119,7 @@
     {
       "id": "I1",
       "niveau": "N2",
-      "ruimte": "R18",
+      "ruimte": "R19",
       "soort": "douche",
       "positie": [3330, 5275],
       "rotatie": 0,
@@ -1117,7 +1131,7 @@
     {
       "id": "I2",
       "niveau": "N2",
-      "ruimte": "R18",
+      "ruimte": "R19",
       "soort": "lavabo",
       "positie": [3555, 6175],
       "rotatie": 90,
@@ -1127,7 +1141,7 @@
     }
   ],
   "idTeller": {
-    "R": 20
+    "R": 21
   },
   "programma": {
     "beschrijving": "Concept asymmetrisch dak: zolder volgens programma van eisen",

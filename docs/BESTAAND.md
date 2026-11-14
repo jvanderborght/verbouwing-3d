@@ -3,7 +3,9 @@
 Ontwerp: `designs/bestaand.json`, gegenereerd door `node tools/maak-bestaand.mjs`.
 Pas maten aan in het script en draai het opnieuw; daarna `npm test` (`tests/bestaand.test.js` en `tests/bestaand-ifc.test.js`
 controleren het resultaat). Daarna ook de afgeleide ontwerpen/voorbeelden opnieuw genereren:
-`node tools/voorbeelden/maak-zolder-programma.mjs` en `node tools/voorbeelden/maak-zolder-trap-hal.mjs`.
+`node tools/voorbeelden/maak-zolder-programma.mjs`, `node tools/voorbeelden/maak-zolder-trap-hal.mjs`,
+`node tools/voorbeelden/maak-zolder-dakkapellen.mjs` en `node tools/voorbeelden/maak-concept-asym-dak.mjs` (alle vier gebruiken
+de bestaande zolder N2 als die er is).
 Tests van de app-logica gebruiken een vaste kopie van de fase-5-toestand (`tests/fixtures/`), los van dit ontwerp.
 
 **Bron van de plattegrond:** het bestaande plan (DXF, kader "origineel", getekend in **cm**; 1 tekeneenheid = 1 cm,

@@ -886,7 +886,7 @@
         [280, 2715]
       ],
       "hoogtegrenzen": [1500, 2200],
-      "id": "R15"
+      "id": "R17"
     },
     {
       "niveau": "N2",
@@ -903,7 +903,7 @@
         [2700, 6450]
       ],
       "hoogtegrenzen": [1500, 2200],
-      "id": "R16"
+      "id": "R18"
     },
     {
       "niveau": "N2",
@@ -916,7 +916,7 @@
         [3500, 4750]
       ],
       "hoogtegrenzen": [1500, 2200],
-      "id": "R17"
+      "id": "R19"
     },
     {
       "niveau": "N2",
@@ -929,7 +929,7 @@
         [280, 6450]
       ],
       "hoogtegrenzen": [1500, 2200],
-      "id": "R18"
+      "id": "R20"
     },
     {
       "niveau": "N2",
@@ -942,7 +942,7 @@
         [1830, 4345]
       ],
       "hoogtegrenzen": [1500, 2200],
-      "id": "R19"
+      "id": "R21"
     },
     {
       "niveau": "N2",
@@ -955,7 +955,7 @@
         [280, 4345]
       ],
       "hoogtegrenzen": [1500, 2200],
-      "id": "R20"
+      "id": "R22"
     }
   ],
   "vloeren": [
@@ -1129,7 +1129,7 @@
     {
       "id": "I1",
       "niveau": "N2",
-      "ruimte": "R17",
+      "ruimte": "R19",
       "soort": "douche",
       "positie": [4400, 4300],
       "rotatie": 180,
@@ -1141,7 +1141,7 @@
     {
       "id": "I2",
       "niveau": "N2",
-      "ruimte": "R17",
+      "ruimte": "R19",
       "soort": "lavabo",
       "positie": [3850, 3325],
       "rotatie": 0,
@@ -1150,6 +1150,9 @@
       "status": "nieuw"
     }
   ],
+  "idTeller": {
+    "R": 22
+  },
   "programma": {
     "beschrijving": "Zolder volgens programma met de trap in de bestaande traphal (geen slaapkamer op de verdieping opofferen).",
     "eisen": [

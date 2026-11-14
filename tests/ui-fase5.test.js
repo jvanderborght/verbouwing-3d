@@ -416,10 +416,31 @@ test('sync: echt conflict blijft een conflict', async () => {
  * QA-reproductie: werkkopie = v1-bestand zoals op main (zonder soort), lokaal gewijzigd (ruimtes[0].naam), met de
  * basis-hash zoals main die berekende (hash van naarJson, zonder hashVersie). GitHub = het v2-bestand mét
  * `soort: 'verdieping'` op N1 (blijft staan). Mag geen conflict geven maar "lokaal gewijzigd".
+ * Voor bestaand gebruikt dit de vaste fase-5-kopie (tests/fixtures/bestaand-fase5.json): dat is precies het v2-bestand
+ * waarvan het enige v2-verschil met de v1-versie `soort: 'verdieping'` + lege trappen/inrichting is. Het actuele
+ * designs/bestaand.json heeft echte v2-inhoud (zolder N2 met `soort: 'zolder'`, bestaande trap T1) en andere maten — zie
+ * de test hieronder.
  */
-for (const id of ['bestaand', 'voorbeeld']) {
-  test(`B1: lokaal gewijzigde v1-werkkopie van ${id}, GitHub v2 met soort 'verdieping' ⇒ gewijzigd, geen conflict`, async () => {
-    const v2tekst = lees(id);
+const B1_GEVALLEN = [
+  ['bestaand', 'bestaand (fase-5-toestand)', () => readFileSync(new URL('./fixtures/bestaand-fase5.json', import.meta.url), 'utf8')],
+  ['voorbeeld', 'voorbeeld', () => lees('voorbeeld')],
+];
+
+async function b1Open(id, v2tekst, lokaal, basisHash) {
+  const storage = new NepStorage();
+  const opslag = new LokaleOpslag(storage);
+  storage.setItem(SLEUTELS.ontwerp(id), JSON.stringify({ model: lokaal, basisHash, basisTijd: 1 }));
+  const index = JSON.stringify({ ontwerpen: [{ id, naam: JSON.parse(v2tekst).naam }] });
+  const b = new VariantBeheer({ opslag, fetch: pages({ 'designs/index.json': index, [`designs/${id}.json`]: v2tekst }), nu: () => 10 * 24 * 3600 * 1000 });
+  await b.laadIndex();
+  const lijst = b.toestand(id);
+  const r = await b.open(id);
+  return { b, r, lijst };
+}
+
+for (const [id, label, tekst] of B1_GEVALLEN) {
+  test(`B1: lokaal gewijzigde v1-werkkopie van ${label}, GitHub v2 met soort 'verdieping' ⇒ gewijzigd, geen conflict`, async () => {
+    const v2tekst = tekst();
     const v2 = JSON.parse(v2tekst);
     assert.ok(v2.niveaus.some((n) => n.soort === 'verdieping'), 'het v2-bestand heeft soort verdieping');
     const v1 = alsOudV1(v2); // = het v1-bestand van origin/main (naarJson-tekst gecontroleerd bij de QA-opvolging)
@@ -427,20 +448,43 @@ for (const id of ['bestaand', 'voorbeeld']) {
     const lokaal = JSON.parse(JSON.stringify(v1));
     lokaal.ruimtes[0].naam = 'Lokaal hernoemd';
     assert.equal(normaliseerBasis({ model: lokaal, basisHash, github: migreer(v2) }), modelHash(migreer(v2)), 'basis herkend');
-    const storage = new NepStorage();
-    const opslag = new LokaleOpslag(storage);
-    storage.setItem(SLEUTELS.ontwerp(id), JSON.stringify({ model: lokaal, basisHash, basisTijd: 1 }));
-    const index = JSON.stringify({ ontwerpen: [{ id, naam: v2.naam }] });
-    const b = new VariantBeheer({ opslag, fetch: pages({ 'designs/index.json': index, [`designs/${id}.json`]: v2tekst }), nu: () => 10 * 24 * 3600 * 1000 });
-    await b.laadIndex();
-    assert.notEqual(b.toestand(id), 'conflict', 'ook in de lijst vóór het openen geen conflict');
-    const r = await b.open(id);
+    const { b, r, lijst } = await b1Open(id, v2tekst, lokaal, basisHash);
+    assert.notEqual(lijst, 'conflict', 'ook in de lijst vóór het openen geen conflict');
     assert.equal(r.ok, true);
     assert.equal(r.melding, undefined, 'geen conflictmelding');
     assert.equal(b.model.ruimtes[0].naam, 'Lokaal hernoemd', 'de werkkopie blijft geladen');
     assert.equal(b.toestand(id), 'gewijzigd');
   });
 }
+
+/**
+ * B1 met het ACTUELE designs/bestaand.json. Beslissing: een lokaal gewijzigde v1-werkkopie tegenover deze GitHub-versie is
+ * een ECHT conflict — GitHub is sinds de basis inhoudelijk gewijzigd (IFC/STEP-opmeting: hoogtes 2775, dak 38,5° met
+ * contour y 482…7498, zolder N2 met `soort: 'zolder'`, bestaande trap T1). Dat zijn geen informatieve v2-velden: alsV1 mag
+ * ze niet wegfilteren, anders zou de lokale kopie die wijzigingen stil overschrijven bij het opslaan.
+ *  (a) realistisch: de v1-werkkopie van main (= fase-5-toestand zonder v2-velden) ⇒ conflict;
+ *  (b) zelfs een hypothetisch v1-bestand met exact dezelfde maten (alsOudV1 van het actuele bestand: zonder soort en zonder
+ *      trap) ⇒ conflict, omdat `soort: 'zolder'` en de trap inhoud zijn.
+ * De werkkopie blijft in beide gevallen geladen, met de conflictmelding (de gebruiker kiest via "Ophalen van GitHub").
+ */
+test('B1: lokaal gewijzigde v1-werkkopie van bestaand, GitHub = actuele bestaande toestand (echte v2-inhoud) ⇒ conflict met melding', async () => {
+  const v2tekst = lees('bestaand');
+  const v2 = JSON.parse(v2tekst);
+  assert.ok(v2.niveaus.some((n) => n.soort === 'zolder'), 'actueel bestand heeft een zolder');
+  assert.ok(v2.trappen.length > 0, 'actueel bestand heeft een trap');
+  const oud = JSON.parse(readFileSync(new URL('./fixtures/bestaand-fase5.json', import.meta.url), 'utf8'));
+  for (const v1 of [alsOudV1(oud), alsOudV1(v2)]) {
+    const basisHash = oudeModelHash(v1);
+    const lokaal = JSON.parse(JSON.stringify(v1));
+    lokaal.ruimtes[0].naam = 'Lokaal hernoemd';
+    assert.equal(normaliseerBasis({ model: lokaal, basisHash, github: migreer(v2) }), null, 'geen gemeenschappelijke basis met GitHub');
+    const { b, r } = await b1Open('bestaand', v2tekst, lokaal, basisHash);
+    assert.equal(r.ok, true);
+    assert.match(r.melding, /ook op GitHub gewijzigd/);
+    assert.equal(b.model.ruimtes[0].naam, 'Lokaal hernoemd', 'de werkkopie blijft geladen (niets stil overschreven)');
+    assert.equal(b.toestand('bestaand'), 'conflict');
+  }
+});
 
 test('B1: alsV1 laat enkel informatieve v2-velden weg; echte v2-inhoud ⇒ geen match', () => {
   const v2 = migreer(voorbeeld());

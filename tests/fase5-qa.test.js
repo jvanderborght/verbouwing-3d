@@ -10,8 +10,13 @@ import {
 import { kerncijfers, raming } from '../js/metrics/index.js';
 
 const lees = (pad) => JSON.parse(readFileSync(new URL(pad, import.meta.url), 'utf8'));
+// Actuele bestaande toestand (sinds de IFC/STEP-opmeting: N0/N1 2775, zolder N2 op 5550, zadeldak 38,5° met contour
+// y 482…7498) en het daaruit gegenereerde voorbeeld-opsbestand: voor de tests over het ontwerp (buitenmuren, muur-m², kerncijfers).
 const bestaand = () => migreer(lees('../designs/bestaand.json'));
 const zolderOps = () => lees('../tools/voorbeelden/zolder-programma.ops.json');
+// Vaste kopie van de fase-5-toestand (zonder zolder, garage 2 = hoogste ruimte-id) voor de tests over app-logica.
+const bestaandFase5 = () => migreer(lees('./fixtures/bestaand-fase5.json'));
+const zolderOpsFase5 = () => lees('./fixtures/zolder-programma-fase5.ops.json');
 const ok = (r) => { assert.ok(r.ok, JSON.stringify(r.fouten)); return r.model; };
 const pas = (m, r) => { assert.ok(!r.fout, r.fout); return ok(applyOps(m, r.ops)); };
 const alleIds = (m) => new Set(['niveaus', 'muren', 'openingen', 'ruimtes', 'vloeren', 'daken', 'trappen', 'inrichting'].flatMap((c) => (m[c] || []).map((x) => x.id)));
@@ -19,7 +24,8 @@ const alleIds = (m) => new Set(['niveaus', 'muren', 'openingen', 'ruimtes', 'vlo
 // ── idTeller ────────────────────────────────────────────────────────────────
 
 test('idTeller: afbraakZone (garage 2 = hoogste ruimte-id) + nieuwe ruimte geeft een NIEUW id', () => {
-  let m = bestaand();
+  // fase-5-toestand: daar is garage 2 (R15) het hoogste ruimte-id (in de actuele toestand is dat de zolderruimte R16)
+  let m = bestaandFase5();
   const hoogste = hoogsteIdNummer(m, 'R');
   assert.ok(m.ruimtes.some((r) => r.id === `R${hoogste}`));
   const garage = m.ruimtes.find((r) => r.id === 'R15');
@@ -86,16 +92,19 @@ test('idTeller: diff negeert de teller (geen ruis "idTeller gewijzigd"); undo he
   assert.equal(g.huidig.idTeller, undefined);
 });
 
-test('zolder-programma.ops.json hergebruikt geen id\'s (geen toegevoegd id dat eerder bestond of verwijderd werd)', () => {
-  const m0 = bestaand();
+for (const [naam, basis, opsBestand] of [
+  ['zolder-programma.ops.json op de actuele bestaande toestand', bestaand, zolderOps],
+  ['fixture zolder-programma-fase5.ops.json op de fase-5-toestand', bestaandFase5, zolderOpsFase5],
+]) test(`${naam}: hergebruikt geen id's (geen toegevoegd id dat eerder bestond of verwijderd werd)`, () => {
+  const m0 = basis();
   const ooit = alleIds(m0);
-  for (const op of zolderOps().ops) {
+  for (const op of opsBestand().ops) {
     if (op.op !== 'toevoegen') continue;
     if (!op.item.id) continue; // automatisch id bij het toepassen (volgendId) — gecontroleerd hieronder
     assert.ok(!ooit.has(op.item.id), `id ${op.item.id} hergebruikt`);
     ooit.add(op.item.id);
   }
-  const m = ok(applyOps(m0, zolderOps().ops));
+  const m = ok(applyOps(m0, opsBestand().ops));
   // de nieuwe zolderruimtes hebben hogere nummers dan alle ruimtes van bestaand
   const maxBestaand = hoogsteIdNummer(m0, 'R');
   const zolder = m.niveaus.find((n) => n.soort === 'zolder');
@@ -113,19 +122,24 @@ function zolderVariant() {
 test('buitenMuren: zolderwanden onder het dak zijn binnenwanden (flood-fill lekt niet meer)', () => {
   const { m, Z } = zolderVariant();
   const wanden = m.muren.filter((w) => w.niveau === Z);
-  assert.equal(wanden.length, 7);
+  assert.equal(wanden.length, 8, '2 knieschoten + 6 scheidingswanden');
   assert.deepEqual(buitenMuren(m, Z), []);
   // andere niveaus ongewijzigd: verdieping heeft nog zijn gevels
   assert.ok(buitenMuren(m, 'N1').length >= 4);
 });
 
-test('buitenMuren: een topgevel op de rand van de dakvoetafdruk is een buitenmuur; ook zonder soort als niets omsloten is', () => {
-  let m = bestaand();
-  const z = opsZolderNiveau(m, { onderNiveau: 'N1', naam: 'Zolder' });
-  m = pas(m, z);
-  const Z = z.info.id;
-  // dak D1: contour x 0..7000, y 0..8000, nok langs x ⇒ topgevels op x = 0 en x = 7000
-  const topgevel = opsMuurTekenen(m, { niveau: Z, start: [140, 0], eind: [140, 8000], dikte: 280, status: 'nieuw' });
+for (const [naam, basis] of [['fase-5-toestand (zolder via opsZolderNiveau)', bestaandFase5], ['actuele toestand (bestaande zolder N2)', bestaand]])
+test(`buitenMuren: een topgevel op de rand van de dakvoetafdruk is een buitenmuur; ook zonder soort als niets omsloten is — ${naam}`, () => {
+  let m = basis();
+  let Z = m.niveaus.find((n) => n.soort === 'zolder')?.id;
+  if (!Z) {
+    const z = opsZolderNiveau(m, { onderNiveau: 'N1', naam: 'Zolder' });
+    m = pas(m, z);
+    Z = z.info.id;
+  }
+  // dak D1: contour x 0..7000 (y 0..8000 of 482..7498), nok langs x ⇒ topgevels op x = 0 en x = 7000
+  const b = m.daken.find((d) => d.id === 'D1').contour.map((p) => p[1]);
+  const topgevel = opsMuurTekenen(m, { niveau: Z, start: [140, Math.min(...b)], eind: [140, Math.max(...b)], dikte: 280, status: 'nieuw' });
   m = pas(m, topgevel);
   const wand = opsMuurTekenen(m, { niveau: Z, start: [3500, 1500], eind: [3500, 6500], dikte: 100, status: 'nieuw' });
   m = pas(m, wand);
@@ -142,11 +156,19 @@ test('buitenMuren: een topgevel op de rand van de dakvoetafdruk is een buitenmuu
 
 // ── muuroppervlakte onder het dak + kerncijfers ─────────────────────────────
 
-test('muurOppervlakteOnderDak: analytisch voor de zolderwanden (zadeldak 45°, nok y = 4000)', () => {
+// zadeldak D1 van de actuele toestand: 38,5°, contour y 482…7498 (nok y 3990), onderkant raakt de zoldervloer op de contourrand
+const TAN = Math.tan((38.5 * Math.PI) / 180);
+const dakOnder = (y) => Math.max(0, Math.min(y - 482, 7498 - y)) * TAN;
+
+test('muurOppervlakteOnderDak: analytisch voor de zolderwanden (zadeldak 38,5°, contour y 482…7498, nok y = 3990)', () => {
   const { m, Z } = zolderVariant();
   const wanden = m.muren.filter((w) => w.niveau === Z);
-  // onder een 45°-dak met rust op het zolderpeil is de dakhoogte boven punt (x, y) = min(y, 8000 − y)
-  const dak = (y) => Math.min(y, 8000 - y);
+  const D1 = m.daken.find((d) => d.id === 'D1');
+  assert.equal(D1.helling, 38.5);
+  assert.deepEqual(D1.contour.map((p) => p[1]).sort((a, b) => a - b), [482, 482, 7498, 7498]);
+  assert.equal(m.niveaus.find((n) => n.id === Z).peil, 5550, 'dak rust op het zolderpeil');
+  // dakhoogte boven punt (x, y) op het zolderpeil = min(y − 482, 7498 − y) · tan 38,5°
+  const dak = dakOnder;
   for (const w of wanden) {
     const L = muurLengte(w);
     const H = w.hoogte ?? m.niveaus.find((n) => n.id === Z).hoogte;
@@ -163,20 +185,28 @@ test('muurOppervlakteOnderDak: analytisch voor de zolderwanden (zadeldak 45°, n
     assert.ok(A < L * (m.niveaus.find((n) => n.id === Z).hoogte) - 1, `${w.id} is afgeknipt`);
   }
   // muren zonder dak erboven: lengte × hoogte
-  const gv = m.muren.find((w) => w.niveau === 'N0' && w.status === 'bestaand');
-  assert.equal(muurOppervlakteOnderDak(m, gv), muurLengte(gv) * 3000);
+  const gv = m.muren.find((w) => w.niveau === 'N0' && w.status === 'bestaand' && w.hoogte === undefined);
+  assert.equal(muurOppervlakteOnderDak(m, gv), muurLengte(gv) * 2775);
 });
 
 test('kerncijfers zolder-variant: zolderwanden = binnenmuren met afgeknipte m²; raming realistisch', () => {
   const { m, Z } = zolderVariant();
   const k = kerncijfers(m);
-  // analytisch: 2 knieschoten 6,44 × 1,15 + M34 6,44 × 3,5 + M35 ∫y 1200..3500 + M36 3,97 × 3,6 + 2 × 2,4 × 2,4 − 4 deuren
-  const bruto = 2 * 6.44 * 1.15 + 6.44 * 3.5 + (3.5 ** 2 - 1.2 ** 2) / 2 + 3.97 * 3.6 + 2 * 2.4 * 2.4;
+  // analytisch (m, dak d(y) = min(y − 0,482; 7,498 − y) · tan 38,5°; alle wanden lager dan de zolderhoogte 2,79 behalve waar
+  // het dak ze afknipt): knieschoten 6,44 × hun hoogte (onder het dak: vlak boven) + wand y 3,5 (4,47 lang) × d(3,5)
+  // + wand y 3,9 (1,97) × d(3,9) + wand x 2,25 ∫y 1,2..3,9 + wand y 4,4 (3,97) × d(4,4) + 2 wanden x ∫y 4,4..6,8 − 4 deuren
+  const knie = m.muren.filter((w) => w.niveau === Z && w.start[1] === w.eind[1] && (w.start[1] === 1200 || w.start[1] === 6800));
+  assert.equal(knie.length, 2);
+  for (const w of knie) assert.ok(w.hoogte < dakOnder(w.start[1]), 'knieschot volledig onder het dak');
+  const d = (y) => dakOnder(y * 1000) / 1000;
+  const bruto = knie.reduce((s, w) => s + (6.44 * w.hoogte) / 1000, 0) + 4.47 * d(3.5) + 1.97 * d(3.9)
+    + (TAN * (3.418 ** 2 - 0.718 ** 2)) / 2 + 3.97 * d(4.4) + 2 * ((TAN * (3.098 ** 2 - 0.698 ** 2)) / 2);
   const deuren = m.openingen.filter((o) => m.muren.find((w) => w.id === o.muur)?.niveau === Z).reduce((s, o) => s + (o.breedte * o.hoogte) / 1e6, 0);
   assert.equal(k.muren.nieuwBuiten, 0);
   assert.ok(Math.abs(k.muren.nieuwBinnen - (bruto - deuren)) < 0.1, `${k.muren.nieuwBinnen} vs ${bruto - deuren}`);
-  // volle niveauhoogte (4 m) zou veel meer geven
-  const vol = m.muren.filter((w) => w.niveau === Z).reduce((s, w) => s + (muurLengte(w) * (w.hoogte ?? 4000)) / 1e6, 0) - deuren;
+  // volle niveauhoogte (2,79 m) zou veel meer geven
+  const H = m.niveaus.find((n) => n.id === Z).hoogte;
+  const vol = m.muren.filter((w) => w.niveau === Z).reduce((s, w) => s + (muurLengte(w) * (w.hoogte ?? H)) / 1e6, 0) - deuren;
   assert.ok(k.muren.nieuwBinnen < vol - 10);
   const prijzen = lees('../designs/prijzen.json');
   const r = raming(m, prijzen, { kerncijfers: k });

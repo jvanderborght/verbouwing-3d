@@ -54,7 +54,8 @@ const G = [...model.niveaus].sort((a, b) => a.peil - b.peil)[0]; // gelijkvloers
 const db = begrenzing(hoofddak.contour);
 // binnenmaten van de verdieping (unie van haar ruimtes)
 const vb = begrenzing(model.ruimtes.filter((r) => r.niveau === V.id).flatMap((r) => r.contour));
-const IN = { x0: vb.minX, x1: vb.maxX, y0: vb.minY, y1: vb.maxY };
+// in y begrensd door het dak (contour = waar de onderkant van het dak de zoldervloer raakt): daarbuiten is er geen vrije hoogte
+const IN = { x0: vb.minX, x1: vb.maxX, y0: Math.max(vb.minY, db.minY), y1: Math.min(vb.maxY, db.maxY) };
 
 // ── 2. Afbraak: achterbouw (ruimtes op het gelijkvloers achter het hoofdvolume) en garage 2 ─────────────────────
 const zw = (r) => polygoonZwaartepunt(r.contour);
@@ -64,7 +65,11 @@ if (achterbouw.length) stap('afbraak achterbouw', opsAfbraakZone(model, { ruimte
 if (garage2.length) stap('afbraak garage 2', opsAfbraakZone(model, { ruimte: garage2 }));
 
 // ── 3. Zolder onder het bestaande dak ───────────────────────────────────────────────────────────────────────
-const Z = stap('zolder', opsZolderNiveau(model, { onderNiveau: V.id, naam: 'Zolder' })).id;
+// Bestaat er al een zolder boven de verdieping (bestaand.json sinds de IFC/STEP-opmeting: N2), dan wordt die gebruikt en
+// maakt zijn onbenoemde ruimte plaats voor de nieuwe indeling; anders wordt ze aangemaakt (oudere bestaande toestand).
+const bestaandeZolder = model.niveaus.find((n) => n.soort === 'zolder' && n.peil === niveauBovenkant(model, V.id));
+const Z = bestaandeZolder ? bestaandeZolder.id : stap('zolder', opsZolderNiveau(model, { onderNiveau: V.id, naam: 'Zolder' })).id;
+for (const r of bestaandeZolder ? model.ruimtes.filter((x) => x.niveau === Z) : []) stap('zolderruimte weg', { ops: [{ op: 'verwijderen', collectie: 'ruimtes', id: r.id }] });
 
 // ── 4. Zolderwanden (STEP) + aanvulling ────────────────────────────────────────────────────────────────────
 const STEP = { A: { x: 3835, d: 110 }, B: { y: 4745, d: 160 }, C: { y: 3620, d: 110 } };

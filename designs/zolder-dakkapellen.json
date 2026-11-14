@@ -17,22 +17,22 @@
       "id": "N0",
       "naam": "Gelijkvloers",
       "peil": 0,
-      "hoogte": 3000
+      "hoogte": 2775
     },
     {
       "id": "N1",
       "naam": "Verdieping",
-      "peil": 3000,
-      "hoogte": 2800,
-      "vloerdikte": 300,
+      "peil": 2775,
+      "hoogte": 2775,
+      "vloerdikte": 160,
       "soort": "verdieping"
     },
     {
       "id": "N2",
       "naam": "Zolder",
-      "peil": 5800,
-      "hoogte": 4000,
-      "vloerdikte": 300,
+      "peil": 5550,
+      "hoogte": 2790,
+      "vloerdikte": 185,
       "soort": "zolder"
     }
   ],
@@ -289,7 +289,7 @@
       "id": "M32",
       "niveau": "N2",
       "start": [3835, 3620],
-      "eind": [3835, 7720],
+      "eind": [3835, 7498],
       "dikte": 110,
       "status": "nieuw"
     },
@@ -312,7 +312,7 @@
     {
       "id": "M35",
       "niveau": "N2",
-      "start": [3835, 280],
+      "start": [3835, 482],
       "eind": [3835, 3620],
       "dikte": 90,
       "status": "nieuw"
@@ -651,7 +651,7 @@
       "id": "O33",
       "muur": "M35",
       "type": "deur",
-      "positie": 2570,
+      "positie": 2370,
       "breedte": 700,
       "hoogte": 2000,
       "borstwering": 0,
@@ -816,26 +816,26 @@
       "naam": "Berging",
       "functie": "berging",
       "contour": [
-        [280, 280],
-        [3790, 280],
+        [280, 482],
+        [3790, 482],
         [3790, 2680],
         [280, 2680]
       ],
       "hoogtegrenzen": [1500, 2200],
-      "id": "R16"
+      "id": "R17"
     },
     {
       "niveau": "N2",
       "naam": "Slaapkamer voor",
       "functie": "slaapkamer",
       "contour": [
-        [3880, 280],
-        [6860, 280],
+        [3880, 482],
+        [6860, 482],
         [6860, 3565],
         [3880, 3565]
       ],
       "hoogtegrenzen": [1500, 2200],
-      "id": "R17"
+      "id": "R18"
     },
     {
       "niveau": "N2",
@@ -848,7 +848,7 @@
         [280, 4665]
       ],
       "hoogtegrenzen": [1500, 2200],
-      "id": "R18"
+      "id": "R19"
     },
     {
       "niveau": "N2",
@@ -857,11 +857,11 @@
       "contour": [
         [280, 4825],
         [3780, 4825],
-        [3780, 7720],
-        [280, 7720]
+        [3780, 7498],
+        [280, 7498]
       ],
       "hoogtegrenzen": [1500, 2200],
-      "id": "R19"
+      "id": "R20"
     },
     {
       "niveau": "N2",
@@ -870,11 +870,11 @@
       "contour": [
         [3890, 3675],
         [6860, 3675],
-        [6860, 7720],
-        [3890, 7720]
+        [6860, 7498],
+        [3890, 7498]
       ],
       "hoogtegrenzen": [1500, 2200],
-      "id": "R20"
+      "id": "R21"
     }
   ],
   "vloeren": [
@@ -899,7 +899,7 @@
         [7000, 8000],
         [0, 8000]
       ],
-      "dikte": 300,
+      "dikte": 160,
       "status": "bestaand"
     },
     {
@@ -928,6 +928,18 @@
     },
     {
       "id": "V5",
+      "niveau": "N2",
+      "contour": [
+        [0, 482],
+        [7000, 482],
+        [7000, 7498],
+        [0, 7498]
+      ],
+      "dikte": 185,
+      "status": "bestaand"
+    },
+    {
+      "id": "V6",
       "niveau": "N0",
       "contour": [
         [0, 7860],
@@ -937,18 +949,6 @@
       ],
       "dikte": 300,
       "status": "afbraak"
-    },
-    {
-      "id": "V6",
-      "niveau": "N2",
-      "contour": [
-        [0, 0],
-        [7000, 0],
-        [7000, 8000],
-        [0, 8000]
-      ],
-      "dikte": 300,
-      "status": "nieuw"
     }
   ],
   "daken": [
@@ -957,14 +957,14 @@
       "niveau": "N1",
       "type": "zadel",
       "contour": [
-        [0, 0],
-        [7000, 0],
-        [7000, 8000],
-        [0, 8000]
+        [0, 482],
+        [7000, 482],
+        [7000, 7498],
+        [0, 7498]
       ],
-      "helling": 45,
+      "helling": 38.5,
       "nokrichting": "x",
-      "overstek": 500,
+      "overstek": 480,
       "dikte": 300,
       "status": "bestaand"
     },
@@ -1017,6 +1017,20 @@
   "trappen": [
     {
       "id": "T1",
+      "vanNiveau": "N0",
+      "naarNiveau": "N1",
+      "type": "kwart",
+      "oorsprong": [690, 2775],
+      "richting": 90,
+      "breedte": 780,
+      "aantalTreden": 15,
+      "optrede": 185,
+      "aantrede": 185,
+      "draairichting": "rechts",
+      "status": "bestaand"
+    },
+    {
+      "id": "T2",
       "vanNiveau": "N1",
       "naarNiveau": "N2",
       "type": "halfdraai",
@@ -1033,7 +1047,7 @@
     {
       "id": "I1",
       "niveau": "N2",
-      "ruimte": "R20",
+      "ruimte": "R21",
       "soort": "douche",
       "positie": [4340, 4125],
       "rotatie": 0,
@@ -1045,7 +1059,7 @@
     {
       "id": "I2",
       "niveau": "N2",
-      "ruimte": "R20",
+      "ruimte": "R21",
       "soort": "lavabo",
       "positie": [5090, 3900],
       "rotatie": 0,
@@ -1055,7 +1069,7 @@
     }
   ],
   "idTeller": {
-    "R": 20
+    "R": 21
   },
   "dakkapellen": [
     {

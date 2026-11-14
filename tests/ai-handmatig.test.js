@@ -20,7 +20,12 @@ import { validate, migreer, applyOps } from '../js/model/index.js';
 import * as V from './ai-voorbeelden.js';
 
 const DESIGNS = fileURLToPath(new URL('../designs/', import.meta.url));
-const lees = (f) => migreer(JSON.parse(readFileSync(join(DESIGNS, `${f}.json`), 'utf8')));
+// Vaste testbasis: de bestaande toestand zoals bij fase 5 (zonder zolder, hoogtes 3000/2800) in tests/fixtures/, los van
+// designs/bestaand.json (die evolueert met nieuwe opmetingen; sinds de IFC/STEP-opmeting heeft ze al een zolder N2, waardoor
+// het nagebootste antwoord met de macro zolderNiveau er niet meer op past). Zelfde aanpak als ai.test.js en ai-macros.test.js.
+const FIXTURE_BESTAAND = fileURLToPath(new URL('./fixtures/bestaand-fase5.json', import.meta.url));
+const FIXTURE_OPS = fileURLToPath(new URL('./fixtures/zolder-programma-fase5.ops.json', import.meta.url));
+const lees = (f) => migreer(JSON.parse(readFileSync(f === 'bestaand' ? FIXTURE_BESTAAND : join(DESIGNS, `${f}.json`), 'utf8')));
 const codeblok = (w, inleiding = '', slot = '') => `${inleiding}\`\`\`json\n${JSON.stringify(w, null, 2)}\n\`\`\`${slot}`;
 
 // ---------------------------------------------------------------- kopieertekst
@@ -268,6 +273,9 @@ test('apply-ops.mjs: antwoordformaat, macro\'s, --droog, --variant/--als, fouten
   const map = mkdtempSync(join(tmpdir(), 'v3d-ops-'));
   try {
     for (const f of readdirSync(DESIGNS)) if (f.endsWith('.json')) copyFileSync(join(DESIGNS, f), join(map, f));
+    // "bestaand" in de kopie = de vaste fase-5-toestand (zie boven); de actuele bestaande toestand als "bestaand-actueel"
+    copyFileSync(join(DESIGNS, 'bestaand.json'), join(map, 'bestaand-actueel.json'));
+    copyFileSync(FIXTURE_BESTAAND, join(map, 'bestaand.json'));
     const cli = fileURLToPath(new URL('../tools/apply-ops.mjs', import.meta.url));
     const run = (...a) => spawnSync(process.execPath, [cli, ...a, '--designs', map], { encoding: 'utf8' });
     const antw = join(map, 'antwoord.txt');
@@ -295,9 +303,13 @@ test('apply-ops.mjs: antwoordformaat, macro\'s, --droog, --variant/--als, fouten
     assert.equal(std.status, 0, std.stderr);
     assert.ok(readdirSync(map).includes('bestaand-compacte-zolder-macro-s.json'));
 
-    // het bestaande voorbeeld-opsbestand blijft werken
-    const vb = run('bestaand', fileURLToPath(new URL('../tools/voorbeelden/zolder-programma.ops.json', import.meta.url)), '--droog');
+    // het voorbeeld-opsbestand werkt op de actuele bestaande toestand (gegenereerd uit designs/bestaand.json) …
+    const vb = run('bestaand-actueel', fileURLToPath(new URL('../tools/voorbeelden/zolder-programma.ops.json', import.meta.url)), '--droog');
     assert.equal(vb.status, 0, vb.stderr);
+    assert.match(vb.stdout, /niets geschreven/);
+    // … en de vaste kopie van het fase-5-opsbestand op de fase-5-toestand
+    const vb5 = run('bestaand', FIXTURE_OPS, '--droog');
+    assert.equal(vb5.status, 0, vb5.stderr);
 
     // fout ⇒ afsluitcode 1, niets geschreven
     const voor = readFileSync(join(map, 'bestaand.json'), 'utf8');

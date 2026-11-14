@@ -29,7 +29,9 @@ const NAAM = 'Concept: asymmetrisch dak achteraan';
 // Maten van het concept (mm, graden), afgeleid uit het aangeleverde 3D-model (app-assenstelsel, z boven de zoldervloer).
 const CONCEPT = {
   hellingAchter: 28.5,
-  knieschot: 1721, // onderkant nieuw achterdak aan de binnenzijde van de achtergevel, boven de zoldervloer
+  knieschot: 1721, // onderkant nieuw achterdak aan de binnenzijde van de achtergevel, boven de zoldervloer …
+  knieschotY: 7675, // … op app-y 7675 = binnenzijde achtergevel in het 3D-model (in het plan, en dus in de app, ligt ze op 7720;
+  //                  afwijking plan ↔ 3D-model, zie docs/BESTAAND.md). Zo valt het dakvlak samen met dat van het 3D-model.
   dakdikteAchter: 300,
   // zolderwanden uit het 3D-model: [x0, y0, x1, y1] = vlakken van de wand (rechthoek in plan)
   wanden: {
@@ -63,9 +65,11 @@ const ops = (label, lijst) => stap(label, { ops: lijst });
 const nieuwsteId = (c) => model[c][model[c].length - 1].id;
 
 // ── 0. Bestaande toestand lezen ────────────────────────────────────────────────
-const verdieping = [...model.niveaus].filter((n) => n.peil > 0).sort((a, b) => b.peil - a.peil)[0];
-const D1 = model.daken.find((d) => d.niveau === verdieping.id && d.status !== 'afbraak' && d.type === 'zadel');
+// het hellende hoofddak (zadel) rust op de verdieping; een bestaande zolder (bestaand.json sinds de IFC/STEP-opmeting: N2)
+// ligt erboven en is zelf niet "de verdieping"
+const D1 = model.daken.find((d) => d.status !== 'afbraak' && d.type === 'zadel' && d.helling > 0);
 if (!D1 || (D1.nokrichting || 'x') !== 'x') throw new Error('Verwacht een zadeldak met nokrichting x op de verdieping.');
+const verdieping = model.niveaus.find((n) => n.id === D1.niveau);
 const B = begrenzing(D1.contour);
 const tanV = tan(D1.helling), tanA = tan(CONCEPT.hellingAchter);
 const murenV = model.muren.filter((m) => m.niveau === verdieping.id && m.status !== 'afbraak');
@@ -77,20 +81,28 @@ const achter = gevel(horizontaal, (a, b) => b.start[1] - a.start[1]);
 const voor = gevel(horizontaal, (a, b) => a.start[1] - b.start[1]);
 const Li = links.start[0] + links.dikte / 2, Ri = rechts.start[0] - rechts.dikte / 2;
 const Ai = achter.start[1] - achter.dikte / 2, Vi = voor.start[1] + voor.dikte / 2;
+const Ab = achter.start[1] + achter.dikte / 2; // buitenzijde achtergevel
+// zolderruimtes niet vóór de lijn waar de onderkant van het voordak de zoldervloer raakt (daar is geen vrije hoogte)
+const Vz = Math.max(Vi, B.minY);
 
 // ── 1. Afbraak achterbouw + garage 2 (zoals de zolder-varianten) ───────────────
 const ruimteId = (id, naam) => (model.ruimtes.find((r) => r.id === id) ? id : model.ruimtes.find((r) => r.naam === naam)?.id);
 stap('afbraak achterbouw', opsAfbraakZone(model, { ruimte: [ruimteId('R5', 'Kamer achterbouw'), ruimteId('R6', 'Berging'), ruimteId('R7', 'Keuken (achterbouw)')].filter(Boolean) }));
 stap('afbraak garage 2', opsAfbraakZone(model, { ruimte: ruimteId('R15', 'Garage 2') }));
 
-// ── 2. Zolderniveau (vloer = dakcontour) ───────────────────────────────────────
-const Z = stap('zolder', opsZolderNiveau(model, { onderNiveau: verdieping.id, naam: 'Zolder' })).id;
+// ── 2. Zolderniveau (vloer = dakcontour): de bestaande zolder als die er al is (zijn onbenoemde ruimte maakt plaats
+//       voor de nieuwe indeling), anders een nieuwe ───────────────────────────
+const bestaandeZolder = model.niveaus.find((n) => n.soort === 'zolder' && n.peil === niveauBovenkant(model, verdieping.id));
+const Z = bestaandeZolder ? bestaandeZolder.id : stap('zolder', opsZolderNiveau(model, { onderNiveau: verdieping.id, naam: 'Zolder' })).id;
+if (bestaandeZolder) for (const r of model.ruimtes.filter((x) => x.niveau === Z)) ops('zolderruimte weg', [{ op: 'verwijderen', collectie: 'ruimtes', id: r.id }]);
 
 // ── 3. Daken ──────────────────────────────────────────────────────────────────
-// basisHoogte aan de buitenzijde (contourrand) zodat de onderkant aan de binnenzijde van de achtergevel = knieschot.
-const basis = r0(CONCEPT.knieschot - (B.maxY - Ai) * tanA);
-// nok: onderkant voor (B.minY → stijgend) = onderkant achter (B.maxY → stijgend naar voor)
-const yn = r0((basis + B.maxY * tanA + B.minY * tanV) / (tanV + tanA));
+// Het nieuwe achterdak loopt tot de buitenzijde van de (verhoogde) achtergevel (Ab), zodat die gevel volledig onder het dak
+// ligt (de app kent enkel een overstek rondom; hier overstek 0). basisHoogte = onderkant aan die rand, zodat de onderkant aan
+// de binnenzijde van de achtergevel (in het 3D-model, CONCEPT.knieschotY) = knieschot.
+const basis = r0(CONCEPT.knieschot - (Ab - CONCEPT.knieschotY) * tanA);
+// nok: onderkant voor (B.minY → stijgend) = onderkant achter (Ab → stijgend naar voor)
+const yn = r0((basis + Ab * tanA + B.minY * tanV) / (tanV + tanA));
 const ym = (B.minY + B.maxY) / 2; // oude nok
 const rh = (y0, y1) => [[B.minX, y0], [B.maxX, y0], [B.maxX, y1], [B.minX, y1]];
 const dak = { niveau: D1.niveau, type: 'lessenaar', helling: D1.helling, nokrichting: 'x', overstek: 0, dikte: D1.dikte ?? 300 };
@@ -105,7 +117,7 @@ if (yn > ym + 1) // voordakvlak verlengen tot de nieuwe nok
 else if (yn < ym - 1) // nieuwe nok ligt vóór de oude: stuk voordakvlak afbreken
   dakOps.push({ op: 'toevoegen', collectie: 'daken', item: { ...dak, contour: rh(yn, ym), basisHoogte: r0((yn - B.minY) * tanV), status: 'afbraak' } });
 dakOps.push({ op: 'toevoegen', collectie: 'daken', item: {
-  ...dak, contour: rh(yn, B.maxY), helling: CONCEPT.hellingAchter, hogeZijde: 'min', basisHoogte: basis, dikte: CONCEPT.dakdikteAchter, status: 'nieuw',
+  ...dak, contour: rh(yn, Ab), helling: CONCEPT.hellingAchter, hogeZijde: 'min', basisHoogte: basis, dikte: CONCEPT.dakdikteAchter, status: 'nieuw',
 } });
 ops('daken', dakOps);
 const nok = Math.max(...model.daken.filter((d) => d.niveau === D1.niveau && d.status !== 'afbraak' && d.type !== 'plat').map(dakNokHoogte));
@@ -156,7 +168,7 @@ ruimte('Slaapkamer 1', 'slaapkamer', [[x1, y1], [Ri, y1], [Ri, Ai], [x1, Ai]]);
 ruimte('Slaapkamer 2', 'slaapkamer', [[Li, W.halAchter[3]], [v.badkamerX - v.wand, W.halAchter[3]], [v.badkamerX - v.wand, yBad + v.wand], [x0, yBad + v.wand], [x0, Ai], [Li, Ai]]);
 const bad = ruimte('Badkamer', 'badkamer', [[v.badkamerX, W.halAchter[3]], [x0, W.halAchter[3]], [x0, yBad], [v.badkamerX, yBad]]);
 ruimte('Overloop', 'hal', [[tb.maxX, y0], [x0, y0], [x0, W.halAchter[1]], [Li, W.halAchter[1]], [Li, tb.maxY], [tb.maxX, tb.maxY]]);
-ruimte('Berging onder het voordak', 'berging', [[Li, Vi], [Ri, Vi], [Ri, y0], [tb.maxX, y0], [tb.maxX, tb.minY], [Li, tb.minY]]);
+ruimte('Berging onder het voordak', 'berging', [[Li, Vz], [Ri, Vz], [Ri, y0], [tb.maxX, y0], [tb.maxX, tb.minY], [Li, tb.minY]]);
 const traphal = model.ruimtes.find((r) => r.niveau === verdieping.id && /trap/i.test(r.naam));
 
 // ── 9. Sanitair (douche: gebruikshoogte 2100 mm = voorstel, geen norm) ────────

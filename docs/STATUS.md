@@ -1,6 +1,6 @@
 # Status
 
-_Laatst bijgewerkt: 2026-11-14 — fase 5 (schema v2: trap, zolder, inrichting, programma van eisen) in QA (branch `fase5/fix`, niet gemerged)._
+_Laatst bijgewerkt: 2026-11-14 — fase 5 (schema v2, bestaande toestand uit IFC/STEP, dakkapellen, concept asymmetrisch dak, opdrachten zonder API-key) **in QA** (branch `fase5/integratie`, niet gemerged)._
 
 ## Live
 - App: https://jvanderborght.github.io/verbouwing-3d/ (GitHub Pages via Actions; deploy bij elke push naar `main`).
@@ -64,7 +64,8 @@ _Laatst bijgewerkt: 2026-11-14 — fase 5 (schema v2: trap, zolder, inrichting, 
     (`alsV1` vergelijkt op v1-inhoud: `soort: 'verdieping'`, lege `trappen`/`inrichting` en `idTeller` tellen niet mee; het veld blijft in de designs).
   - Zolder: wanden onder het dak zijn binnenmuren tenzij ze op de rand van de dakvoetafdruk liggen (topgevel); muur-m² in de
     kerncijfers zijn afgeknipt onder het dak (zelfde geometrie als 3D, nu in `js/model/muurprofiel.js`).
-    Zolder-voorbeeld: nieuwe binnenmuur 62,3 m², buitenmuur 0 m² (was 78,6 m² buiten); raming met de richtprijzen 20.745 € (was 36.484 €).
+    Zolder-voorbeeld op de fase-5-toestand: nieuwe binnenmuur 62,3 m², buitenmuur 0 m² (was 78,6 m² buiten); raming 20.745 € (was 36.484 €).
+    Op de nieuwe bestaande toestand (38,5°, zolder N2): binnenmuur 38,0 m², buitenmuur 0 m², raming 6.171 € (richtprijzen).
   - Id's worden niet meer hergebruikt: optioneel ontwerpveld `idTeller` (bijgewerkt bij verwijderen), diff toont het niet.
 
 - Dakkapellen (`concept/dakkapellen`): optionele collectie `dakkapellen` (geen nieuwe schemaVersie), geometrie, vrije hoogte/hoogtebanden,
@@ -72,7 +73,40 @@ _Laatst bijgewerkt: 2026-11-14 — fase 5 (schema v2: trap, zolder, inrichting, 
   een dak, macro `dakkapelPlaatsen`, kerncijfers en vergelijkingsrijen. Variant `designs/zolder-dakkapellen.json` (generator
   `tools/voorbeelden/maak-zolder-dakkapellen.mjs`; opnieuw draaien na een wijziging aan `bestaand.json`). Zie DATAMODEL.md "Dakkapellen".
 
+- Opdrachten **zonder eigen API-key**: handmatige modus in de app (`js/ai/handmatig.js`: kopieertekst → Claude.ai → antwoord plakken,
+  zelfde verwerking en herstelvraag als de API) en via Claude Code (`js/ai/opsbestand.js`, `node tools/apply-ops.mjs` met macro's en
+  het antwoordformaat, `--droog`, `--variant`, `--als`).
+- **Bestaande toestand uit IFC/STEP** (`docs/BESTAAND.md`): N0/N1 elk 2775, tussenvloer 160; bestaande **zolder N2** op 5550
+  (vloer 185); symmetrisch **zadeldak 38,5°**, contour y 482…7498 (onderkant raakt daar de zoldervloer), overstek 480, dikte 300;
+  bestaande trap **T1** GV → verdieping (vereenvoudigd tot kwarttrap). De oude toestand (45°, peil 5800, geen zolder) blijft als vaste
+  testbasis in `tests/fixtures/` (+ het oude voorbeeld-opsbestand).
+- **Concept asymmetrisch dak** (`designs/concept-asymmetrisch-dak.json`, `tools/voorbeelden/maak-concept-asym-dak.mjs`): optionele
+  dakvelden `basisHoogte`/`hogeZijde`, `js/model/dakgevels.js`. Bestaand voordak 38,5° blijft (verlengd tot de nieuwe nok), nieuw
+  achterdak 28,5° op een verhoogde achtergevel. Nagerekend tegen de STEP (getest in `tests/dak-basis.test.js`): nok bovenkant
+  y 4655 / z 9253 (STEP ≈ 4655 / 9250), onderkant nok 8894 (≈ 8892), knieschot 1721 op de binnenzijde van de achtergevel in de STEP
+  (app-y 7675; op de plan-binnenzijde 7720: 1697), bovenkant achtergevel 7450 (buitenzijde STEP y 7975; op plan-y 8000: 7437).
+- Varianten op de nieuwe bestaande toestand opnieuw gegenereerd (alle vier gebruiken de bestaande zolder N2, geen tweede zolder;
+  trap verdieping → zolder = de IFC-trap als halfdraai T2, 15 × 185): `zolder-programma-trap-hal`, `zolder-dakkapellen`,
+  `concept-asymmetrisch-dak` en het opsbestand `tools/voorbeelden/zolder-programma.ops.json`. Alle geldig, programma voldoet.
+  Zolderwanden zijn binnenmuren (0 m² nieuwe buitenmuur), behalve de echte nieuwe gevels in het concept (31 m²).
+- Integratie (`fase5/integratie`): tests die de oude toestand verwachtten wijzen nu naar de fixtures (app-logica) of rekenen met de
+  nieuwe maten (ontwerp). B1: een lokaal gewijzigde v1-werkkopie van `bestaand` tegenover de nieuwe GitHub-versie is een **echt
+  conflict** (GitHub is inhoudelijk gewijzigd: hoogtes, dak, zolder, trap) — melding, werkkopie blijft geladen.
+
 ## Bekende beperkingen
+- **Trapvormen benaderd**: het schema kent geen U-trap met tussenstuk of trap met twee kwartdraaien en ongelijke vluchten; de
+  bestaande trap T1 (kwart) en de IFC-trap naar de zolder (halfdraai) zijn vereenvoudigd (afwijkingen in `docs/BESTAAND.md`).
+  T1 overlapt in plan de kastwand M10 (één waarschuwing; in werkelijkheid staat de kast onder de trap). Trapgat = volledige voetafdruk.
+- **Overstek rondom**: een dak kent één overstek voor alle zijden. Bestaand: de 480 mm (die het dakvlak tot de buitenzijde van de
+  gevels brengt) steekt daardoor ook aan de zijgevels uit. Concept asymmetrisch dak: overstek 0, dus het voordak stopt op y 482
+  (binnen de voorgevel) — in 3D een smalle open strook boven de voorgevel; het achterdak loopt wel tot de buitenzijde van de achtergevel.
+- Concept: de dakvlakken zijn gesplitst op de snijlijn van de onderkanten (y 4686); daar steekt de bovenkant van het voordak ±40 mm
+  boven die van het achterdak uit (geen versneden nok). De zoldervloer V5 blijft de oude dakcontour (tot y 7498); de slaapkamers
+  lopen tot de achtergevel (7720).
+- Dakkapellen bij 38,5°: de dakkapel achter (vrije hoogte 2,30 m) loopt ±220 mm over wand B (STEP) door boven de overloop — met
+  vrije hoogte ≥ 2,20 m kan ze niet volledig in de slaapkamer achter liggen. Labels van dakkapel en kamer overlappen in 2D.
+- Vrije hoogte buiten de dakcontour = niveauhoogte (geen dak erboven): zolderruimtes worden daarom tot de dakcontour begrensd.
+- Raming: geen prijsposten voor trap, sanitair, dakkapellen en vloeren in `designs/prijzen.json` ⇒ niet in de raming (geen prijzen verzonnen).
 - Dakkapellen: enkel plat dakje, raam altijd gecentreerd, geen tikgereedschap in de taakbalk (wel knoppen bij een geselecteerd dak).
 - Trap en inrichting niet versleepbaar (wel via eigenschappen); trap/inrichting snappen enkel op het raster.
 - Ruimtes volgen niet mee als muren verschuiven; openingen niet versleepbaar (wel via positie in eigenschappen).
@@ -95,3 +129,5 @@ _Laatst bijgewerkt: 2026-11-14 — fase 5 (schema v2: trap, zolder, inrichting, 
 4. Lange termijn (houtskelet/prefab, aanvraag, uitvoering, werf) en roadmap fase 5+: zie `docs/CONCEPT.md` (nog te bespreken met de gebruiker).
 5. Gebruiker: zolder en programma van eisen uitproberen (bv. `tools/voorbeelden/zolder-programma.ops.json` als variant); trapgrenzen
    (comfortregels) en hoogtegrenzen enkel invullen met een bron.
+6. QA van `fase5/integratie` (renders van de vier varianten), daarna merge naar `main`. Gebruiker: prijsposten voor trap, sanitair en
+   dakkapellen aanleveren (met bron) als die in de raming moeten; beslissen over overstek per zijde (voordak concept).
