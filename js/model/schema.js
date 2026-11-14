@@ -7,6 +7,7 @@ export const STATUSSEN = ['bestaand', 'nieuw', 'afbraak'];
 export const OPENING_TYPES = ['deur', 'raam'];
 export const DAK_TYPES = ['plat', 'lessenaar', 'zadel', 'schild'];
 export const NOKRICHTINGEN = ['x', 'y'];
+export const HOGE_ZIJDEN = ['min', 'max']; // lessenaar: zijde (loodrecht op nokrichting) met de hoge rand
 // schemaVersie 2 (fase 5)
 export const NIVEAU_SOORTEN = ['verdieping', 'zolder', 'kelder'];
 export const TRAP_TYPES = ['recht', 'kwart', 'halfdraai', 'spiraal']; // kwart = kwartdraai (L), halfdraai = U (180°)
@@ -88,6 +89,8 @@ export const VELDEN = {
     ['overstek', 'number', false],
     ['dikte', 'number', false],
     ['status', 'enum:STATUSSEN', true],
+    ['basisHoogte', 'number', false], // mm boven het rustvlak aan de lage rand(en) (knieschot); hellende daken; standaard 0
+    ['hogeZijde', 'enum:HOGE_ZIJDEN', false], // enkel lessenaar: hoge rand aan de min- of max-zijde; standaard max
   ],
   // v2 — zie docs/DATAMODEL.md "trap" en js/model/trappen.js
   trappen: [
@@ -120,7 +123,7 @@ export const VELDEN = {
 };
 
 export const ENUMS = {
-  STATUSSEN, OPENING_TYPES, DAK_TYPES, NOKRICHTINGEN, FUNCTIES, NIVEAU_SOORTEN, TRAP_TYPES, DRAAIRICHTINGEN, INRICHTING_SOORTEN,
+  STATUSSEN, OPENING_TYPES, DAK_TYPES, NOKRICHTINGEN, HOGE_ZIJDEN, FUNCTIES, NIVEAU_SOORTEN, TRAP_TYPES, DRAAIRICHTINGEN, INRICHTING_SOORTEN,
 };
 
 // perceel (optioneel): { contour: [[x,y],...] } — perceelgrens in hetzelfde assenstelsel (x mag negatief zijn).

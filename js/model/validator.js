@@ -157,6 +157,7 @@ export function validate(model, opties = {}) {
     }
     if (d.type !== 'plat' && Array.isArray(d.contour) && d.contour.length !== 4) let_op(`${pad}.contour`, 'Hellende daken worden berekend op de rechthoekige begrenzing van de contour.');
     if (isGetal(d.overstek) && d.overstek < 0) fout(`${pad}.overstek`, 'overstek mag niet negatief zijn.');
+    valideerDakVorm(d, pad, fout, let_op);
   });
 
   // ── schemaVersie 2 ─────────────────────────────────────────────────────────
@@ -240,4 +241,13 @@ export function formatteerFouten(resultaat) {
     ...resultaat.fouten.map((f) => `FOUT  ${f.pad || '(ontwerp)'}: ${f.melding}`),
     ...resultaat.waarschuwingen.map((f) => `LET OP ${f.pad || '(ontwerp)'}: ${f.melding}`),
   ].join('\n');
+}
+
+/** basisHoogte / hogeZijde van een dak (optioneel, zonder nieuwe schemaVersie). Het type zelf toetst de generieke veldcontrole. */
+function valideerDakVorm(d, pad, fout, let_op) {
+  if (isGetal(d.basisHoogte)) {
+    if (d.basisHoogte < 0) fout(`${pad}.basisHoogte`, 'basisHoogte mag niet negatief zijn.');
+    else if (d.basisHoogte > 0 && (d.type === 'plat' || !d.helling)) let_op(`${pad}.basisHoogte`, 'basisHoogte geldt enkel voor hellende daken en wordt hier genegeerd.');
+  }
+  if (d.hogeZijde !== undefined && d.type !== 'lessenaar') let_op(`${pad}.hogeZijde`, 'hogeZijde geldt enkel voor een lessenaarsdak en wordt hier genegeerd.');
 }

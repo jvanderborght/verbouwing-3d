@@ -110,18 +110,21 @@ export function niveauBovenkant(model, niveauId) {
  * Dakhoogte boven het rustvlak in punt (x, y), voor een dak met rechthoekig grondvlak
  * (begrenzing van de contour). plat → 0.
  * zadel: nok evenwijdig aan nokrichting, in het midden. schild: zadel + afgeschuinde kopse kanten.
- * lessenaar: stijgt loodrecht op nokrichting; hoge rand aan de max-zijde.
+ * lessenaar: stijgt loodrecht op nokrichting; hoge rand aan de max-zijde (of aan de min-zijde met `hogeZijde: 'min'`).
+ * Optioneel `basisHoogte` (hellende daken): de hele onderkant ligt zoveel hoger (knieschot), zie dakBasisHoogte().
  */
 export function dakHoogteIn(dak, x, y) {
   const b = begrenzing(dak.contour);
   const tan = Math.tan((dak.helling * Math.PI) / 180);
   const r = dak.nokrichting || 'x';
   if (dak.type === 'plat' || dak.helling === 0) return 0;
+  const B = dakBasisHoogte(dak);
+  if (B > 0) return B + dakHoogteIn({ ...dak, basisHoogte: 0 }, x, y);
   // afstand loodrecht op de nok
   const lo = r === 'x' ? b.minY : b.minX;
   const hi = r === 'x' ? b.maxY : b.maxX;
   const v = r === 'x' ? y : x;
-  if (dak.type === 'lessenaar') return Math.max(0, (v - lo) * tan);
+  if (dak.type === 'lessenaar') return Math.max(0, (hogeZijdeMin(dak) ? hi - v : v - lo) * tan);
   const dwars = Math.max(0, Math.min(v - lo, hi - v));
   if (dak.type === 'zadel') return dwars * tan;
   // schild: ook langs de nok afschuinen met dezelfde helling
@@ -132,9 +135,24 @@ export function dakHoogteIn(dak, x, y) {
   return Math.min(dwars, langs) * tan;
 }
 
-/** Maximale dakhoogte (nok) boven het rustvlak. */
+/**
+ * Basishoogte (mm) van een dak: de onderkant aan de lage rand(en) ligt zoveel boven het rustvlak (bv. een knieschot
+ * of verhoogde gevel). Enkel voor hellende daken; plat of zonder veld: 0.
+ */
+export function dakBasisHoogte(dak) {
+  if (!dak || dak.type === 'plat' || !dak.helling) return 0;
+  const B = dak.basisHoogte;
+  return typeof B === 'number' && Number.isFinite(B) && B > 0 ? B : 0;
+}
+
+/** Lessenaar met de hoge rand aan de min-zijde (`hogeZijde: 'min'`)? Standaard ligt de hoge rand aan de max-zijde. */
+export const hogeZijdeMin = (dak) => dak?.type === 'lessenaar' && dak.hogeZijde === 'min';
+
+/** Maximale dakhoogte (nok) boven het rustvlak (incl. basisHoogte). */
 export function dakNokHoogte(dak) {
   if (dak.type === 'plat' || dak.helling === 0) return 0;
+  const B = dakBasisHoogte(dak);
+  if (B > 0) return B + dakNokHoogte({ ...dak, basisHoogte: 0 });
   const b = begrenzing(dak.contour);
   const tan = Math.tan((dak.helling * Math.PI) / 180);
   const r = dak.nokrichting || 'x';
@@ -145,11 +163,13 @@ export function dakNokHoogte(dak) {
   return (Math.min(dwars, langs) / 2) * tan;
 }
 
-/** Volume onder het dak boven het rustvlak, in mm³. Analytisch voor een rechthoekig grondvlak. */
+/** Volume onder het dak boven het rustvlak, in mm³. Analytisch voor een rechthoekig grondvlak (basisHoogte: + grondvlak × basis). */
 export function dakVolume(dak) {
   if (dak.type === 'plat' || dak.helling === 0) return 0;
   const b = begrenzing(dak.contour);
   const A = b.breedte * b.diepte;
+  const B = dakBasisHoogte(dak);
+  if (B > 0) return A * B + dakVolume({ ...dak, basisHoogte: 0 });
   const H = dakNokHoogte(dak);
   if (dak.type === 'lessenaar' || dak.type === 'zadel') return (A * H) / 2;
   // schild: prisma minus twee piramidehoeken
@@ -284,12 +304,14 @@ function zonderDubbels(pts) {
  * Dakvlakken (bovenkant) als 3D-polygonen [[x, y, h], …], h = hoogte boven het rustvlak.
  * Hellende daken op de rechthoekige begrenzing van de contour, met overstek
  * (de helling loopt door in de overstek, dus de dakrand ligt lager dan het rustvlak).
- * Binnen de contour komt h overeen met dakHoogteIn().
+ * Binnen de contour komt h overeen met dakHoogteIn() (ook basisHoogte en hogeZijde).
  * plat: één vlak op h = 0 (contour verschoven met de overstek).
  */
 export function dakVlakken(dak) {
   const o = dak.overstek || 0;
   if (dak.type === 'plat' || !dak.helling) return [polygoonOffset(dak.contour, o).map(([x, y]) => [x, y, 0])];
+  const B = dakBasisHoogte(dak);
+  if (B > 0) return dakVlakken({ ...dak, basisHoogte: 0 }).map((v) => v.map(([x, y, h]) => [x, y, h + B]));
   const b = begrenzing(dak.contour);
   const tan = Math.tan((dak.helling * Math.PI) / 180);
   const r = dak.nokrichting || 'x';
@@ -299,7 +321,9 @@ export function dakVlakken(dak) {
   let vlakken, hoogte;
   if (dak.type === 'lessenaar') {
     vlakken = [[[X0, Y0], [X1, Y0], [X1, Y1], [X0, Y1]]];
-    hoogte = (x, y) => e + (r === 'x' ? y - Y0 : x - X0) * tan;
+    hoogte = hogeZijdeMin(dak)
+      ? (x, y) => e + (r === 'x' ? Y1 - y : X1 - x) * tan
+      : (x, y) => e + (r === 'x' ? y - Y0 : x - X0) * tan;
   } else if (dak.type === 'zadel') {
     vlakken = r === 'x'
       ? [[[X0, Y0], [X1, Y0], [X1, ym], [X0, ym]], [[X0, ym], [X1, ym], [X1, Y1], [X0, Y1]]]
@@ -335,11 +359,13 @@ export function dakVlakken(dak) {
  * op de kopse kanten + rechthoek onder de hoge rand). Polygonen [[x, y, h], …] in het buitenvlak van de
  * contourbegrenzing; de bovenkant volgt de onderkant van het dak (dakvlak − dv, dv = verticale dakdikte).
  * `binnen` = horizontale eenheidsvector naar binnen (richting waarin de gevel dikte krijgt).
+ * Met basisHoogte of hogeZijde 'min': zie dakGevelsAlgemeen().
  * @returns {{ punten: number[][], binnen: number[] }[]}
  */
 export function dakGevels(dak, dv = 0) {
   if (dak.type !== 'zadel' && dak.type !== 'lessenaar') return [];
   if (!dak.helling) return [];
+  if (dakBasisHoogte(dak) > 0 || hogeZijdeMin(dak)) return dakGevelsAlgemeen(dak, dv);
   const b = begrenzing(dak.contour);
   const tan = Math.tan((dak.helling * Math.PI) / 180);
   const r = dak.nokrichting || 'x';
@@ -361,6 +387,62 @@ export function dakGevels(dak, dv = 0) {
     for (const [u, du] of [[u0, 1], [u1, -1]])
       uit.push({ punten: [naarXY(u, v0 + inzet, 0), naarXY(u, v1, 0), naarXY(u, v1, H)], binnen: richting(du, 0) });
     uit.push({ punten: [naarXY(u0, v1, 0), naarXY(u1, v1, 0), naarXY(u1, v1, H), naarXY(u0, v1, H)], binnen: richting(0, -1) });
+  }
+  return uit;
+}
+
+/**
+ * Gevelvullingen voor daken met basisHoogte B en/of hogeZijde 'min' (zadel/lessenaar). Zelfde vorm als dakGevels():
+ *  - kopse kanten: het gebied tussen het rustvlak (h = 0) en de onderkant van het dak − dv (vijfhoek bij zadel,
+ *    trapezium bij lessenaar; driehoek als B ≤ dv);
+ *  - lessenaar: rechthoek onder de hoge rand (hoogte nok − dv);
+ *  - rechthoek onder elke lage rand met hoogte B − dv (als B > dv): de verhoogde gevel / het knieschot.
+ */
+export function dakGevelsAlgemeen(dak, dv = 0) {
+  if ((dak.type !== 'zadel' && dak.type !== 'lessenaar') || !dak.helling) return [];
+  const b = begrenzing(dak.contour);
+  const tan = Math.tan((dak.helling * Math.PI) / 180);
+  const r = dak.nokrichting || 'x';
+  const B = dakBasisHoogte(dak);
+  const [u0, u1, v0, v1] = r === 'x' ? [b.minX, b.maxX, b.minY, b.maxY] : [b.minY, b.maxY, b.minX, b.maxX];
+  const naarXY = (u, v, h) => (r === 'x' ? [u, v, h] : [v, u, h]);
+  const richting = (du, dw) => (r === 'x' ? [du, dw] : [dw, du]);
+  const min = hogeZijdeMin(dak);
+  // bovenkant van de gevel (onderkant dak − dv) als functie van v, met de knikpunten
+  const vm = (v0 + v1) / 2;
+  const top = dak.type === 'zadel'
+    ? (v) => B + Math.min(v - v0, v1 - v) * tan - dv
+    : (v) => B + (min ? v1 - v : v - v0) * tan - dv;
+  const knik = dak.type === 'zadel' ? [v0, vm, v1] : [v0, v1];
+  // profiel afknippen op h ≥ 0 (bovenkant is concaaf of lineair ⇒ één aaneengesloten stuk)
+  const prof = [];
+  for (let i = 0; i < knik.length; i++) {
+    const v = knik[i], h = top(v);
+    if (i > 0) {
+      const vp = knik[i - 1], hp = top(vp);
+      if ((hp < 0) !== (h < 0)) prof.push([vp + ((0 - hp) * (v - vp)) / (h - hp), 0]);
+    }
+    if (h >= 0) prof.push([v, h]);
+  }
+  const uit = [];
+  const H = Math.max(...knik.map(top));
+  if (prof.length >= 2 && H > 0) {
+    const va = prof[0][0], vb = prof[prof.length - 1][0];
+    for (const [u, du] of [[u0, 1], [u1, -1]]) {
+      const pts = [[va, 0], [vb, 0], ...prof.slice().reverse()]
+        .filter((p, i, a) => { const q = a[(i + 1) % a.length]; return Math.abs(p[0] - q[0]) > 1e-6 || Math.abs(p[1] - q[1]) > 1e-6; });
+      if (pts.length >= 3) uit.push({ punten: pts.map(([v, h]) => naarXY(u, v, h)), binnen: richting(du, 0) });
+    }
+  }
+  const rechthoek = (v, h, dw) => {
+    if (h > 0) uit.push({ punten: [naarXY(u0, v, 0), naarXY(u1, v, 0), naarXY(u1, v, h), naarXY(u0, v, h)], binnen: richting(0, dw) });
+  };
+  if (dak.type === 'lessenaar') {
+    rechthoek(min ? v0 : v1, H, min ? 1 : -1); // hoge rand
+    rechthoek(min ? v1 : v0, B - dv, min ? -1 : 1); // lage rand (knieschot)
+  } else {
+    rechthoek(v0, B - dv, 1);
+    rechthoek(v1, B - dv, -1);
   }
   return uit;
 }

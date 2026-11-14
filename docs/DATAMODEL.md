@@ -40,8 +40,26 @@ de oppervlakte per hoogteband `[0, 1500)`, `[1500, 2200)`, `[2200, ∞)`. **Welk
 
 **vloer** `{ id, niveau, contour, dikte, status }` — bruto buitencontour. De vloeren van een niveau vormen ook zijn **begrenzing** (v2: trappen en inrichting moeten erbinnen liggen).
 
-**dak** `{ id, niveau, type: plat|lessenaar|zadel|schild, contour, helling, nokrichting?: x|y, overstek?, dikte?, status }` — rust op de bovenkant van `niveau` (peil + hoogte). Hellende daken worden berekend op de rechthoekige begrenzing van `contour`. `nokrichting` = richting van de nok (zadel/schild) of van de hoge rand (lessenaar; die ligt aan de max-zijde).
+**dak** `{ id, niveau, type: plat|lessenaar|zadel|schild, contour, helling, nokrichting?: x|y, overstek?, dikte?, basisHoogte?, hogeZijde?: min|max, status }` — rust op de bovenkant van `niveau` (peil + hoogte). Hellende daken worden berekend op de rechthoekige begrenzing van `contour`. `nokrichting` = richting van de nok (zadel/schild) of van de hoge rand (lessenaar; standaard aan de max-zijde).
 De onderkant van het dak volgt `rustvlak + dakHoogteIn(dak, x, y)`; de `dikte` ligt daarboven (zoals in de 3D-weergave).
+Optioneel, zonder nieuwe schemaVersie (ontbreekt het veld, dan geldt het oude gedrag):
+- `basisHoogte` (mm, ≥ 0, standaard 0; enkel hellende daken): de hele onderkant ligt zoveel hoger, dus aan de lage rand(en) `basisHoogte`
+  boven het rustvlak — bv. een knieschot of verhoogde gevel. `dakHoogteIn` en `dakNokHoogte` tellen ze mee, `dakVolume` = grondvlak × basis + hellend deel.
+- `hogeZijde` (enkel lessenaar, standaard `max`): aan welke zijde (loodrecht op `nokrichting`) de hoge rand ligt. `min` ⇒ hoge rand aan
+  minY (nokrichting x) of minX (nokrichting y).
+
+Validator: `basisHoogte` < 0 ⇒ fout; `basisHoogte` > 0 op een plat dak ⇒ waarschuwing (genegeerd); `hogeZijde` bij een ander type dan
+lessenaar ⇒ waarschuwing (genegeerd). Alle afgeleiden gebruiken dezelfde functies (`js/model/geometry.js`): vrije hoogte, hoogtelijnen en
+-banden (`hoogte.js`), muren onder het dak (`muurprofiel.js`), kerncijfers (volume via `dakVolume`; dakoppervlak = grondvlak / cos helling,
+de basis verandert dat niet), 3D (`dakVlakken`, `dakGevels`).
+
+**Gevelvullingen (3D)**: `dakGevels(dak)` geeft de vullingen tussen rustvlak en dak (kopse kanten; lessenaar: onder de hoge rand; met
+`basisHoogte`: ook onder de lage rand(en)). `zichtbareDakGevels(model, dak)` (`js/model/dakgevels.js`, gebruikt door de 3D-weergave) laat
+een vulling weg als (a) een ander hellend dak met hetzelfde rustvlak aan de overkant van die rand ligt (begrenzingsrand op dezelfde lijn,
+≥ 50 % overlap; dat dak telt als het niet afbraak is, of als beide afbraak zijn) — bv. twee lessenaars die elkaar aan de nok raken — of
+(b) muren (≠ afbraak) op een niveau met vloerpeil = rustvlak, evenwijdig en met de as binnen dikte/2 + 20 mm van het gevelvlak, samen
+≥ 90 % van de gevellengte bedekken — bv. een verhoogde achtergevel of topgevel als muur op de zolder.
+**Beperking**: `overstek` geldt rondom; bij daken die elkaar aan de nok raken moet ze 0 zijn (anders steken de dakplaten door).
 
 **trap** (v2, voorvoegsel `T`)
 `{ id, vanNiveau, naarNiveau, type: recht|kwart|halfdraai|spiraal, oorsprong:[x,y], richting, breedte, aantalTreden?, optrede?, aantrede?, draairichting?: links|rechts, diameter?, status }`
@@ -252,6 +270,12 @@ npm test
 
 Een ops-bestand is een lijst operaties, één operatie, of `{ "ops": [...], "_uitleg": "…", "basis": "<ontwerp-id>" }`.
 Beide tools migreren het ontwerp eerst naar de huidige schemaVersie.
+
+**Concept asymmetrisch dak**: `designs/concept-asymmetrisch-dak.json`, gegenereerd door `node tools/voorbeelden/maak-concept-asym-dak.mjs`
+uit `designs/bestaand.json` (opnieuw draaien als bestaand.json wijzigt). Bestaand zadeldak ⇒ voordakvlak blijft (lessenaar, bestaand;
+verlengd tot de nieuwe nok met een nieuw stuk met `basisHoogte`), oud achterdakvlak = afbraak-lessenaar (`hogeZijde: min`), nieuw
+achterdak = lessenaar 28,5° met `hogeZijde: min` en `basisHoogte` (knieschot) op een verhoogde achtergevel (muur op de zolder).
+De nok ligt waar de onderkanten van beide dakvlakken elkaar snijden.
 
 **Demonstratie** (fase 5): `tools/voorbeelden/zolder-programma.ops.json` — afbraak achterbouw + garage 2, zolder, halfdraaitrap van de
 verdieping naar de zolder, 2 slaapkamers, berging, badkamer met lavabo en douche, programma van eisen. Gegenereerd met de bewerkingen door

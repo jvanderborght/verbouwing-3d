@@ -1,6 +1,7 @@
 {
   "ontwerpen": [
     { "id": "bestaand", "naam": "Bestaande toestand" },
-    { "id": "voorbeeld", "naam": "Voorbeeldhuis" }
+    { "id": "voorbeeld", "naam": "Voorbeeldhuis" },
+    { "id": "concept-asymmetrisch-dak", "naam": "Concept: asymmetrisch dak achteraan" }
   ]
 }
