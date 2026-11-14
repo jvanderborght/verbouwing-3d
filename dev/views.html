@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Views testen</title>
+<script type="importmap">
+{ "imports": {
+  "three": "../js/vendor/three/three.module.min.js",
+  "three/addons/": "../js/vendor/three/addons/"
+} }
+</script>
+<style>
+  :root { --rand: #d8d4ce; --tekst: #2c2a28; --zacht: #6a655f; --accent: #3b7fd9; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #f4f2ee; color: var(--tekst); font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  body { display: flex; flex-direction: column; }
+  header { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding: 8px 16px; border-bottom: 1px solid var(--rand); background: #fff; }
+  header h1 { font-size: 15px; margin: 0 8px 0 0; }
+  header label { display: inline-flex; gap: 6px; align-items: center; white-space: nowrap; }
+  header .groep { display: inline-flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  button, select { font: inherit; padding: 4px 10px; border: 1px solid var(--rand); border-radius: 6px; background: #fff; min-height: 32px; }
+  #info { color: var(--zacht); }
+  main { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 8px; min-height: 0; }
+  .paneel { position: relative; min-height: 0; border: 1px solid var(--rand); border-radius: 8px; overflow: hidden; background: #fff; }
+  .paneel > .titel { position: absolute; top: 6px; left: 8px; z-index: 1; font-size: 12px; color: var(--zacht); background: rgba(255,255,255,.85); padding: 1px 6px; border-radius: 4px; pointer-events: none; }
+  .vlak { position: absolute; inset: 0; }
+  @media (max-width: 760px) {
+    main { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+    header { padding: 8px 16px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Views (ontwikkelpagina)</h1>
+  <span class="groep" id="niveaus3d"></span>
+  <label>Doorsnede <input type="range" id="doorsnede" min="0" max="9000" step="100" value="9000"><span id="dsWaarde">uit</span></label>
+  <label>2D-niveau <select id="niveau2d"></select></label>
+  <label><input type="checkbox" id="maten" checked> maten</label>
+  <button id="kader">Alles tonen</button>
+  <span id="info">selectie: –</span>
+</header>
+<main>
+  <div class="paneel"><span class="titel">3D</span><div class="vlak" id="v3d"></div></div>
+  <div class="paneel"><span class="titel">Plattegrond</span><div class="vlak" id="v2d"></div></div>
+</main>
+<script type="module">
+  import { Viewer3D } from '../js/views/viewer3d.js';
+  import { Plattegrond } from '../js/views/plan2d.js';
+
+  const ontwerp = new URLSearchParams(location.search).get('ontwerp') || 'voorbeeld';
+  const model = await (await fetch(`../designs/${ontwerp}.json`)).json();
+
+  const v3 = new Viewer3D(document.getElementById('v3d'));
+  const v2 = new Plattegrond(document.getElementById('v2d'));
+  const staat = { verborgen: new Set(), doorsnede: null, selectie: null, niveau: model.niveaus[0]?.id, maten: true };
+
+  const hoogste = Math.max(...model.niveaus.map((n) => n.peil + n.hoogte)) + 5000;
+  const ds = document.getElementById('doorsnede');
+  ds.max = hoogste; ds.value = hoogste;
+
+  const n3 = document.getElementById('niveaus3d');
+  const sel2 = document.getElementById('niveau2d');
+  for (const n of model.niveaus) {
+    const l = document.createElement('label');
+    l.innerHTML = `<input type="checkbox" checked data-niveau="${n.id}"> ${n.naam}`;
+    n3.appendChild(l);
+    sel2.add(new Option(n.naam, n.id));
+  }
+
+  function teken() {
+    v3.render(model, { verborgenNiveaus: [...staat.verborgen], doorsnede: staat.doorsnede, selectie: staat.selectie });
+    v2.render(model, { niveau: staat.niveau, selectie: staat.selectie, toonMaten: staat.maten });
+    document.getElementById('info').textContent = `selectie: ${staat.selectie ?? '–'}`;
+  }
+  const kies = (id) => { staat.selectie = id; teken(); };
+  v3.opSelectie(kies);
+  v2.opSelectie(kies);
+
+  n3.addEventListener('change', (e) => {
+    const id = e.target.dataset.niveau;
+    if (e.target.checked) staat.verborgen.delete(id); else staat.verborgen.add(id);
+    teken();
+  });
+  ds.addEventListener('input', () => {
+    const v = Number(ds.value);
+    staat.doorsnede = v >= hoogste ? null : v;
+    document.getElementById('dsWaarde').textContent = staat.doorsnede == null ? 'uit' : `${v} mm`;
+    teken();
+  });
+  sel2.addEventListener('change', () => { staat.niveau = sel2.value; teken(); });
+  document.getElementById('maten').addEventListener('change', (e) => { staat.maten = e.target.checked; teken(); });
+  document.getElementById('kader').addEventListener('click', () => { v3.zoomAlles(); v2.zoomAlles(); });
+
+  teken();
+  window.__views = { v3, v2, staat, teken, model };
+</script>
+</body>
+</html>

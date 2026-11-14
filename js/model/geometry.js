@@ -163,3 +163,204 @@ export function dakVolume(dak) {
 
 export const mm2_naar_m2 = (v) => v / 1e6;
 export const mm3_naar_m3 = (v) => v / 1e9;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Bouwstenen voor de weergave (3D en 2D). Pure functies, getest in tests/views.test.js.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const EVENWIJDIG = 0.02; // |kruisproduct| van eenheidsvectoren waaronder twee muren evenwijdig heten
+
+/**
+ * Hoeveel een muur aan start en eind verlengd (+) of ingekort (−) wordt (mm, langs de as),
+ * zodat aansluitende muren van hetzelfde niveau netjes sluiten zonder te overlappen.
+ * - L-hoek: één muur loopt door tot de buitenzijde van de andere, de andere stopt ertegen.
+ *   Voorrang: niet-afbraak vóór afbraak, daarna volgorde in de lijst.
+ * - T-aansluiting (einde op het midden van een andere muur, of op twee collineaire muren): inkorten tot het muurvlak.
+ * - Collineair verlengstuk: geen correctie.
+ * @returns {{ start: number, eind: number }}
+ */
+export function muurAansluiting(muren, muur, tol = 5) {
+  const volgorde = new Map(muren.map((m, i) => [m.id, i]));
+  const sleutel = (m) => (m.status === 'afbraak' ? 1e9 : 0) + (volgorde.get(m.id) ?? 0);
+  const r = muurRichting(muur);
+  const kruis = (a, b) => Math.abs(a.ux * b.uy - a.uy * b.ux);
+  const andere = muren.filter((m) => m.id !== muur.id && m.niveau === muur.niveau);
+  const uit = { start: 0, eind: 0 };
+  for (const [naam, P] of [['start', muur.start], ['eind', muur.eind]]) {
+    const partners = [];
+    let collineair = false;
+    for (const B of andere) {
+      if (afstandTotSegment(P, B.start, B.eind).afstand > tol) continue;
+      const rb = muurRichting(B);
+      const opEinde = lengte(P, B.start) <= tol || lengte(P, B.eind) <= tol;
+      if (kruis(r, rb) < EVENWIJDIG) { if (opEinde) collineair = true; continue; }
+      partners.push({ B, rb, opEinde });
+    }
+    if (collineair || partners.length === 0) continue;
+    const half = Math.max(...partners.map((p) => p.B.dikte)) / 2;
+    const doorlopend = partners.some((p) => !p.opEinde)
+      || partners.some((p, i) => partners.some((q, j) => j > i && kruis(p.rb, q.rb) < EVENWIJDIG));
+    if (doorlopend) uit[naam] = -half;
+    else uit[naam] = partners.every((p) => sleutel(muur) < sleutel(p.B)) ? half : -half;
+  }
+  return uit;
+}
+
+/**
+ * Deelt een muur (in het vlak t = langs de as, z = hoogte boven vloerpeil) op in volle rechthoeken
+ * rond de gaten (openingen). Aangrenzende stukken met dezelfde hoogte worden samengevoegd.
+ * @param {number} t0 begin langs de as (mag negatief zijn bij verlenging)
+ * @param {number} t1 einde langs de as
+ * @param {number} H muurhoogte
+ * @param {{positie:number, breedte:number, borstwering:number, hoogte:number}[]} gaten
+ * @returns {{t0:number, t1:number, z0:number, z1:number}[]}
+ */
+export function muurSegmenten(t0, t1, H, gaten = []) {
+  const eps = 0.5;
+  const ts = new Set([t0, t1]);
+  for (const g of gaten) for (const t of [g.positie, g.positie + g.breedte]) if (t > t0 && t < t1) ts.add(t);
+  const grenzen = [...ts].sort((a, b) => a - b);
+  const uit = [];
+  for (let i = 0; i < grenzen.length - 1; i++) {
+    const a = grenzen[i], b = grenzen[i + 1];
+    if (b - a < eps) continue;
+    const open = gaten
+      .filter((g) => g.positie <= a + eps && g.positie + g.breedte >= b - eps)
+      .map((g) => [Math.max(0, g.borstwering), Math.min(H, g.borstwering + g.hoogte)])
+      .filter(([p, q]) => q > p)
+      .sort((p, q) => p[0] - q[0]);
+    const vol = [];
+    let z = 0;
+    for (const [p, q] of open) { if (p > z + eps) vol.push([z, p]); z = Math.max(z, q); }
+    if (H > z + eps) vol.push([z, H]);
+    for (const [z0, z1] of vol) {
+      const vorige = uit.find((s) => Math.abs(s.t1 - a) < eps && Math.abs(s.z0 - z0) < eps && Math.abs(s.z1 - z1) < eps);
+      if (vorige) vorige.t1 = b; else uit.push({ t0: a, t1: b, z0, z1 });
+    }
+  }
+  return uit;
+}
+
+/** Rechthoek (4 hoekpunten in plan) van het muurdeel tussen t0 en t1 langs de as. */
+export function muurDeelRechthoek(muur, t0, t1) {
+  const { ux, uy, nx, ny } = muurRichting(muur);
+  const h = muur.dikte / 2;
+  const [sx, sy] = muur.start;
+  const p = (t, s) => [sx + ux * t + nx * h * s, sy + uy * t + ny * h * s];
+  return [p(t0, 1), p(t1, 1), p(t1, -1), p(t0, -1)];
+}
+
+/** Polygoon evenwijdig verschoven over d (mm) naar buiten (d < 0: naar binnen). Hoekpunten via snijpunten (verstek). */
+export function polygoonOffset(pts, d) {
+  if (!d) return pts.map((p) => [p[0], p[1]]);
+  let s = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const [x1, y1] = pts[i]; const [x2, y2] = pts[(i + 1) % pts.length];
+    s += x1 * y2 - x2 * y1;
+  }
+  const tegenwijzers = s > 0;
+  const lijnen = pts.map((a, i) => {
+    const b = pts[(i + 1) % pts.length];
+    const L = lengte(a, b) || 1;
+    const ux = (b[0] - a[0]) / L, uy = (b[1] - a[1]) / L;
+    const nx = tegenwijzers ? uy : -uy, ny = tegenwijzers ? -ux : ux; // buitennormaal
+    return { p: [a[0] + nx * d, a[1] + ny * d], u: [ux, uy] };
+  });
+  return lijnen.map((l2, i) => {
+    const l1 = lijnen[(i - 1 + lijnen.length) % lijnen.length];
+    const k = l1.u[0] * l2.u[1] - l1.u[1] * l2.u[0];
+    if (Math.abs(k) < 1e-9) return [...l2.p];
+    const dx = l2.p[0] - l1.p[0], dy = l2.p[1] - l1.p[1];
+    const t = (dx * l2.u[1] - dy * l2.u[0]) / k;
+    return [l1.p[0] + l1.u[0] * t, l1.p[1] + l1.u[1] * t];
+  });
+}
+
+function zonderDubbels(pts) {
+  return pts.filter((p, i) => lengte(p, pts[(i + 1) % pts.length]) > 1e-6);
+}
+
+/**
+ * Dakvlakken (bovenkant) als 3D-polygonen [[x, y, h], …], h = hoogte boven het rustvlak.
+ * Hellende daken op de rechthoekige begrenzing van de contour, met overstek
+ * (de helling loopt door in de overstek, dus de dakrand ligt lager dan het rustvlak).
+ * Binnen de contour komt h overeen met dakHoogteIn().
+ * plat: één vlak op h = 0 (contour verschoven met de overstek).
+ */
+export function dakVlakken(dak) {
+  const o = dak.overstek || 0;
+  if (dak.type === 'plat' || !dak.helling) return [polygoonOffset(dak.contour, o).map(([x, y]) => [x, y, 0])];
+  const b = begrenzing(dak.contour);
+  const tan = Math.tan((dak.helling * Math.PI) / 180);
+  const r = dak.nokrichting || 'x';
+  const X0 = b.minX - o, X1 = b.maxX + o, Y0 = b.minY - o, Y1 = b.maxY + o;
+  const xm = (X0 + X1) / 2, ym = (Y0 + Y1) / 2;
+  const e = -o * tan;
+  let vlakken, hoogte;
+  if (dak.type === 'lessenaar') {
+    vlakken = [[[X0, Y0], [X1, Y0], [X1, Y1], [X0, Y1]]];
+    hoogte = (x, y) => e + (r === 'x' ? y - Y0 : x - X0) * tan;
+  } else if (dak.type === 'zadel') {
+    vlakken = r === 'x'
+      ? [[[X0, Y0], [X1, Y0], [X1, ym], [X0, ym]], [[X0, ym], [X1, ym], [X1, Y1], [X0, Y1]]]
+      : [[[X0, Y0], [xm, Y0], [xm, Y1], [X0, Y1]], [[xm, Y0], [X1, Y0], [X1, Y1], [xm, Y1]]];
+    hoogte = (x, y) => e + (r === 'x' ? Math.min(y - Y0, Y1 - y) : Math.min(x - X0, X1 - x)) * tan;
+  } else {
+    // schild: nok langs de langste zijde
+    const W = X1 - X0, D = Y1 - Y0;
+    if (W >= D) {
+      const h = D / 2;
+      vlakken = [
+        [[X0, Y0], [X1, Y0], [X1 - h, ym], [X0 + h, ym]],
+        [[X1, Y1], [X0, Y1], [X0 + h, ym], [X1 - h, ym]],
+        [[X0, Y1], [X0, Y0], [X0 + h, ym]],
+        [[X1, Y0], [X1, Y1], [X1 - h, ym]],
+      ];
+    } else {
+      const h = W / 2;
+      vlakken = [
+        [[X1, Y0], [X1, Y1], [xm, Y1 - h], [xm, Y0 + h]],
+        [[X0, Y1], [X0, Y0], [xm, Y0 + h], [xm, Y1 - h]],
+        [[X0, Y0], [X1, Y0], [xm, Y0 + h]],
+        [[X1, Y1], [X0, Y1], [xm, Y1 - h]],
+      ];
+    }
+    hoogte = (x, y) => e + Math.min(x - X0, X1 - x, y - Y0, Y1 - y) * tan;
+  }
+  return vlakken.map((v) => zonderDubbels(v).map(([x, y]) => [x, y, hoogte(x, y)]));
+}
+
+/**
+ * Gevelvullingen onder een hellend dak (zadel: driehoeken op de kopse kanten; lessenaar: driehoeken
+ * op de kopse kanten + rechthoek onder de hoge rand). Polygonen [[x, y, h], …] in het buitenvlak van de
+ * contourbegrenzing; de bovenkant volgt de onderkant van het dak (dakvlak − dv, dv = verticale dakdikte).
+ * `binnen` = horizontale eenheidsvector naar binnen (richting waarin de gevel dikte krijgt).
+ * @returns {{ punten: number[][], binnen: number[] }[]}
+ */
+export function dakGevels(dak, dv = 0) {
+  if (dak.type !== 'zadel' && dak.type !== 'lessenaar') return [];
+  if (!dak.helling) return [];
+  const b = begrenzing(dak.contour);
+  const tan = Math.tan((dak.helling * Math.PI) / 180);
+  const r = dak.nokrichting || 'x';
+  // u = langs de nok, v = dwars
+  const [u0, u1, v0, v1] = r === 'x' ? [b.minX, b.maxX, b.minY, b.maxY] : [b.minY, b.maxY, b.minX, b.maxX];
+  const naarXY = (u, v, h) => (r === 'x' ? [u, v, h] : [v, u, h]);
+  const richting = (du, dw) => (r === 'x' ? [du, dw] : [dw, du]);
+  const inzet = dv / tan;
+  const uit = [];
+  if (dak.type === 'zadel') {
+    const H = ((v1 - v0) / 2) * tan - dv;
+    if (H <= 0) return [];
+    const vm = (v0 + v1) / 2;
+    for (const [u, du] of [[u0, 1], [u1, -1]])
+      uit.push({ punten: [naarXY(u, v0 + inzet, 0), naarXY(u, v1 - inzet, 0), naarXY(u, vm, H)], binnen: richting(du, 0) });
+  } else {
+    const H = (v1 - v0) * tan - dv;
+    if (H <= 0) return [];
+    for (const [u, du] of [[u0, 1], [u1, -1]])
+      uit.push({ punten: [naarXY(u, v0 + inzet, 0), naarXY(u, v1, 0), naarXY(u, v1, H)], binnen: richting(du, 0) });
+    uit.push({ punten: [naarXY(u0, v1, 0), naarXY(u1, v1, 0), naarXY(u1, v1, H), naarXY(u0, v1, H)], binnen: richting(0, -1) });
+  }
+  return uit;
+}
