@@ -49,17 +49,21 @@ const antwoord = (data, o) => ({ bericht: V.bericht(data, o) });
 
 // ---------------------------------------------------------------- prompt en verzoek
 
-test('systeemprompt: vast, Nederlands, met datamodel, operaties en de afbraak-/statusregels', () => {
+test('systeemprompt: vast, Nederlands, met datamodel v2, operaties, macro\'s en de afbraak-/statusregels', () => {
   assert.equal(typeof SYSTEEMPROMPT, 'string');
   for (const s of ['mm', 'Oorsprong', 'x → rechts', 'y → naar achter', 'toevoegen', 'wijzigen', 'verwijderen', 'verplaatsen', 'afbraak', '"nieuw"',
-    'Niet modelleerbaar in schema v1', 'Programma van eisen', 'draaitrap', 'Zolder', 'vragen', 'Verzin geen andere maten']) {
+    'Niet modelleerbaar', 'Programma van eisen', 'draaitrap', 'Zolder', 'vragen', 'Verzin geen andere maten',
+    'schemaVersie 2', 'trappen', 'inrichting', 'hoogtegrenzen', '"soort": "zolder"', 'programma', 'oorsprong', 'OPTREDEN', 'spiraal',
+    'Werkwaarden zijn GEEN normen', 'afbraakZone', 'zolderNiveau', 'trapPlaatsen', 'inrichtingPlaatsen', 'muurSplitsen', 'JSON-TEKST']) {
     assert.ok(SYSTEEMPROMPT.includes(s), `systeemprompt mist "${s}"`);
   }
+  // wat in schema v2 wel kan, staat niet meer als 'niet modelleerbaar in schema v1'
+  assert.doesNotMatch(SYSTEEMPROMPT, /schema v1/);
   // geen tijdstempels of willekeur (cache)
   assert.doesNotMatch(SYSTEEMPROMPT, /\d{4}-\d{2}-\d{2}T/);
 });
 
-test('antwoordschema: additionalProperties false op elk object, geen min/max, geen ontwerp-operatie', () => {
+test('antwoordschema: additionalProperties false op elk object, geen min/max, basisops + ontwerp + macro\'s', () => {
   const objecten = [];
   const loop = (s) => {
     if (!s || typeof s !== 'object') return;
@@ -72,7 +76,7 @@ test('antwoordschema: additionalProperties false op elk object, geen min/max, ge
   for (const o of objecten) assert.equal(o.additionalProperties, false);
   assert.deepEqual(ANTWOORD_SCHEMA.required, ['samenvatting', 'vragen', 'varianten']);
   const ops = ANTWOORD_SCHEMA.$defs.op.anyOf.map((x) => x.properties.op.enum[0]);
-  assert.deepEqual(ops, ['toevoegen', 'wijzigen', 'verwijderen', 'verplaatsen']);
+  assert.deepEqual(ops, ['toevoegen', 'wijzigen', 'verwijderen', 'verplaatsen', 'ontwerp', 'afbraakZone', 'zolderNiveau', 'trapPlaatsen', 'inrichtingPlaatsen', 'muurSplitsen']);
 });
 
 test('bouwVerzoek: model, effort, structured output, fallbacks, cache_control; geen thinking/sampling/prefill', () => {

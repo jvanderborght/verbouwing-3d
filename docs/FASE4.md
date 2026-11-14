@@ -74,6 +74,7 @@ wat schema v1 niet kan (trap, schuine plafonds, sanitair, opbouwen) expliciet me
 benaderen met bestaande elementen (ruimte "Trap (draaitrap Ø …)", niveau "Zolder").
 
 ### Antwoordschema
+(Stand fase 4 — vervangen in fase 5, zie "Aanvulling fase 5" onderaan.)
 `{ samenvatting: string, vragen: string[], varianten: [{ naam, beschrijving, ops: Op[] }] }` met `Op` = anyOf van
 `toevoegen` (collectie + item), `wijzigen` (collectie + id + velden), `verwijderen`, `verplaatsen` (dx, dy). `item`/`velden` = één object met
 alle elementvelden (optioneel, `additionalProperties: false`). De operatie `ontwerp` zit er niet in (de app beheert naam/beschrijving).
@@ -100,3 +101,85 @@ bron + datum vermeld; duidelijk een schatting). Instellingen: API-key (password-
 - De kostschatting gebruikt de prijzen van het gevraagde model; na een fallback is ze "deels onbekend". Cache-schrijven = 1,25 × invoer (vuistregel).
 - Trappen, zolders met schuine daken, sanitair en opbouwen bestaan niet in schema v1 (latere fase); Claude benadert ze met ruimtes/niveaus.
 - De key staat leesbaar in localStorage van het browserprofiel (zoals het GitHub-token).
+
+## Aanvulling fase 5 (fase5/ai): schema v2, macro's, programmatoets
+
+### Systeemprompt naar schema v2
+Datamodel `schemaVersie 2` (velden per collectie nog altijd gegenereerd uit `VELDEN`, nu met `trappen` (T) en `inrichting` (I),
+`niveaus.soort`, `ruimtes.hoogtegrenzen`) · ontwerpveld `programma` (vorm van ruimte- en trap-eisen) · conventies: trap-`oorsprong`
+(midden voorrand onderste trede; spiraal: middelpunt), `richting`, `draairichting` (links = tegenwijzerzin), voetafdruk per type,
+`aantalTreden` = aantal optreden (n − 1 treden in plan), trapgat = voetafdruk; zolder (`soort: zolder`, hoogte = nok, vrije hoogte wordt
+berekend, knieschoten = muren met eigen `hoogte`, `hoogtegrenzen` op ruimtes); inrichting (`positie` = middelpunt, `rotatie` 0/90/180/270
+= rug aan -y/+x/+y/-x) · **werkwaarden zijn geen normen** (de waarden worden uit `INSTELLINGEN_STANDAARD` in de prompt gezet; grenzen
+standaard leeg = niet getoetst; Claude mag geen normen verzinnen) · de afbraakregels blijven (afbraak i.p.v. verwijderen, randmuren
+blijven, ruimtes verwijderen) en verwijzen naar de macro `afbraakZone` · programma van eisen: het gevraagde programma vastleggen met de
+operatie `ontwerp`, en daarin enkel eisen die de gebruiker gaf (`minOppervlakte`/`hoogteGrens` alleen als de gebruiker ze noemt).
+De tekst "Niet modelleerbaar in schema v1" is weg; wat ook v2 niet kan (dakkapellen, dakramen, isolatie/opbouwen, technieken, leuningen)
+meldt Claude als "Niet modelleerbaar: …". De systeemprompt is ±20,7k tekens (vast, deterministisch, gecachet).
+
+### Antwoordschema (vervangt fase 4)
+Gemeten tegen de limieten van structured outputs (Claude API-documentatie `build-with-claude/structured-outputs`, "Schema complexity
+limits", gelezen 2026-11-14): **max. 24 optionele parameters** en **max. 16 parameters met een unie** (anyOf / type-lijst), opgeteld over
+het hele verzoek; geen recursie. Het fase-4-schema met één vrij element-object zou met de v2-velden **33** optionele velden hebben (> 24).
+**Vereenvoudiging:** `item` (toevoegen) en `velden` (wijzigen, ontwerp) zijn nu een **JSON-tekst** (string met het object). De inhoud wordt
+door de app geparst en door de validator gecontroleerd; een fout gaat mee in de herstelpoging. Bijkomend voordeel: `null` (optioneel veld
+wissen) en de operatie `ontwerp` (programma) kunnen nu wel. De macro's hebben vaste, getypeerde parameters; waar een standaard bestaat is
+de parameter verplicht met `""` = automatisch (id's) i.p.v. optioneel. Resultaat (`schemaMaat`, bewaakt in `tests/ai-macros.test.js`):
+**14 optionele parameters, 1 unie** (de lijst `ops`), 12 objecten, geen recursie, ±4,7 kB. Antwoorden met `item`/`velden` als object
+(fase-4-vorm, of als de terugval zonder schema actief is) blijven aanvaard.
+
+`Op` = anyOf van: `toevoegen`, `wijzigen`, `verwijderen`, `verplaatsen`, `ontwerp` (enkel `programma`, `naam`, `beschrijving`) en de macro's.
+
+### Macro's (`js/ai/macros.js`)
+| macro | parameters | bewerking |
+|---|---|---|
+| `afbraakZone` | `ruimtes?` (zone) **of** `ids?` (precies die elementen), `niveau?` | `opsAfbraakZone` |
+| `zolderNiveau` | `onderNiveau`, `naam`, `id`, `vloerdikte?` | `opsZolderNiveau` |
+| `trapPlaatsen` | `id`, `van`, `naar`, `type`, `oorsprong`, `richting`, `breedte`, `draairichting?`, `aantrede?`, `aantalTreden?`, `optrede?`, `diameter?` | `opsTrapPlaatsen` |
+| `inrichtingPlaatsen` | `id`, `soort`, `ruimte`, `rotatie`, `positie?` (leeg ⇒ plek tegen een wand), `niveau?`, `breedte?`, `diepte?`, `hoogte?` | `opsInrichtingPlaatsen` |
+| `muurSplitsen` | `muur`, `positie` (mm vanaf start), `nieuwId` | `opsMuurSplitsen` |
+
+`vouwUit(basis, ops, { instellingen })` vouwt de macro's **vóór de validatie** uit, **in volgorde, op het tussenresultaat** (basisops worden
+onderweg zonder validatie toegepast), zodat latere operaties kunnen verwijzen naar wat een macro aanmaakte. Daarna gewoon `applyOps` +
+`validate` op het geheel. Een fout in een macro (`fout` van de bewerking, onbekende parameter-combinatie, ongeldige JSON-tekst, id bestaat al)
+krijgt pad `ops[i]` met de operatie van Claude en gaat mee in de **herstelpoging**; het herstelbericht vermeldt ook welke macro's vóór de
+fout wel uitgevoerd werden en welke id's ze aanmaakten (`macroInfoTekst`).
+
+**Naar nieuwe id's verwijzen.** Claude geeft in `id` / `nieuwId` zelf het id van het nieuwe element (aanbevolen; `""` = volgend vrij nummer)
+en verwijst er later naar (de zoldermuren naar `N2`, de inrichting naar de ruimte `R16`, …). Id's die een bewerking zelf uitdeelt (de tweede
+helft van een door `afbraakZone` gesplitste muur, de zoldervloer, …) worden **hernummerd** als ze botsen met een id dat Claude ergens in
+dezelfde variant expliciet gebruikt (`toevoegen` item.id, macro-`id`/`nieuwId`). Voorbeeld uit de test: `afbraakZone` zou de stukken
+M30/M31 noemen, maar Claude gebruikt M30…M36 voor de zolderwanden ⇒ de stukken worden M37/M38. Naar zulke automatische id's verwijst Claude
+niet (de prompt zegt dat expliciet); ze staan wel in `macroInfo` en in het herstelbericht.
+
+Resultaat per geslaagde variant (`pasVariantenToe`): `ops` = de **uitgevouwen basisoperaties** (die past "Toepassen" als één undo-stap toe,
+zodat `js/ui` niets van macro's hoeft te weten), `antwoordOps` = de operaties zoals Claude ze gaf, `macroInfo`, `meldingen` (bv. de
+randmuren van `afbraakZone`: mogelijk dragend) en — als het ontwerp na de variant een `programma` heeft — **`programmaToets`** =
+`toetsProgramma(model, model.programma, { instellingen })`. `Gesprek` aanvaardt `modelInstellingen` (werkwaarden/grenzen uit
+`js/model/instellingen.js`) en geeft ze door aan macro's en toets; de UI geeft ze (nog) niet mee ⇒ standaardinstellingen.
+Het voorbeeld in de plattegrond toont nu ook trappen (voetafdruk, op van- én naarNiveau) en inrichting.
+
+### UI (minimale aanvulling in `js/ui/opdracht.js`)
+Per variant een uitklapblok "Programma van eisen: x voldoet, y voldoet niet, z onbekend" met per eis label, status en uitleg, en een
+blok "Meldingen van de bewerkingen". Geen nieuwe CSS (bestaande klasse `ai-diff`).
+
+### Tests en rooktest
+`tests/ai-macros.test.js`: schemagrootte (limieten + budget 18 optioneel / 2 unies, geen recursie, alles gesloten); de voorbeeldopdracht
+end-to-end via de gevendorde SDK met een nagebootst antwoord **met macro's** (`antwoordPveMacro` in `tests/ai-voorbeelden.js`: afbraakZone
+achterbouw + garage 2, zolderNiveau, wanden/deuren/ruimtes met hoogtegrenzen, trapPlaatsen, inrichtingPlaatsen douche + lavabo (plek gezocht
+door de app), programma) ⇒ geldig, toepassen van de uitgevouwen ops geeft exact hetzelfde model, toets 4 × voldoet; ongeldige macro ⇒
+herstelpoging ⇒ succes; twee keer ongeldig ⇒ fout; foutgevallen per macro; muurSplitsen + verwijzing naar `nieuwId`; hernoemen;
+instellingen (een grens die enkel in de test gezet wordt) ⇒ "voldoet niet". Rooktest (Playwright, `page.route` op api.anthropic.com,
+nagebootste SSE; desktop en telefoon): voorbeeldopdracht op `bestaand` ⇒ preview (afbraak rood op het gelijkvloers, trap op de verdieping,
+zolder met wanden/trapgat/sanitair blauw, programmatoets 4 voldoet) ⇒ Toepassen (3 niveaus, 1 trap, 2 inrichtingselementen, programma,
+één undo-stap) ⇒ undo.
+
+### Beperkingen (fase 5)
+- Nog altijd niet getest tegen de echte API. Of de API het nieuwe schema aanvaardt, is enkel getoetst aan de gedocumenteerde expliciete
+  limieten; er bestaan ook interne limieten op de grootte van de gecompileerde grammatica die niet gepubliceerd zijn. Wordt het schema
+  geweigerd, dan valt de client terug op JSON via de instructies (bestaande terugval).
+- `item`/`velden` als JSON-tekst: de structuur binnenin wordt niet door structured outputs gegarandeerd (wel door validator + herstelpoging);
+  het kost wat extra uitvoertokens (escapes).
+- Hoe goed Claude de macro's en de JSON-tekst in de praktijk gebruikt, is niet gemeten (enkel nagebootste antwoorden).
+- `afbraakZone` met een `punt` en `muurSplitsen` met een punt i.p.v. een positie zitten niet in het schema (wel aanvaard door `macros.js`).
+- Instellingen van de gebruiker (trapgrenzen) worden door de UI nog niet aan het gesprek meegegeven.

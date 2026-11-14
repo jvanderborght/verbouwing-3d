@@ -21,6 +21,16 @@ const delta = (a, b, fmt) => {
   return `${d > 0 ? '+' : '−'}${fmt(Math.abs(d))}`;
 };
 
+/** Fase 5: toets aan het programma van eisen van de variant (toetsProgramma), of null. */
+function programmaBlok(t) {
+  if (!t) return null;
+  const s = t.samenvatting;
+  return h('details', { class: 'ai-diff ai-programma', open: true },
+    h('summary', {}, `Programma van eisen: ${s.voldoet} voldoet, ${s['voldoet niet']} voldoet niet, ${s.onbekend} onbekend`),
+    t.fout ? h('p', { class: 'ai-info' }, t.fout) : null,
+    h('ul', {}, ...t.resultaten.map((r) => h('li', { 'data-status': r.status }, h('strong', {}, `${r.label}: ${r.status}`), ` — ${r.uitleg}`))));
+}
+
 export class OpdrachtPaneel {
   /**
    * @param {{
@@ -264,6 +274,9 @@ export class OpdrachtPaneel {
         h('details', { class: 'ai-diff' }, h('summary', {}, `Alle wijzigingen (${v.diff.length})`),
           h('ul', {}, ...v.diffTekst.map((t) => h('li', {}, t)))),
         v.waarschuwingen?.length ? h('p', { class: 'ai-info' }, `${v.waarschuwingen.length} aandachtspunt(en) na toepassen.`) : null,
+        programmaBlok(v.programmaToets),
+        v.meldingen?.length ? h('details', { class: 'ai-diff ai-meldingen' }, h('summary', {}, `Meldingen van de bewerkingen (${v.meldingen.length})`),
+          h('ul', {}, ...v.meldingen.map((t) => h('li', {}, t)))) : null,
         h('div', { class: 'ai-acties' },
           h('button', { type: 'button', class: `knop${n === 1 ? ' primair' : ''}`, 'data-actie': 'toepassen', onclick: () => this.toepassen(i) }, 'Toepassen'),
           n === 1 ? h('button', { type: 'button', class: 'knop', 'data-actie': 'bewaren', onclick: () => this.bewaar([i]) }, 'Als nieuwe variant bewaren') : null));

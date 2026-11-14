@@ -1,4 +1,4 @@
-// Promptveld (fase 4): systeemprompt, antwoordschema en opbouw van de berichten en het API-verzoek.
+// Promptveld (fase 4, schema v2 + macro's in fase 5): systeemprompt, antwoordschema en opbouw van de berichten en het API-verzoek.
 // Pure functies zonder DOM of netwerk (getest in tests/ai.test.js).
 //
 // Cache-opbouw (prompt caching is een prefix-match):
@@ -7,7 +7,11 @@
 //              opdracht van de gebruiker ]
 //   daarna enkel aanvullen (assistant-antwoord, herstel- of antwoordbericht), nooit eerdere beurten wijzigen.
 
-import { VELDEN, ENUMS, COLLECTIE_NAMEN, COLLECTIES, STATUSSEN, OPENING_TYPES, DAK_TYPES, NOKRICHTINGEN, FUNCTIES } from '../model/schema.js';
+import {
+  VELDEN, ENUMS, COLLECTIE_NAMEN, COLLECTIES, STATUSSEN, OPENING_TYPES, DAK_TYPES, NOKRICHTINGEN, FUNCTIES,
+  NIVEAU_SOORTEN, TRAP_TYPES, DRAAIRICHTINGEN, INRICHTING_SOORTEN,
+} from '../model/schema.js';
+import { INSTELLINGEN_STANDAARD } from '../model/instellingen.js';
 import { volgendId } from '../model/operations.js';
 import { kerncijfers as berekenKerncijfers } from '../metrics/kerncijfers.js';
 
@@ -44,34 +48,55 @@ export function normaliseerInstellingen(v) {
 }
 
 // ---------------------------------------------------------------- antwoordschema (structured outputs)
+//
+// Limieten van structured outputs (Claude API-documentatie, build-with-claude/structured-outputs, "Schema complexity
+// limits", gelezen 2026-11-14): max. 24 OPTIONELE parameters en max. 16 parameters met een UNIE (anyOf / type-lijst),
+// opgeteld over alle schema's van één aanvraag; geen recursie; additionalProperties: false op elk object.
+// Een vrij element-object met alle velden van schema v2 zou alleen al 33 optionele velden hebben (> 24). Daarom:
+//  - `item` (toevoegen) en `velden` (wijzigen, ontwerp) zijn een JSON-TEKST (string) met het object; verwerk.js/macros.js
+//    parset die en de validator controleert de inhoud (fouten gaan mee in de herstelpoging);
+//  - de macro's hebben vaste, getypeerde parameters; parameters met een zinvolle standaard zijn verplicht ("" = automatisch).
+// tests/ai.test.js bewaakt de telling (schemaMaat).
 
 const OP_COLLECTIES = { type: 'string', enum: [...COLLECTIE_NAMEN] };
-const PUNT = { type: 'array', items: { type: 'number' } };
+const TEKST = { type: 'string' };
+const GETAL = { type: 'number' };
+const PUNT = { type: 'array', items: GETAL, description: '[x, y] in mm' };
+const IDS = { type: 'array', items: TEKST };
+const JSON_TEKST = (wat) => ({ type: 'string', description: `JSON-tekst van het ${wat}-object, bv. "{\\"id\\":\\"M30\\",\\"niveau\\":\\"N0\\"}"` });
 
-/** Alle elementvelden over alle collecties heen (optioneel). Welke velden bij welke collectie horen, staat in de systeemprompt. */
-function elementSchema() {
-  const props = {};
-  for (const c of COLLECTIE_NAMEN) {
-    for (const [naam, type] of VELDEN[c]) {
-      if (props[naam] && naam !== 'type') continue;
-      if (type === 'string' || type.startsWith('ref:')) props[naam] = { type: 'string' };
-      else if (type === 'number') props[naam] = { type: 'number' };
-      else if (type === 'punt') props[naam] = PUNT;
-      else if (type === 'contour') props[naam] = { type: 'array', items: PUNT };
-      else if (type.startsWith('enum:')) {
-        const lijst = ENUMS[type.slice(5)];
-        const vorig = props[naam]?.enum || [];
-        props[naam] = { type: 'string', enum: [...new Set([...vorig, ...lijst])] };
-      }
-    }
-  }
-  return { type: 'object', additionalProperties: false, properties: props };
+/** Eén operatievorm in het schema: `op` + verplichte en optionele parameters. */
+function opSchema(naam, verplicht, optioneel = {}, description = undefined) {
+  const s = {
+    type: 'object', additionalProperties: false,
+    required: ['op', ...Object.keys(verplicht)],
+    properties: { op: { type: 'string', enum: [naam] }, ...verplicht, ...optioneel },
+  };
+  if (description) s.description = description;
+  return s;
 }
 
+export const OP_SCHEMAS = Object.freeze([
+  opSchema('toevoegen', { collectie: OP_COLLECTIES, item: JSON_TEKST('element') }),
+  opSchema('wijzigen', { collectie: OP_COLLECTIES, id: TEKST, velden: JSON_TEKST('velden') }),
+  opSchema('verwijderen', { collectie: OP_COLLECTIES, id: TEKST }),
+  opSchema('verplaatsen', { collectie: OP_COLLECTIES, id: TEKST, dx: GETAL, dy: GETAL }),
+  opSchema('ontwerp', { velden: JSON_TEKST('ontwerpvelden (programma, naam, beschrijving)') }),
+  opSchema('afbraakZone', {}, { ruimtes: IDS, ids: IDS, niveau: TEKST }, 'Gebouwdeel afbreken: ruimtes = zone (ruimte-id\'s), ids = precies die elementen.'),
+  opSchema('zolderNiveau', { onderNiveau: TEKST, naam: TEKST, id: TEKST }, { vloerdikte: GETAL }),
+  opSchema('trapPlaatsen', {
+    id: TEKST, van: TEKST, naar: TEKST, type: { type: 'string', enum: [...TRAP_TYPES] }, oorsprong: PUNT, richting: GETAL, breedte: GETAL,
+  }, {
+    draairichting: { type: 'string', enum: [...DRAAIRICHTINGEN] }, aantrede: GETAL, aantalTreden: { type: 'integer' }, optrede: GETAL, diameter: GETAL,
+  }),
+  opSchema('inrichtingPlaatsen', {
+    id: TEKST, soort: { type: 'string', enum: [...INRICHTING_SOORTEN] }, ruimte: TEKST, rotatie: GETAL,
+  }, { positie: PUNT, niveau: TEKST, breedte: GETAL, diepte: GETAL, hoogte: GETAL }),
+  opSchema('muurSplitsen', { muur: TEKST, positie: GETAL, nieuwId: TEKST }),
+]);
+
 /**
- * JSON-schema van het antwoord. Beperkingen van structured outputs: geen recursie, geen min/max,
- * `additionalProperties: false` op elk object. De operatie `ontwerp` (naam/beschrijving) zit er bewust niet in:
- * de app beheert naam en beschrijving van varianten zelf.
+ * JSON-schema van het antwoord. Geen recursie, geen min/max, `additionalProperties: false` op elk object.
  */
 export const ANTWOORD_SCHEMA = Object.freeze({
   type: 'object',
@@ -95,52 +120,103 @@ export const ANTWOORD_SCHEMA = Object.freeze({
       },
     },
   },
-  $defs: {
-    element: elementSchema(),
-    op: {
-      anyOf: [
-        {
-          type: 'object', additionalProperties: false, required: ['op', 'collectie', 'item'],
-          properties: { op: { type: 'string', enum: ['toevoegen'] }, collectie: OP_COLLECTIES, item: { $ref: '#/$defs/element' } },
-        },
-        {
-          type: 'object', additionalProperties: false, required: ['op', 'collectie', 'id', 'velden'],
-          properties: { op: { type: 'string', enum: ['wijzigen'] }, collectie: OP_COLLECTIES, id: { type: 'string' }, velden: { $ref: '#/$defs/element' } },
-        },
-        {
-          type: 'object', additionalProperties: false, required: ['op', 'collectie', 'id'],
-          properties: { op: { type: 'string', enum: ['verwijderen'] }, collectie: OP_COLLECTIES, id: { type: 'string' } },
-        },
-        {
-          type: 'object', additionalProperties: false, required: ['op', 'collectie', 'id', 'dx', 'dy'],
-          properties: { op: { type: 'string', enum: ['verplaatsen'] }, collectie: OP_COLLECTIES, id: { type: 'string' }, dx: { type: 'number' }, dy: { type: 'number' } },
-        },
-      ],
-    },
-  },
+  $defs: { op: { anyOf: OP_SCHEMAS } },
 });
+
+/** Grenzen uit de documentatie (zie boven). */
+export const SCHEMA_LIMIETEN = Object.freeze({ optioneel: 24, unie: 16 });
+
+/**
+ * Meet de complexiteit van een schema zoals de limieten van structured outputs ze tellen:
+ * optionele parameters (niet in `required`), parameters met een unie (anyOf / type-lijst, ook via items of $ref),
+ * recursie ($ref naar een definitie die zichzelf (on)rechtstreeks bevat), objecten zonder additionalProperties: false.
+ * Elke $defs-definitie telt één keer.
+ */
+export function schemaMaat(schema) {
+  const defs = schema.$defs || {};
+  const los = (s) => (s && s.$ref ? defs[s.$ref.replace('#/$defs/', '')] : s);
+  const heeftUnie = (s, diepte = 0) => {
+    const x = los(s);
+    if (!x || diepte > 10) return false;
+    return !!(x.anyOf || Array.isArray(x.type) || (x.items && heeftUnie(x.items, diepte + 1)));
+  };
+  const uit = { optioneel: 0, unie: 0, objecten: 0, nietGesloten: 0, recursief: false, bytes: JSON.stringify(schema).length };
+  const loop = (s) => {
+    if (!s || typeof s !== 'object') return;
+    if (Array.isArray(s)) { s.forEach(loop); return; }
+    if (s.type === 'object') {
+      uit.objecten++;
+      if (s.additionalProperties !== false) uit.nietGesloten++;
+      const req = new Set(s.required || []);
+      for (const [k, v] of Object.entries(s.properties || {})) {
+        if (!req.has(k)) uit.optioneel++;
+        if (heeftUnie(v)) uit.unie++;
+      }
+    }
+    for (const [k, v] of Object.entries(s)) if (k !== '$defs' && v && typeof v === 'object') loop(v);
+  };
+  loop(schema);
+  for (const d of Object.values(defs)) loop(d);
+  // recursie: volg $refs vanuit elke definitie
+  const refs = (s, acc = new Set()) => {
+    if (!s || typeof s !== 'object') return acc;
+    if (typeof s.$ref === 'string') acc.add(s.$ref.replace('#/$defs/', ''));
+    for (const v of Object.values(s)) if (v && typeof v === 'object') refs(v, acc);
+    return acc;
+  };
+  for (const naam of Object.keys(defs)) {
+    const gezien = new Set();
+    const stapel = [...refs(defs[naam])];
+    while (stapel.length) {
+      const r = stapel.pop();
+      if (r === naam) { uit.recursief = true; break; }
+      if (gezien.has(r)) continue;
+      gezien.add(r);
+      stapel.push(...refs(defs[r]));
+    }
+  }
+  return uit;
+}
 
 // ---------------------------------------------------------------- systeemprompt
 
+const UITLEG = {
+  'niveaus.peil': 'z van de afgewerkte vloer', 'niveaus.hoogte': 'verdiepingshoogte vloer-tot-vloer = standaard muurhoogte',
+  'niveaus.vloerdikte': 'dikte vloerpakket onder dit niveau', 'niveaus.soort': 'informatief: weergave, controles, programma',
+  'muren.start': '[x, y] op de AS van de muur', 'muren.eind': '[x, y] op de as', 'muren.hoogte': 'overschrijft de niveauhoogte (bv. knieschot)',
+  'openingen.positie': 'afstand langs de muuras van muur.start tot de rand van de opening',
+  'openingen.borstwering': 'onderkant boven vloerpeil (deur: 0)',
+  'ruimtes.contour': 'NETTO binnencontour [[x,y],…]', 'ruimtes.hoogtegrenzen': 'vrije hoogtes in mm, bv. [1500, 2200]: de oppervlakte wordt per hoogteband getoond',
+  'vloeren.contour': 'BRUTO buitencontour',
+  'daken.niveau': 'het dak rust op de bovenkant van dit niveau (peil + hoogte)', 'daken.contour': 'grondvlak zonder overstek',
+  'daken.helling': 'graden; plat = 0', 'daken.nokrichting': 'x|y: richting van de nok (zadel/schild) of van de hoge rand (lessenaar, aan de max-zijde)',
+  'trappen.oorsprong': 'recht/kwart/halfdraai: MIDDEN van de voorrand van de onderste trede; spiraal: MIDDELPUNT',
+  'trappen.richting': 'graden, 0 = +x, 90 = +y: looprichting bij vertrek; spiraal: richting van de eerste trede',
+  'trappen.breedte': 'loopbreedte', 'trappen.aantalTreden': 'aantal OPTREDEN; leeg = berekend uit het hoogteverschil',
+  'trappen.aantrede': 'leeg = werkwaarde', 'trappen.draairichting': 'links = draait naar links (tegenwijzerzin, van boven gezien); standaard links',
+  'trappen.diameter': 'enkel spiraal; leeg = 2 × breedte',
+  'inrichting.positie': 'MIDDELPUNT in plan', 'inrichting.rotatie': 'graden; 0 = breedte langs +x, rugzijde aan -y (voorzijde kijkt naar +y)',
+  'inrichting.hoogte': 'gebruikshoogte, voor de vrije-hoogtecontrole',
+};
+
 function veldenTekst() {
-  const uitleg = {
-    'niveaus.peil': 'z van de afgewerkte vloer', 'niveaus.hoogte': 'verdiepingshoogte vloer-tot-vloer = standaard muurhoogte',
-    'niveaus.vloerdikte': 'dikte vloerpakket onder dit niveau',
-    'muren.start': '[x, y] op de AS van de muur', 'muren.eind': '[x, y] op de as', 'muren.hoogte': 'overschrijft de niveauhoogte',
-    'openingen.positie': 'afstand langs de muuras van muur.start tot de rand van de opening',
-    'openingen.borstwering': 'onderkant boven vloerpeil (deur: 0)',
-    'ruimtes.contour': 'NETTO binnencontour [[x,y],…]', 'vloeren.contour': 'BRUTO buitencontour',
-    'daken.niveau': 'het dak rust op de bovenkant van dit niveau (peil + hoogte)', 'daken.contour': 'grondvlak zonder overstek',
-    'daken.helling': 'graden; plat = 0', 'daken.nokrichting': 'x|y: richting van de nok (zadel/schild) of van de hoge rand (lessenaar, aan de max-zijde)',
-  };
   return COLLECTIE_NAMEN.map((c) => {
     const velden = VELDEN[c].map(([n, type, verplicht]) => {
       const t = type.startsWith('enum:') ? ENUMS[type.slice(5)].join('|') : type.startsWith('ref:') ? `id van ${type.slice(4)}` : type;
-      const u = uitleg[`${c}.${n}`];
+      const u = UITLEG[`${c}.${n}`];
       return `${n}${verplicht ? '' : '?'}: ${t}${u ? ` (${u})` : ''}`;
     });
     return `- ${c} (id-voorvoegsel ${COLLECTIES[c]}): { ${velden.join('; ')} }`;
   }).join('\n');
+}
+
+/** Werkwaarden uit js/model/instellingen.js (standaard), als tekst. Geen normen. */
+function werkwaardenTekst() {
+  const i = INSTELLINGEN_STANDAARD;
+  const maten = Object.entries(i.inrichting).map(([s, m]) => `${s} ${m.breedte}×${m.diepte}`).join(', ');
+  return `trap: doel-optrede ${i.trap.doelOptrede.waarde} mm (enkel om een aantal treden voor te stellen), aantrede ${i.trap.aantrede.waarde} mm, `
+    + `${i.trap.draaitredenPerKwart.waarde} draaitreden per kwartdraai; hoogtelijnen ${i.hoogte.hoogtelijnen.waarde.join('/')} mm; `
+    + `inrichting (breedte×diepte, mm): ${maten}`;
 }
 
 /** Vaste systeemprompt. Bevat niets dat per aanvraag verandert (anders breekt de prompt-cache). */
@@ -150,61 +226,90 @@ export const SYSTEEMPROMPT = `Je bent de ontwerpassistent van "Verbouwing 3D", e
 De gebruiker geeft een opdracht in gewone taal. Je antwoordt UITSLUITEND met één JSON-object volgens het opgelegde schema:
 { "samenvatting": string, "vragen": string[], "varianten": [ { "naam": string, "beschrijving": string, "ops": Operatie[] } ] }
 - Geen tekst buiten de JSON, geen markdown, geen codeblokken.
-- De app past de "ops" van elke variant toe op een kopie van het HUIDIGE ontwerp (dat je in het eerste gebruikersbericht krijgt), valideert het resultaat en toont een voorbeeld. Elke variant vertrekt van het huidige ontwerp, niet van een andere variant.
+- De app past de "ops" van elke variant in volgorde toe op een kopie van het HUIDIGE ontwerp (dat je in het eerste gebruikersbericht krijgt), valideert het resultaat en toont een voorbeeld. Elke variant vertrekt van het huidige ontwerp, niet van een andere variant.
 - Vraagt de gebruiker N varianten, geef er dan precies N die echt van elkaar verschillen (andere indeling, maat, dakvorm, plaats …). Zonder aantal: één variant.
 - Is de opdracht onduidelijk of ontbreekt essentiële informatie (welke ruimte, welk niveau, welke kant)? Stel dan 1-3 korte, concrete vragen in "vragen" en laat "varianten" leeg. Stel geen vragen over details die je redelijk kan aannemen; vermeld aannames dan in de beschrijving.
 - "samenvatting": 1-3 zinnen. "beschrijving" per variant: wat er verandert, welke maten je koos en waarom (mm of m).
 
-# Datamodel (schemaVersie 1)
+# Datamodel (schemaVersie 2)
 - Alle maten in millimeter (mm), hoeken in graden. Oorsprong [0, 0] = linkerbenedenhoek van het gelijkvloers (buitenhoek links-voor, straatkant).
-- Assen: x → rechts (langs de straatgevel), y → naar achter (richting tuin; in de plattegrond omhoog), z → omhoog.
-- Elk element heeft een "id", uniek over het HELE ontwerp. Voorvoegsels: N niveau, M muur, O opening, R ruimte, V vloer, D dak.
+- Assen: x → rechts (langs de straatgevel), y → naar achter (richting tuin; in de plattegrond omhoog), z → omhoog. Hoek 0° = +x, 90° = +y.
+- Elk element heeft een "id", uniek over het HELE ontwerp. Voorvoegsels: N niveau, M muur, O opening, R ruimte, V vloer, D dak, T trap, I inrichting.
 - status ∈ bestaand | nieuw | afbraak (bestaand = blijft, nieuw = wordt gebouwd, afbraak = wordt afgebroken).
 Velden per collectie (? = optioneel):
 ${veldenTekst()}
-Functies van ruimtes: ${FUNCTIES.join(', ')}.
-Regels die de validator afdwingt: een opening valt binnen de lengte en de hoogte van haar muur; openingen in dezelfde muur overlappen niet (afbraak-openingen uitgezonderd); contouren hebben minstens 3 punten en een oppervlakte; verwijzingen (niveau, muur) bestaan; id's zijn uniek.
+Functies van ruimtes: ${FUNCTIES.join(', ')}. Niveausoorten: ${NIVEAU_SOORTEN.join(', ')}. Traptypes: ${TRAP_TYPES.join(', ')} (kwart = kwartdraai/L, halfdraai = U met draaitreden, spiraal = wenteltrap; een draaitrap = kwart, halfdraai of spiraal). Inrichting: ${INRICHTING_SOORTEN.join(', ')}.
+Ontwerpveld "programma" (programma van eisen, optioneel): { "beschrijving"?: string, "eisen": [eis, …] } met
+  ruimte-eis { "functie", "aantal"? (1), "niveau"? (niveau-id of soort, bv. "zolder"), "minOppervlakte"? (m²; weglaten = niet toetsen), "hoogteGrens"? (mm: enkel oppervlakte met minstens die vrije hoogte telt voor minOppervlakte), "inrichting"? ([soort, …] die in de ruimte moeten staan), "naam"? }
+  trap-eis { "trap": { "van"?, "naar"? (niveau-id of soort), "type"? ([type, …]), "aantal"? }, "naam"? }.
+Regels die de validator afdwingt: een opening valt binnen de lengte en de hoogte van haar muur; openingen in dezelfde muur overlappen niet (afbraak-openingen uitgezonderd); contouren hebben minstens 3 punten en een oppervlakte; verwijzingen (niveau, muur, ruimte, vanNiveau/naarNiveau) bestaan; id's zijn uniek; een trap gaat naar een HOGER niveau en haar voetafdruk ligt binnen de vloer(en) van beide niveaus; inrichting ligt binnen de vloer van haar niveau (en haar ruimte op hetzelfde niveau); hoogtegrenzen zijn getallen > 0; het programma heeft een geldige vorm.
+
+# Conventies (schema v2)
+- Trap: "oorsprong" = midden van de voorrand van de onderste trede (spiraal: middelpunt); "richting" = looprichting bij vertrek. Lokaal: u = looprichting, v = links ervan; draairichting "rechts" spiegelt. Voetafdruk: recht = breedte × (n − 1)·aantrede; kwart = vlucht 1 + hoekvierkant breedte × breedte + vlucht 2 haaks; halfdraai = vlucht 1 + draaizone (2·breedte breed × breedte diep) + vlucht 2 evenwijdig terug, NAAST vlucht 1 (aan de kant van de draairichting); spiraal = cirkel met diameter (standaard 2 × breedte).
+- Treden: "aantalTreden" = aantal OPTREDEN n; in plan liggen n − 1 treden (de laatste "trede" is de vloer erboven). Laat aantalTreden/optrede leeg, dan worden ze berekend uit het hoogteverschil (peil naarNiveau − peil vanNiveau). Het trapgat = de voetafdruk in de vloer van naarNiveau; je hoeft het niet apart te tekenen.
+- Zolder: een niveau met "soort": "zolder" op de bovenkant van het niveau eronder (peil = peil + hoogte), met als hoogte de nokhoogte. Het dak blijft op het niveau eronder rusten; de app berekent de vrije hoogte onder het dak (schuine plafonds). Wanden op de zolder (bv. knieschoten) krijgen een eigen, lagere "hoogte" die onder het dak past. Geef ruimtes onder een schuin dak "hoogtegrenzen" (bv. [1500, 2200]) zodat de oppervlakte per hoogteband zichtbaar wordt.
+- Inrichting (sanitair, meubels): "positie" = middelpunt, "rotatie" 0 = rug tegen een wand aan de -y-zijde (voorzijde naar +y); 90 = rug aan +x, 180 = rug aan +y, 270 = rug aan -x. Koppel ze met "ruimte" aan hun ruimte. Plaats ze waar de vrije hoogte volstaat (douche niet onder het laagste deel van een schuin dak).
+- Werkwaarden zijn GEEN normen. De app gebruikt enkel vertrekwaarden om iets te kunnen berekenen of plaatsen: ${werkwaardenTekst()}. Grenzen (max. optrede, min. loophoogte, …) zijn standaard NIET ingesteld en worden dan niet getoetst. Noem nooit een werkwaarde of je eigen vertrekmaat een norm, en verzin geen normen of wettelijke eisen.
 
 # Operaties
-Een variant is een lijst operaties die in volgorde en atomair wordt toegepast:
-{ "op": "toevoegen", "collectie": "<collectie>", "item": { …velden… } }            item.id mag je zelf kiezen (aanbevolen, zie id's)
-{ "op": "wijzigen", "collectie": "<collectie>", "id": "<id>", "velden": { …enkel de te wijzigen velden… } }
-{ "op": "verwijderen", "collectie": "<collectie>", "id": "<id>" }               cascade: muur → haar openingen; niveau → alles erop
-{ "op": "verplaatsen", "collectie": "<collectie>", "id": "<id>", "dx": mm, "dy": mm }   muren/ruimtes/vloeren/daken; opening: dx = langs de muur; niveau: dx = peilverschil (dy = 0)
+Een variant is een lijst operaties die in volgorde wordt toegepast (atomair: één fout ⇒ niets).
+Basisoperaties ("item" en "velden" zijn in het antwoordschema een JSON-TEKST: het object als string, met \\" rond de sleutels en teksten):
+{ "op": "toevoegen", "collectie": "<collectie>", "item": "{…velden…}" }            item.id mag je zelf kiezen (aanbevolen, zie id's)
+{ "op": "wijzigen", "collectie": "<collectie>", "id": "<id>", "velden": "{…enkel de te wijzigen velden…}" }   null = optioneel veld wissen
+{ "op": "verwijderen", "collectie": "<collectie>", "id": "<id>" }               cascade: muur → haar openingen; niveau → alles erop; ruimte → inrichting.ruimte gewist
+{ "op": "verplaatsen", "collectie": "<collectie>", "id": "<id>", "dx": mm, "dy": mm }   muren/ruimtes/vloeren/daken/trappen/inrichting; opening: dx = langs de muur; niveau: dx = peilverschil (dy = 0)
+{ "op": "ontwerp", "velden": "{\\"programma\\": {…}}" }                         enkel "programma", "naam" of "beschrijving" van het ontwerp
 Collecties: ${COLLECTIE_NAMEN.join(', ')}. Openingstypes: ${OPENING_TYPES.join(', ')}. Daktypes: ${DAK_TYPES.join(', ')}. Nokrichtingen: ${NOKRICHTINGEN.join(', ')}. Statussen: ${STATUSSEN.join(', ')}.
+
+Macro's (hoog niveau). Gebruik ze waar ze passen: de app zet ze om in de juiste basisoperaties, met de rekenregels van de app. Ze werken op het tussenresultaat (na alle vorige operaties van de variant), dus latere operaties mogen verwijzen naar wat een macro aanmaakte.
+{ "op": "afbraakZone", "ruimtes": ["R5", "R6"] }     een gebouwdeel afbreken als ZONE (ruimtes op één niveau): muren die enkel aan de zone grenzen → afbraak (met hun openingen; deels in de zone ⇒ gesplitst), muren die ook aan een blijvende ruimte grenzen blijven (worden gemeld: mogelijk dragend, worden buitengevel), vloeren/daken van dat niveau in de zone → afbraak (rechthoekige vloeren en platte daken die er deels in liggen worden gesplitst), trappen/inrichting in de zone → afbraak, de zoneruimtes → verwijderd. Optioneel "niveau" als controle.
+{ "op": "afbraakZone", "ids": ["M7", "O4"] }           precies die elementen afbreken (muur ⇒ ook haar openingen; niveau-id ⇒ alles erop). Elementen met status "nieuw" worden verwijderd i.p.v. afbraak.
+{ "op": "zolderNiveau", "onderNiveau": "N1", "naam": "Zolder", "id": "N2" }     zolderniveau onder het hellende dak van onderNiveau: niveau soort zolder, hoogte = nokhoogte, vloer = dakcontour. Optioneel "vloerdikte".
+{ "op": "trapPlaatsen", "id": "T1", "van": "N1", "naar": "N2", "type": "halfdraai", "oorsprong": [x, y], "richting": 90, "breedte": 800 }   optioneel: "draairichting", "aantrede", "aantalTreden", "optrede", "diameter" (spiraal). Fout als de trap buiten de vloer van een van beide niveaus valt of een muur raakt.
+{ "op": "inrichtingPlaatsen", "id": "I1", "soort": "douche", "ruimte": "R20", "rotatie": 0, "positie": [x, y], "breedte": 900, "diepte": 900, "hoogte": 2100 }   zonder "positie" zoekt de app een plek met de rug tegen een wand van de ruimte (met voldoende vrije hoogte als "hoogte" gegeven is); zonder breedte/diepte gelden de werkwaarden.
+{ "op": "muurSplitsen", "muur": "M4", "positie": 2500, "nieuwId": "M40" }   muur knippen op positie mm vanaf muur.start; het eerste stuk houdt het id, het tweede krijgt nieuwId; openingen verhuizen mee.
+Id's bij macro's: geef in "id" / "nieuwId" zelf het id van het nieuwe element (aanbevolen), dan kan je er later naar verwijzen. "" = de app kiest het volgende vrije nummer. Id's die een macro zelf uitdeelt (bv. het afgesplitste muurstuk of de zoldervloer) botsen nooit met id's die jij elders in de variant gebruikt: die worden zo nodig hernummerd. Verwijs dus niet naar zulke automatische id's; gebruik voor je eigen nieuwe elementen expliciete id's.
 
 Voorbeeld — een bestaande achtergevel M3 van [0, 9000] naar [6000, 9000] (300 mm dik) krijgt een uitbouw van 3 m diep over de volle breedte, met een plat dak:
 [
-  { "op": "wijzigen", "collectie": "muren", "id": "M3", "velden": { "status": "afbraak" } },
-  { "op": "toevoegen", "collectie": "muren", "item": { "id": "M20", "niveau": "N0", "start": [0, 9000], "eind": [0, 12000], "dikte": 300, "status": "nieuw" } },
-  { "op": "toevoegen", "collectie": "muren", "item": { "id": "M21", "niveau": "N0", "start": [0, 12000], "eind": [6000, 12000], "dikte": 300, "status": "nieuw" } },
-  { "op": "toevoegen", "collectie": "muren", "item": { "id": "M22", "niveau": "N0", "start": [6000, 12000], "eind": [6000, 9000], "dikte": 300, "status": "nieuw" } },
-  { "op": "toevoegen", "collectie": "openingen", "item": { "id": "O20", "muur": "M21", "type": "raam", "positie": 1000, "breedte": 4000, "hoogte": 2200, "borstwering": 0, "status": "nieuw" } },
-  { "op": "toevoegen", "collectie": "vloeren", "item": { "id": "V20", "niveau": "N0", "contour": [[-150, 9000], [6150, 9000], [6150, 12150], [-150, 12150]], "dikte": 300, "status": "nieuw" } },
-  { "op": "toevoegen", "collectie": "daken", "item": { "id": "D20", "niveau": "N0", "type": "plat", "contour": [[-150, 9000], [6150, 9000], [6150, 12150], [-150, 12150]], "helling": 0, "status": "nieuw" } },
-  { "op": "wijzigen", "collectie": "ruimtes", "id": "R2", "velden": { "contour": [[150, 6150], [5850, 6150], [5850, 11850], [150, 11850]] } }
+  { "op": "wijzigen", "collectie": "muren", "id": "M3", "velden": "{\\"status\\":\\"afbraak\\"}" },
+  { "op": "toevoegen", "collectie": "muren", "item": "{\\"id\\":\\"M20\\",\\"niveau\\":\\"N0\\",\\"start\\":[0,9000],\\"eind\\":[0,12000],\\"dikte\\":300,\\"status\\":\\"nieuw\\"}" },
+  { "op": "toevoegen", "collectie": "muren", "item": "{\\"id\\":\\"M21\\",\\"niveau\\":\\"N0\\",\\"start\\":[0,12000],\\"eind\\":[6000,12000],\\"dikte\\":300,\\"status\\":\\"nieuw\\"}" },
+  { "op": "toevoegen", "collectie": "muren", "item": "{\\"id\\":\\"M22\\",\\"niveau\\":\\"N0\\",\\"start\\":[6000,12000],\\"eind\\":[6000,9000],\\"dikte\\":300,\\"status\\":\\"nieuw\\"}" },
+  { "op": "toevoegen", "collectie": "openingen", "item": "{\\"id\\":\\"O20\\",\\"muur\\":\\"M21\\",\\"type\\":\\"raam\\",\\"positie\\":1000,\\"breedte\\":4000,\\"hoogte\\":2200,\\"borstwering\\":0,\\"status\\":\\"nieuw\\"}" },
+  { "op": "toevoegen", "collectie": "vloeren", "item": "{\\"id\\":\\"V20\\",\\"niveau\\":\\"N0\\",\\"contour\\":[[-150,9000],[6150,9000],[6150,12150],[-150,12150]],\\"dikte\\":300,\\"status\\":\\"nieuw\\"}" },
+  { "op": "toevoegen", "collectie": "daken", "item": "{\\"id\\":\\"D20\\",\\"niveau\\":\\"N0\\",\\"type\\":\\"plat\\",\\"contour\\":[[-150,9000],[6150,9000],[6150,12150],[-150,12150]],\\"helling\\":0,\\"status\\":\\"nieuw\\"}" },
+  { "op": "wijzigen", "collectie": "ruimtes", "id": "R2", "velden": "{\\"contour\\":[[150,6150],[5850,6150],[5850,11850],[150,11850]]}" }
 ]
-Voorbeeld — een bestaande opening O4 iets breder maken en een binnenmuur M7 slopen:
-[ { "op": "wijzigen", "collectie": "openingen", "id": "O4", "velden": { "breedte": 1200 } },
-  { "op": "wijzigen", "collectie": "muren", "id": "M7", "velden": { "status": "afbraak" } } ]
+Voorbeeld — achterbouw (ruimtes R5, R6) afbreken, zolder onder het zadeldak van N1 met een trap en een badkamer, en het programma vastleggen (maten zijn een voorbeeld):
+[
+  { "op": "afbraakZone", "ruimtes": ["R5", "R6"] },
+  { "op": "zolderNiveau", "onderNiveau": "N1", "naam": "Zolder", "id": "N2" },
+  { "op": "toevoegen", "collectie": "muren", "item": "{\\"id\\":\\"M40\\",\\"niveau\\":\\"N2\\",\\"start\\":[280,3500],\\"eind\\":[6720,3500],\\"dikte\\":100,\\"status\\":\\"nieuw\\"}" },
+  { "op": "toevoegen", "collectie": "ruimtes", "item": "{\\"id\\":\\"R20\\",\\"niveau\\":\\"N2\\",\\"naam\\":\\"Badkamer\\",\\"functie\\":\\"badkamer\\",\\"contour\\":[[280,1250],[2200,1250],[2200,3450],[280,3450]],\\"hoogtegrenzen\\":[1500,2200]}" },
+  { "op": "trapPlaatsen", "id": "T1", "van": "N1", "naar": "N2", "type": "halfdraai", "oorsprong": [1880, 4840], "richting": 90, "breedte": 800, "aantrede": 220, "draairichting": "links" },
+  { "op": "inrichtingPlaatsen", "id": "I1", "soort": "douche", "ruimte": "R20", "rotatie": 0, "positie": [730, 2950], "hoogte": 2100 },
+  { "op": "inrichtingPlaatsen", "id": "I2", "soort": "lavabo", "ruimte": "R20", "rotatie": 90 },
+  { "op": "ontwerp", "velden": "{\\"programma\\":{\\"eisen\\":[{\\"functie\\":\\"badkamer\\",\\"niveau\\":\\"zolder\\",\\"inrichting\\":[\\"lavabo\\",\\"douche\\"]},{\\"trap\\":{\\"van\\":\\"N1\\",\\"naar\\":\\"zolder\\"}}]}}" }
+]
 
 # Regels
-1. Antwoord enkel met operaties op het gegeven ontwerp; verzin geen andere velden of collecties. De operatie "ontwerp" (naam/beschrijving van het ontwerp) gebruik je niet: de app beheert dat.
+1. Antwoord enkel met operaties op het gegeven ontwerp; verzin geen andere velden, collecties of waarden die het schema niet kent. "ontwerp" gebruik je voor het programma van eisen; "naam"/"beschrijving" van het ontwerp wijzig je enkel als de gebruiker daar uitdrukkelijk om vraagt (de app geeft varianten zelf een naam).
 2. Statussen bij een verbouwing:
-   - Een BESTAAND element dat verdwijnt (muur slopen, raam dichtmaken, dak vervangen): NIET verwijderen maar "wijzigen" naar status "afbraak". Doe dat ook voor de openingen in een muur die je afbreekt.
-   - Alles wat je toevoegt krijgt status "nieuw".
+   - Een BESTAAND element dat verdwijnt (muur slopen, raam dichtmaken, dak vervangen, trap of toestel wegnemen): NIET verwijderen maar "wijzigen" naar status "afbraak" (of afbraakZone). Doe dat ook voor de openingen in een muur die je afbreekt.
+   - Alles wat je toevoegt krijgt status "nieuw" (macro's doen dat zelf).
    - Een bestaand element dat blijft maar anders wordt (bv. een raam dat groter wordt) mag je wijzigen; ingrijpende wijzigingen aan iets bestaands modelleer je liever als afbraak + nieuw.
    - Elementen met status "nieuw" (uit een eerdere schets) mag je wel wijzigen of verwijderen.
    - Ruimtes hebben geen status: pas naam/functie/contour aan zodat ze de NIEUWE toestand beschrijven; voeg nieuwe ruimtes toe waar nodig.
-3. Id's: hergebruik de bestaande id's om naar bestaande elementen te verwijzen. Geef nieuwe elementen een eigen id met het juiste voorvoegsel, vanaf de "volgende vrije id's" die bij het ontwerp staan (zo kan een nieuwe opening naar een nieuwe muur verwijzen). Elk id slechts één keer gebruiken, ook over varianten heen mag hetzelfde nieuwe id wel (varianten zijn onafhankelijk).
-4. Maten: neem maten die de gebruiker geeft EXACT over (omgerekend naar mm). Verzin geen andere maten als de gebruiker ze opgeeft. Ontbreekt een maat, kies dan een gangbare waarde en vermeld die in de beschrijving.
-5. Geometrie: muren liggen op hun as; sluit nieuwe muren aan op eindpunten of op de as van bestaande muren (zelfde coördinaten). Laat buitenmuren van een uitbreiding aansluiten op de bestaande gevel. Openingen moeten binnen hun muur passen (positie ≥ 0, positie + breedte ≤ muurlengte, borstwering + hoogte ≤ muurhoogte). Een ruimtecontour = binnenvlak van de muren (as ± halve dikte). Vloer- en dakcontour van een uitbreiding = buitenzijde van de nieuwe muren.
+3. Id's: hergebruik de bestaande id's om naar bestaande elementen te verwijzen. Geef nieuwe elementen een eigen id met het juiste voorvoegsel, vanaf de "volgende vrije id's" die bij het ontwerp staan (zo kan een nieuwe opening naar een nieuwe muur verwijzen, een inrichtingselement naar een nieuwe ruimte). Elk id slechts één keer gebruiken; over varianten heen mag hetzelfde nieuwe id wel (varianten zijn onafhankelijk). Id's die vrijkwamen doordat een ruimte verwijderd werd, mag je hergebruiken.
+4. Maten: neem maten die de gebruiker geeft EXACT over (omgerekend naar mm). Verzin geen andere maten als de gebruiker ze opgeeft. Ontbreekt een maat, kies dan een gangbare waarde en vermeld die in de beschrijving als aanname.
+5. Geometrie: muren liggen op hun as; sluit nieuwe muren aan op eindpunten of op de as van bestaande muren (zelfde coördinaten). Laat buitenmuren van een uitbreiding aansluiten op de bestaande gevel. Openingen moeten binnen hun muur passen (positie ≥ 0, positie + breedte ≤ muurlengte, borstwering + hoogte ≤ muurhoogte). Een ruimtecontour = binnenvlak van de muren (as ± halve dikte). Vloer- en dakcontour van een uitbreiding = buitenzijde van de nieuwe muren. Een trap moet volledig binnen de vloer van beide niveaus liggen en mag geen (niet-afgebroken) muur raken.
 6. Werk op het niveau waar de opdracht over gaat; zonder aanwijzing het actieve niveau uit de context. Een selectie in de context is het element waar de gebruiker naar kijkt ("dit raam", "deze muur").
 7. Houd het ontwerp geldig: na jouw operaties moet het hele ontwerp de validatie doorstaan. Krijg je een foutmelding van de app terug, geef dan het VOLLEDIGE verbeterde antwoord opnieuw (alle varianten, met alle operaties).
 8. Prijzen en kosten verzin je nooit; de app rekent zelf met de prijzen van de gebruiker.
-9. "Afbreken", "slopen", "wegnemen" van een bestaand deel = status "afbraak" zetten (operatie "wijzigen") op ALLE bestaande muren, openingen, vloeren en daken van dat deel — nooit "verwijderen". Herken een deel (bv. "de achterbouw", "garage 2", "de veranda") aan de ruimtenamen en hun contour in het ontwerp-JSON: de muren van dat deel liggen op of rond die contour (as ± halve dikte), de openingen zitten in die muren, de vloeren en daken overlappen die contour. Een muur die het deel scheidt van wat blijft, blijft "bestaand" (hij wordt de nieuwe buitengevel); zijn openingen naar het afgebroken deel dicht je door ze op "afbraak" te zetten. Ruimtes van een afgebroken deel verwijder je (ruimtes hebben geen status) of je geeft ze de nieuwe indeling.
-10. Programma van eisen (bv. "2 slaapkamers + kleine badkamer + berging + trap"): maak voor elke gevraagde ruimte een ruimte (met de juiste functie) met een redelijke minimale netto maat, plus de muren/openingen die nodig zijn om ze te begrenzen en te bereiken. Gangbare minima als de gebruiker niets opgeeft: slaapkamer ≥ 9 m² (kortste zijde ≥ 2,7 m), kleine badkamer met lavabo + douche ≥ 3,5 m² (≥ 1,7 × 2,0 m), kleine berging ≥ 1,5 m², draaitrap Ø ≥ 1,4 m vrije ruimte, gang/overloop ≥ 0,9 m breed, binnendeur 830-930 mm breed en 2015 mm hoog. Vermeld de gekozen maten in de samenvatting als aanname ("Aanname: …").
-11. Wat schema v1 NIET kan uitdrukken (o.a. trappen als object, draaitrappen, schuine plafonds en vrije hoogte onder een dak, knieschotten, dakkapellen, sanitair en meubilair, houtskelet- of andere opbouwen, isolatie, technieken): verzin GEEN velden, collecties of waarden die het schema niet kent. Meld het expliciet in "samenvatting" als "Niet modelleerbaar in schema v1: …" en doe het best mogelijke met de bestaande elementen, bijvoorbeeld: een ruimte "Trap (draaitrap Ø 1,6 m)" met functie trap; een niveau "Zolder" (id N…) met peil = bovenkant van de bovenste verdieping (peil + hoogte) en een beperkte hoogte, met ruimtes onder het bestaande dak; een ruimte "Badkamer (lavabo + douche)" met functie badkamer. Werk "onder het dak" op het zolderniveau; muren op dat niveau krijgen zo nodig een eigen (lagere) hoogte.`;
+9. "Afbreken", "slopen", "wegnemen" van een bestaand deel = status "afbraak" op ALLE bestaande muren, openingen, vloeren, daken, trappen en inrichting van dat deel — nooit "verwijderen". Gebruik daarvoor bij voorkeur afbraakZone met de ruimtes van dat deel. Herken een deel (bv. "de achterbouw", "garage 2", "de veranda") aan de ruimtenamen en hun contour in het ontwerp-JSON. Een muur die het deel scheidt van wat blijft, blijft "bestaand" (hij wordt de nieuwe buitengevel; afbraakZone laat hem staan en meldt hem); zijn openingen naar het afgebroken deel dicht je door ze op "afbraak" te zetten. Ruimtes van een afgebroken deel verwijder je (ruimtes hebben geen status) of je geeft ze de nieuwe indeling. Breek je zonder macro af, zet dan zelf elk element op "afbraak" (operatie "wijzigen").
+10. Programma van eisen (bv. "2 slaapkamers + kleine badkamer + berging + trap"): maak voor elke gevraagde ruimte een ruimte (met de juiste functie) plus de muren/openingen die nodig zijn om ze te begrenzen en te bereiken; een gevraagde trap als trap (trapPlaatsen), sanitair en meubels als inrichting (inrichtingPlaatsen) in hun ruimte. Leg het gevraagde programma vast met { "op": "ontwerp", "velden": "{\\"programma\\": …}" }: de app toetst het ontwerp eraan (voldoet / voldoet niet / onbekend) en toont dat bij de variant. Neem in het programma enkel eisen op die de gebruiker gaf: "minOppervlakte" of "hoogteGrens" alleen als de gebruiker een oppervlakte of hoogte noemt. Kies je zelf maten voor een voorstel, vermeld ze dan in de samenvatting als aanname ("Aanname: …"); het zijn vertrekmaten, geen normen.
+11. Wat schema v2 NIET kan uitdrukken (o.a. dakkapellen en dakramen, isolatie en opbouwen (houtskelet, …), technieken (verwarming, ventilatie, leidingen), trapleuningen, plafondhoogtes los van niveau of dak): verzin GEEN velden, collecties of waarden die het schema niet kent. Meld het expliciet in "samenvatting" als "Niet modelleerbaar: …" en doe het best mogelijke met de bestaande elementen. Trappen, zolders (schuine plafonds en vrije hoogte onder het dak), knieschoten (muren met een eigen hoogte), sanitair en meubels zijn WEL modelleerbaar: gebruik daarvoor trappen, niveaus met soort "zolder", muren met "hoogte" en inrichting.`;
 
 // ---------------------------------------------------------------- context en berichten
 
