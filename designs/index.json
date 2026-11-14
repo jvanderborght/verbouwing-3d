@@ -1,5 +1,6 @@
 {
   "ontwerpen": [
+    { "id": "bestaand", "naam": "Bestaande toestand (schatting)" },
     { "id": "voorbeeld", "naam": "Voorbeeldhuis" }
   ]
 }
