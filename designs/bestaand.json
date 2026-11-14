@@ -1,0 +1,258 @@
+{
+  "schemaVersie": 1,
+  "id": "bestaand",
+  "naam": "Bestaande toestand (schatting)",
+  "beschrijving": "Eerste SCHATTING van de bestaande toestand. Gegeven door de eigenaar: woningbreedte 7 m, perceelbreedte 14 m. Uit één straatfoto geschat (±10–20 %): 2 bouwlagen (3,0 m + 2,8 m, goot ≈ 5,8 m), zadeldak 45° met nok evenwijdig aan de straat, overstek ≈ 0,5 m (in het model rondom; op de foto enkel zeker aan de voorgevel), buitenmuren 300 mm, ramen en deur in voorgevel en linker zijgevel. Aangenomen (onbekend): diepte 9 m, positie van de woning op het perceel en perceeldiepte, achtergevel, binnenindeling, posities van de zijgevelramen in de diepte. Niet opgenomen: schoorsteen, zolderraam in de topgevel, rondboog van het smalle raam en de lagere zijvolumes links en rechts (open vraag aan de eigenaar). Zie docs/BESTAAND.md.",
+  "basis": null,
+  "perceel": {
+    "contour": [
+      [-3500, -8000],
+      [10500, -8000],
+      [10500, 30000],
+      [-3500, 30000]
+    ]
+  },
+  "niveaus": [
+    {
+      "id": "N0",
+      "naam": "Gelijkvloers",
+      "peil": 0,
+      "hoogte": 3000
+    },
+    {
+      "id": "N1",
+      "naam": "Verdieping",
+      "peil": 3000,
+      "hoogte": 2800,
+      "vloerdikte": 300
+    }
+  ],
+  "muren": [
+    {
+      "id": "M1",
+      "niveau": "N0",
+      "start": [150, 150],
+      "eind": [6850, 150],
+      "dikte": 300,
+      "status": "bestaand"
+    },
+    {
+      "id": "M2",
+      "niveau": "N0",
+      "start": [6850, 150],
+      "eind": [6850, 8850],
+      "dikte": 300,
+      "status": "bestaand"
+    },
+    {
+      "id": "M3",
+      "niveau": "N0",
+      "start": [6850, 8850],
+      "eind": [150, 8850],
+      "dikte": 300,
+      "status": "bestaand"
+    },
+    {
+      "id": "M4",
+      "niveau": "N0",
+      "start": [150, 8850],
+      "eind": [150, 150],
+      "dikte": 300,
+      "status": "bestaand"
+    },
+    {
+      "id": "M5",
+      "niveau": "N1",
+      "start": [150, 150],
+      "eind": [6850, 150],
+      "dikte": 300,
+      "status": "bestaand"
+    },
+    {
+      "id": "M6",
+      "niveau": "N1",
+      "start": [6850, 150],
+      "eind": [6850, 8850],
+      "dikte": 300,
+      "status": "bestaand"
+    },
+    {
+      "id": "M7",
+      "niveau": "N1",
+      "start": [6850, 8850],
+      "eind": [150, 8850],
+      "dikte": 300,
+      "status": "bestaand"
+    },
+    {
+      "id": "M8",
+      "niveau": "N1",
+      "start": [150, 8850],
+      "eind": [150, 150],
+      "dikte": 300,
+      "status": "bestaand"
+    }
+  ],
+  "openingen": [
+    {
+      "id": "O1",
+      "muur": "M1",
+      "type": "raam",
+      "positie": 550,
+      "breedte": 800,
+      "hoogte": 1700,
+      "borstwering": 600,
+      "status": "bestaand"
+    },
+    {
+      "id": "O2",
+      "muur": "M1",
+      "type": "deur",
+      "positie": 2400,
+      "breedte": 1000,
+      "hoogte": 2200,
+      "borstwering": 0,
+      "status": "bestaand"
+    },
+    {
+      "id": "O3",
+      "muur": "M1",
+      "type": "raam",
+      "positie": 3450,
+      "breedte": 400,
+      "hoogte": 2200,
+      "borstwering": 0,
+      "status": "bestaand"
+    },
+    {
+      "id": "O4",
+      "muur": "M1",
+      "type": "raam",
+      "positie": 4600,
+      "breedte": 2000,
+      "hoogte": 1700,
+      "borstwering": 600,
+      "status": "bestaand"
+    },
+    {
+      "id": "O5",
+      "muur": "M5",
+      "type": "raam",
+      "positie": 900,
+      "breedte": 1800,
+      "hoogte": 1400,
+      "borstwering": 900,
+      "status": "bestaand"
+    },
+    {
+      "id": "O6",
+      "muur": "M5",
+      "type": "raam",
+      "positie": 3850,
+      "breedte": 1800,
+      "hoogte": 1400,
+      "borstwering": 900,
+      "status": "bestaand"
+    },
+    {
+      "id": "O7",
+      "muur": "M4",
+      "type": "raam",
+      "positie": 4550,
+      "breedte": 600,
+      "hoogte": 1000,
+      "borstwering": 1000,
+      "status": "bestaand"
+    },
+    {
+      "id": "O8",
+      "muur": "M8",
+      "type": "raam",
+      "positie": 6250,
+      "breedte": 600,
+      "hoogte": 1200,
+      "borstwering": 800,
+      "status": "bestaand"
+    },
+    {
+      "id": "O9",
+      "muur": "M8",
+      "type": "raam",
+      "positie": 2750,
+      "breedte": 600,
+      "hoogte": 1200,
+      "borstwering": 800,
+      "status": "bestaand"
+    }
+  ],
+  "ruimtes": [
+    {
+      "id": "R1",
+      "niveau": "N0",
+      "naam": "Gelijkvloers (indeling onbekend)",
+      "functie": "overig",
+      "contour": [
+        [300, 300],
+        [6700, 300],
+        [6700, 8700],
+        [300, 8700]
+      ]
+    },
+    {
+      "id": "R2",
+      "niveau": "N1",
+      "naam": "Verdieping (indeling onbekend)",
+      "functie": "overig",
+      "contour": [
+        [300, 300],
+        [6700, 300],
+        [6700, 8700],
+        [300, 8700]
+      ]
+    }
+  ],
+  "vloeren": [
+    {
+      "id": "V1",
+      "niveau": "N0",
+      "contour": [
+        [0, 0],
+        [7000, 0],
+        [7000, 9000],
+        [0, 9000]
+      ],
+      "dikte": 300,
+      "status": "bestaand"
+    },
+    {
+      "id": "V2",
+      "niveau": "N1",
+      "contour": [
+        [0, 0],
+        [7000, 0],
+        [7000, 9000],
+        [0, 9000]
+      ],
+      "dikte": 300,
+      "status": "bestaand"
+    }
+  ],
+  "daken": [
+    {
+      "id": "D1",
+      "niveau": "N1",
+      "type": "zadel",
+      "contour": [
+        [0, 0],
+        [7000, 0],
+        [7000, 9000],
+        [0, 9000]
+      ],
+      "helling": 45,
+      "nokrichting": "x",
+      "overstek": 500,
+      "dikte": 300,
+      "status": "bestaand"
+    }
+  ]
+}

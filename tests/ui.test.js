@@ -14,7 +14,8 @@ import { zoekElement, niveauVanElement, elementUitPad, veldRijen } from '../js/u
 
 const voorbeeldTekst = readFileSync(new URL('../designs/voorbeeld.json', import.meta.url), 'utf8');
 const voorbeeld = () => JSON.parse(voorbeeldTekst);
-const indexTekst = readFileSync(new URL('../designs/index.json', import.meta.url), 'utf8');
+// Vaste test-index (los van designs/index.json, zodat nieuwe ontwerpen in de repo deze tests niet breken).
+const indexTekst = JSON.stringify({ ontwerpen: [{ id: 'voorbeeld', naam: 'Voorbeeldhuis' }] }, null, 2) + '\n';
 
 /** In-memory localStorage. `vol` simuleert QuotaExceededError, `kapot` een geblokkeerde opslag. */
 class NepStorage {
